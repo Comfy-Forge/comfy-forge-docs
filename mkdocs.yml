@@ -1,0 +1,53 @@
+site_name: comfy-env architecture
+site_description: Architecture overview and decision records for comfy-env
+site_url: https://pozzettiandrea.github.io/comfy-env-architecture-docs/
+repo_url: https://github.com/PozzettiAndrea/comfy-env
+repo_name: PozzettiAndrea/comfy-env
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Architecture: index.md
+  - Module inventory: modules.md
+  - Decision records:
+      - Index: adr/index.md
+      - "0001: Process isolation via persistent workers": adr/0001-process-isolation-via-persistent-subprocess-workers.md
+      - "0002: pixi as environment manager": adr/0002-pixi-as-environment-manager.md
+      - "0003: Two config files, two roles": adr/0003-two-config-files-with-two-roles.md
+      - "0004: Prebuilt CUDA wheel index": adr/0004-prebuilt-cuda-wheel-index.md
+      - "0005: Tiered tensor serialization": adr/0005-tiered-tensor-serialization.md
+      - "0006: Worker crosses the boundary as source text": adr/0006-worker-crosses-the-boundary-as-source-text.md
+      - "0007: Machine-wide workspace, per-env manifests": adr/0007-machine-wide-workspace-with-per-env-manifests.md
+      - "0008: Graceful degradation everywhere": adr/0008-graceful-degradation-everywhere.md
+      - "0009: Platform strategy": adr/0009-platform-strategy.md
