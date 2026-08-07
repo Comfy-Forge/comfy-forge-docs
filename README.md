@@ -11,12 +11,15 @@ diagrams are Mermaid, so they also render directly on GitHub.
 
 ```bash
 python -m venv .venv
-.venv/Scripts/pip install mkdocs-material     # Windows
-# .venv/bin/pip install mkdocs-material       # Unix
-.venv/Scripts/mkdocs serve
+.venv/Scripts/pip install "mkdocs-material==9.*" "mkdocs<2"   # Windows
+# .venv/bin/pip install "mkdocs-material==9.*" "mkdocs<2"     # Unix
+serve            # default port 8001
+serve 8080       # or pick one
 ```
 
-Then open http://127.0.0.1:8000
+`serve.cmd` wraps `mkdocs serve --dev-addr 127.0.0.1:<port>`; plain
+`mkdocs serve` also defaults to 8001 via `dev_addr` in `mkdocs.yml`.
+Then open http://127.0.0.1:8001
 
 ## Publish
 
