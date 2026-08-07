@@ -3,7 +3,7 @@ site_description: Architecture overview and decision records for comfy-env
 site_url: https://pozzettiandrea.github.io/comfy-env-architecture-docs/
 repo_url: https://github.com/PozzettiAndrea/comfy-env
 repo_name: PozzettiAndrea/comfy-env
-dev_addr: 127.0.0.1:8001
+dev_addr: 0.0.0.0:8001
 
 theme:
   name: material
