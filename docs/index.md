@@ -4,9 +4,16 @@
 management and automatic CUDA wheel resolution for ComfyUI custom nodes
 (~12,000 lines of Python under `src/comfy_env/`).
 
-## The two problems it solves
+comfy-env solves two problems: **environment isolation** (nodes with
+conflicting dependencies each get their own Python environment, transparently)
+and **CUDA wheels** (prebuilt CUDA binaries resolved for the user's exact
+machine -- no compiler, no CUDA toolkit). Both are expanded
+[below](#the-two-problems-environment-isolation-and-cuda-wheels), after a
+short ComfyUI primer.
 
-**ComfyUI context, for newcomers:** ComfyUI loads every custom node pack into
+## ComfyUI background, for newcomers
+
+ComfyUI loads every custom node pack into
 one shared Python process with one shared environment. A node pack is a
 directory under `custom_nodes/` whose `__init__.py` exports
 `NODE_CLASS_MAPPINGS`; ComfyUI also runs an optional `install.py` (at install
@@ -108,23 +115,52 @@ isolation possible: `register_nodes()` reads `INPUT_TYPES`/`RETURN_TYPES`
 metadata out of a subprocess and synthesizes proxy classes with the same
 shape, so ComfyUI cannot tell a proxied node from a local one.
 
-### Where it breaks
+## The two problems: environment isolation and CUDA wheels
 
-That shared environment breaks in two ways:
+### Environment isolation
 
-1. **Dependency conflicts.** Node A needs torch 2.4, node B needs torch 2.8;
-   two packages bundle conflicting native libraries (libomp, CUDA runtimes,
-   cv2); a node needs a different Python version entirely.
-   **Solution: process isolation.** Nodes that declare a `comfy-env.toml` run
-   in their own pixi-managed environment as persistent subprocess workers,
-   transparently proxied so ComfyUI never notices.
-2. **CUDA wheel combinatorics.** Packages like flash-attn, nvdiffrast,
-   pytorch3d ship wheels compiled per Python ABI x torch version x CUDA
-   version x OS x GPU architecture.
-   **Solution: a prebuilt wheel index** at
-   [cuda-wheels](https://github.com/PozzettiAndrea/cuda-wheels), resolved
-   automatically for the user's exact combination -- no CUDA toolkit or
-   compiler needed.
+One shared environment for every pack breaks in predictable ways:
+
+- **Conflicting Python deps** -- node A needs torch 2.4, node B needs
+  torch 2.8; whichever installs last wins, the other breaks.
+- **Conflicting native libraries** -- two packages bundle their own libomp,
+  CUDA runtimes, or cv2; loading both into one process corrupts state or
+  segfaults.
+- **Wrong interpreter entirely** -- a node needs a different Python version
+  than ComfyUI runs (Blender's `bpy` wants 3.11, pymesh2 wants 3.9).
+- **Conda-only deps** -- things like `ffmpeg`, CGAL, or mesa simply do not
+  exist on PyPI and cannot be pip-installed into ComfyUI's venv at all.
+
+comfy-env's answer is **process isolation**: any subdirectory that declares a
+`comfy-env.toml` gets its own pixi-managed environment -- separate
+interpreter, conda packages, pip packages -- and its nodes execute in a
+persistent subprocess worker using that interpreter. The parent synthesizes
+proxy classes with the standard node shape (see the anatomy above), so to
+ComfyUI -- and to the user wiring a workflow -- nothing changed.
+([ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md),
+[ADR-0002](adr/0002-pixi-as-environment-manager.md))
+
+### CUDA wheels
+
+Modern CV/ML packs depend on CUDA-compiled packages: flash-attn, nvdiffrast,
+pytorch3d, gsplat, nunchaku. Every such wheel is compiled for one exact
+combination of:
+
+- Python ABI (3.10 / 3.11 / 3.12 / 3.13)
+- torch version (2.4 ... 2.11)
+- CUDA version (12.x / 13.0)
+- OS (Windows / Linux)
+- GPU architecture (SM 8.0+)
+
+Upstream projects publish only a fraction of that matrix, and building from
+source needs a CUDA toolkit plus a C++ compiler -- something end users do not
+have. comfy-env's answer is a **prebuilt wheel index**:
+[cuda-wheels](https://github.com/PozzettiAndrea/cuda-wheels). Packages listed
+under `[cuda]` in the config are resolved at install time against the user's
+detected GPU/torch/Python combination and installed as ready-made wheels --
+no compiler, no CUDA toolkit, with a Releases-API fallback when the index is
+unreachable.
+([ADR-0004](adr/0004-prebuilt-cuda-wheel-index.md))
 
 ## The three-call contract
 
