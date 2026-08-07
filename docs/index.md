@@ -12,6 +12,70 @@ directory under `custom_nodes/` whose `__init__.py` exports
 `NODE_CLASS_MAPPINGS`; ComfyUI also runs an optional `install.py` (at install
 time) and `prestartup_script.py` (before the server boots) per pack.
 
+### Anatomy of a node pack
+
+Using [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) (a popular
+real-world pack) as the example:
+
+```
+ComfyUI/custom_nodes/
+`-- ComfyUI-KJNodes/
+    +-- __init__.py             <- THE contract: exports NODE_CLASS_MAPPINGS,
+    |                              NODE_DISPLAY_NAME_MAPPINGS, WEB_DIRECTORY
+    +-- requirements.txt        <- PyPI deps, pip-installed into the ONE shared env
+    +-- pyproject.toml          <- Comfy Registry metadata (name, version, publisher)
+    +-- nodes/                  <- the node classes, grouped by topic
+    |   +-- nodes.py               (constants, scheduling, utils ...)
+    |   +-- image_nodes.py         (ColorMatch, ImageResizeKJ, ...)
+    |   +-- curve_nodes.py, mask_nodes.py, batchcrop_nodes.py, ...
+    +-- web/                    <- JS extensions served to the browser UI
+    |                              (pointed at by WEB_DIRECTORY = "./web")
+    +-- fonts/, docs/, example_workflows/, kjweb_async/   <- assets
+```
+
+At startup ComfyUI imports each pack's `__init__.py` and reads two dicts:
+
+```python
+# __init__.py (KJNodes, condensed)
+from .nodes.nodes import INTConstant, Sleep, WidgetToString, ...
+from .nodes.image_nodes import ColorMatch, ImageResizeKJ, ...
+
+NODE_CLASS_MAPPINGS = {"INTConstant": INTConstant, ...}   # id -> class
+NODE_DISPLAY_NAME_MAPPINGS = {"INTConstant": "INT Constant", ...}
+WEB_DIRECTORY = "./web"                                   # optional JS for the UI
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
+```
+
+Each node is a plain class with a well-known shape -- this is the whole
+interface ComfyUI needs (real node, verbatim from `nodes/nodes.py`):
+
+```python
+class INTConstant:
+    @classmethod
+    def INPUT_TYPES(s):                      # -> input sockets/widgets in the UI
+        return {"required": {
+            "value": ("INT", {"default": 0, "min": -0xffffffffffffffff,
+                              "max": 0xffffffffffffffff}),
+        }}
+    RETURN_TYPES = ("INT",)                  # -> output socket types
+    RETURN_NAMES = ("value",)                # -> output socket labels
+    FUNCTION = "get_value"                   # -> method ComfyUI calls to execute
+    CATEGORY = "KJNodes/constants"           # -> where it sits in the node menu
+
+    def get_value(self, value):              # the actual work
+        return (value,)
+```
+
+Note what KJNodes does **not** have: no `install.py`, no
+`prestartup_script.py` -- those hooks are optional, and a pack whose deps fit
+the shared env never needs them. That "well-known class shape" is also what
+makes comfy-env's isolation possible: `register_nodes()` reads
+`INPUT_TYPES`/`RETURN_TYPES` metadata out of a subprocess and synthesizes
+proxy classes with the same shape, so ComfyUI cannot tell a proxied node from
+a local one.
+
+### Where it breaks
+
 That shared environment breaks in two ways:
 
 1. **Dependency conflicts.** Node A needs torch 2.4, node B needs torch 2.8;
