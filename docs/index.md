@@ -66,13 +66,47 @@ class INTConstant:
         return (value,)
 ```
 
-Note what KJNodes does **not** have: no `install.py`, no
-`prestartup_script.py` -- those hooks are optional, and a pack whose deps fit
-the shared env never needs them. That "well-known class shape" is also what
-makes comfy-env's isolation possible: `register_nodes()` reads
-`INPUT_TYPES`/`RETURN_TYPES` metadata out of a subprocess and synthesizes
-proxy classes with the same shape, so ComfyUI cannot tell a proxied node from
-a local one.
+### Lifecycle hooks and who runs them
+
+Every file besides `__init__.py` is optional, and different actors run them
+at different times:
+
+| File | Run by | When | Logic |
+|------|--------|------|-------|
+| `requirements.txt` | **ComfyUI-Manager** (not core) | install / update | pip-installed line by line |
+| `install.py` | **ComfyUI-Manager** (not core) | install / update, **after** requirements | run with `sys.executable` |
+| `prestartup_script.py` | **ComfyUI core** | every launch, before the server boots | imported and executed (`main.py:execute_prestartup_script`) |
+| `__init__.py` | **ComfyUI core** | every launch | imported; `NODE_CLASS_MAPPINGS` read |
+
+The install-time order is defined in Manager's `execute_install_script`
+(`glob/manager_core.py`): if `requirements.txt` exists it is pip-installed
+first, *then* `install.py` is executed if present. ComfyUI core never runs
+either -- installing by plain `git clone` skips both, which is why packs must
+tolerate missing deps at import time.
+
+Real packs cover the whole spectrum of these hooks:
+
+- **No `requirements.txt` at all** --
+  [cg-use-everywhere](https://github.com/chrisgoringe/cg-use-everywhere)
+  (the most-downloaded pack on the Comfy Registry, ~1.9M downloads) and
+  [ComfyUI-Custom-Scripts](https://github.com/pythongosssss/ComfyUI-Custom-Scripts)
+  ship only Python-stdlib + frontend JS: nothing to install, nothing that can
+  conflict.
+- **`requirements.txt` only** -- KJNodes, above; the common case.
+- **`prestartup_script.py`** --
+  [ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager) itself uses
+  it to execute its queued ("lazy") install scripts and set up log capture
+  before the server boots;
+  [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) ships one too.
+  This hook exists precisely because it runs *before* anything imports --
+  the only moment you can still fix the environment.
+- **All three** -- comfy-env packs, which occupy each hook with one line
+  (the three-call contract below).
+
+That "well-known class shape" of a node is also what makes comfy-env's
+isolation possible: `register_nodes()` reads `INPUT_TYPES`/`RETURN_TYPES`
+metadata out of a subprocess and synthesizes proxy classes with the same
+shape, so ComfyUI cannot tell a proxied node from a local one.
 
 ### Where it breaks
 
