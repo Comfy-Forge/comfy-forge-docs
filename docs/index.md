@@ -17,10 +17,14 @@ after a short ComfyUI primer.
 Vanilla ComfyUI loads every custom node pack into
 one shared Python process with one shared environment. A node pack is a
 directory under `custom_nodes/` whose `__init__.py` exports
-`NODE_CLASS_MAPPINGS`. At install time, the standard installation flow
-(ComfyUI-Manager, nowadays bundled with ComfyUI -- at least the Desktop
-version) first pip-installs the
-pack's `requirements.txt` if present, then runs its `install.py` if present.
+`NODE_CLASS_MAPPINGS`.
+
+At install time, the standard installation flow (ComfyUI-Manager, nowadays
+bundled with ComfyUI -- at least the Desktop version):
+
+- first pip-installs the pack's `requirements.txt`, if present
+- then runs its `install.py`, if present
+
 At startup time there is also a per-pack hook: ComfyUI itself executes each
 pack's `prestartup_script.py` before the server boots.
 
