@@ -5,11 +5,12 @@ management and automatic CUDA wheel resolution for ComfyUI custom nodes
 (~12,000 lines of Python under `src/comfy_env/`).
 
 comfy-env solves two problems: **environment isolation** (nodes with
-conflicting dependencies each get their own Python environment, transparently)
-and **CUDA wheels** (prebuilt CUDA binaries resolved for the user's exact
-machine -- no compiler, no CUDA toolkit). Both are expanded
-[below](#the-two-problems-environment-isolation-and-cuda-wheels), after a
-short ComfyUI primer.
+conflicting dependencies each get their own Python environment,
+transparently) and **CUDA / prebuilt wheels / conda packages** (dependencies
+pip alone cannot deliver, resolved for the user's exact machine -- no
+compiler, no CUDA toolkit). Both are expanded
+[below](#the-two-problems-environment-isolation-and-cudaconda-packages),
+after a short ComfyUI primer.
 
 ## ComfyUI background, for newcomers
 
@@ -120,7 +121,7 @@ isolation possible: `register_nodes()` reads `INPUT_TYPES`/`RETURN_TYPES`
 metadata out of a subprocess and synthesizes proxy classes with the same
 shape, so ComfyUI cannot tell a proxied node from a local one.
 
-## The two problems: environment isolation and CUDA wheels
+## The two problems: environment isolation and CUDA/conda packages
 
 ### Environment isolation
 
@@ -133,8 +134,6 @@ One shared environment for every pack breaks in predictable ways:
   segfaults.
 - **Wrong interpreter entirely** -- a node needs a different Python version
   than ComfyUI runs (Blender's `bpy` wants 3.11, pymesh2 wants 3.9).
-- **Conda-only deps** -- things like `ffmpeg`, CGAL, or mesa simply do not
-  exist on PyPI and cannot be pip-installed into ComfyUI's venv at all.
 
 comfy-env's answer is **process isolation**: any subdirectory that declares a
 `comfy-env.toml` gets its own pixi-managed environment -- separate
@@ -145,11 +144,15 @@ ComfyUI -- and to the user wiring a workflow -- nothing changed.
 ([ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md),
 [ADR-0002](adr/0002-pixi-as-environment-manager.md))
 
-### CUDA wheels
+### CUDA, prebuilt wheels, and conda packages
 
-Modern CV/ML packs depend on CUDA-compiled packages: flash-attn, nvdiffrast,
-pytorch3d, gsplat, nunchaku. Every such wheel is compiled for one exact
-combination of:
+The second problem is delivering the dependencies that `pip install` alone
+cannot: CUDA-compiled packages that need matching binaries, and packages that
+do not exist on PyPI at all.
+
+**CUDA packages -> prebuilt wheels.** Modern CV/ML packs depend on
+CUDA-compiled packages: flash-attn, nvdiffrast, pytorch3d, gsplat, nunchaku.
+Every such wheel is compiled for one exact combination of:
 
 - Python ABI (3.10 / 3.11 / 3.12 / 3.13)
 - torch version (2.4 ... 2.11)
@@ -166,6 +169,15 @@ detected GPU/torch/Python combination and installed as ready-made wheels --
 no compiler, no CUDA toolkit, with a Releases-API fallback when the index is
 unreachable.
 ([ADR-0004](adr/0004-prebuilt-cuda-wheel-index.md))
+
+**Conda packages.** Some dependencies -- `ffmpeg`, `av`'s native half, CGAL,
+Blender's `bpy`, mesa -- are not on PyPI in any usable form; they live on
+conda-forge. This is exactly why comfy-env generates **pixi** manifests:
+pixi speaks conda-forge and PyPI in the same file with one lockfile, so a
+`comfy-env.toml` can declare conda packages, pip packages, and CUDA wheels
+side by side and have them resolved together.
+([ADR-0002](adr/0002-pixi-as-environment-manager.md),
+[ADR-0003](adr/0003-two-config-files-with-two-roles.md))
 
 ## The three-call contract
 
