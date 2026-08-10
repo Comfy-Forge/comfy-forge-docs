@@ -157,9 +157,16 @@ The second problem is delivering the dependencies that `pip install` alone
 cannot: CUDA-compiled packages that need matching binaries, and packages that
 do not exist on PyPI at all.
 
-**Conda packages.** Some dependencies -- `ffmpeg`, `av`'s native half, CGAL,
-Blender's `bpy`, mesa -- are not on PyPI in any usable form; they live on
-conda-forge. This is exactly why comfy-env generates **pixi** manifests.
+**Conda packages.** A small, enumerable tail of dependencies cannot come
+from PyPI: non-Python system libraries with no wheel form (the headless
+GL/X stack -- mesalib, libglu, libglvnd; `pythonocc-core`), copyleft native
+libraries that cannot be legally vendored into wheels (CGAL, Blender's
+`bpy` -- GPL: a wheel fuses the library into a derivative artifact, while
+conda keeps the boundary at install-time aggregation), and root-free native
+toolchains (compilers, CUDA dev packages for install-time builds). See
+[ADR-0002](adr/0002-pixi-as-environment-manager.md) for the full
+three-pillar argument. This is exactly why comfy-env generates **pixi**
+manifests.
 pixi is like uv for conda: a fast Rust-based package manager (it actually
 uses uv under the hood for the PyPI side) that speaks conda-forge and PyPI
 in the same file with one lockfile -- so a `comfy-env.toml` can declare

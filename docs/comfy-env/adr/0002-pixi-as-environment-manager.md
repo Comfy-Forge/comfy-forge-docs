@@ -4,15 +4,46 @@
 
 ## Context
 
-Isolated node environments must be able to use ComfyUI functions and return
-types, which drags in packages like `av` and `ffmpeg` -- native dependencies
-that **cannot be installed from PyPI**. The README states it bluntly: "Using
-conda CANNOT be avoided."
+Conda cannot be avoided -- but for precise, enumerable reasons, not "some
+packages aren't on PyPI." A fleet-wide audit (30 env manifests across the
+maintainer's packs, 2026-08) found the genuinely conda-only surface is 14
+package names across 8 repos, every one attributable to one of **three
+pillars**:
+
+1. **Non-Python system libraries with no wheel form.** Wheels package
+   Python distributions; these are not Python. The headless GL/X stack
+   (`mesalib`, `libglu`, `libglvnd`, `xorg-libsm`), `libstdcxx-ng`, and
+   `pythonocc-core` (no PyPI distribution exists at any version). It also
+   captures coupling cases: PanoPack needs conda `vtk` *because* conda
+   VTK's RPATH reaches `$CONDA_PREFIX/lib` to dlopen conda's `libOSMesa` --
+   a PyPI vtk wheel structurally cannot.
+2. **Copyleft native libraries that cannot be legally vendored into
+   wheels.** `cgal` and `bpy` are GPL. The wheel model vendors the native
+   library INTO the artifact, fusing a GPL derivative work -- forcing
+   copyleft or a commercial license onto the wheel and its consumers.
+   Conda's separate-package model keeps the copyleft boundary at
+   install-time aggregation by the *user's* package manager, with
+   conda-forge carrying source-availability compliance.
+3. **Root-free delivery of native toolchains.** Install-time compilation on
+   end-user machines needs `c-compiler`/`cxx-compiler` and CUDA dev
+   packages (`cuda-nvcc`, `cuda-cccl`, `cuda-cudart-dev` -- e.g. VoMP
+   building `diff_gaussian_rasterization` at install time), plus custom
+   native builds (`occt-rt`). conda-forge is the only channel delivering
+   these per-user, solver-managed, without admin rights.
+
+Everything outside the three pillars -- `av`, `ffmpeg`, scipy, pillow,
+trimesh, and the rest of the ordinary scientific stack -- has official PyPI
+wheels and should be declared as pip deps, not conda deps. (Earlier versions
+of this ADR cited `av`/`ffmpeg` as the motivating examples; that was wrong
+-- PyAV has shipped bundled-FFmpeg wheels since v9, and ComfyUI itself
+pip-installs `av`. The conclusion stood; the evidence didn't.)
 
 Alternatives:
 
-- **venv + pip/uv only** -- cannot provide ffmpeg, CGAL, Blender's `bpy`,
-  mesa, and similar conda-forge-only native stacks.
+- **venv + pip/uv only** -- cannot deliver any of the three pillars: no
+  wheel form exists for pillar 1, licensing forbids the vendored-wheel
+  model for pillar 2, and PyPI has no solver-managed native-toolchain
+  story for pillar 3.
 - **conda/mamba directly** -- solves the native problem but PyPI interop is
   bolted on, solves are slower, and there is no single-manifest,
   single-lockfile story across both ecosystems.
@@ -34,8 +65,7 @@ Supporting choices:
   it generates `pixi.toml` files rather than driving a package API. Unknown
   keys in `comfy-env.toml` are intended to pass through to the generated
   manifest untouched (in v0.4 only an allowlist actually does -- see
-  [ADR-0003](0003-two-config-files-with-two-roles.md))
-  ([ADR-0003](0003-two-config-files-with-two-roles.md)), so pixi's full
+  [ADR-0003](0003-two-config-files-with-two-roles.md)), so pixi's full
   feature set stays reachable without comfy-env schema changes.
 - uv is also used directly for main-env pip work (`install/helpers.py`
   `_find_uv()`), with plain pip as fallback.
