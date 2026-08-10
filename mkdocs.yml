@@ -1,8 +1,8 @@
-site_name: comfy-env architecture
-site_description: Architecture overview and decision records for comfy-env
-site_url: https://pozzettiandrea.github.io/comfy-env-architecture-docs/
-repo_url: https://github.com/PozzettiAndrea/comfy-env
-repo_name: PozzettiAndrea/comfy-env
+site_name: comfy-forge documentation
+site_description: Architecture docs and decision records for comfy-env, comfy-test, and cuda-wheels
+site_url: https://pozzettiandrea.github.io/comfy-forge-docs/
+repo_url: https://github.com/PozzettiAndrea/comfy-forge-docs
+repo_name: PozzettiAndrea/comfy-forge-docs
 dev_addr: 0.0.0.0:8001
 
 theme:
@@ -21,6 +21,7 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.top
     - toc.follow
@@ -39,16 +40,22 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
 
 nav:
-  - Architecture: index.md
-  - Module inventory: modules.md
-  - Decision records:
-      - Index: adr/index.md
-      - "0001: Process isolation via persistent workers": adr/0001-process-isolation-via-persistent-subprocess-workers.md
-      - "0002: pixi as environment manager": adr/0002-pixi-as-environment-manager.md
-      - "0003: Two config files, two roles": adr/0003-two-config-files-with-two-roles.md
-      - "0004: Prebuilt CUDA wheel index": adr/0004-prebuilt-cuda-wheel-index.md
-      - "0005: Tiered tensor serialization": adr/0005-tiered-tensor-serialization.md
-      - "0006: Worker crosses the boundary as source text": adr/0006-worker-crosses-the-boundary-as-source-text.md
-      - "0007: Machine-wide workspace, per-env manifests": adr/0007-machine-wide-workspace-with-per-env-manifests.md
-      - "0008: Graceful degradation everywhere": adr/0008-graceful-degradation-everywhere.md
-      - "0009: Platform strategy": adr/0009-platform-strategy.md
+  - Home: index.md
+  - comfy-env:
+      - Architecture: comfy-env/index.md
+      - Module inventory: comfy-env/modules.md
+      - Decision records:
+          - Index: comfy-env/adr/index.md
+          - "0001: Process isolation via persistent workers": comfy-env/adr/0001-process-isolation-via-persistent-subprocess-workers.md
+          - "0002: pixi as environment manager": comfy-env/adr/0002-pixi-as-environment-manager.md
+          - "0003: Two config files, two roles": comfy-env/adr/0003-two-config-files-with-two-roles.md
+          - "0004: Prebuilt CUDA wheel index": comfy-env/adr/0004-prebuilt-cuda-wheel-index.md
+          - "0005: Tiered tensor serialization": comfy-env/adr/0005-tiered-tensor-serialization.md
+          - "0006: Worker crosses the boundary as source text": comfy-env/adr/0006-worker-crosses-the-boundary-as-source-text.md
+          - "0007: Machine-wide workspace, per-env manifests": comfy-env/adr/0007-machine-wide-workspace-with-per-env-manifests.md
+          - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md
+          - "0009: Platform strategy": comfy-env/adr/0009-platform-strategy.md
+  - comfy-test:
+      - Overview: comfy-test/index.md
+  - cuda-wheels:
+      - Overview: cuda-wheels/index.md
