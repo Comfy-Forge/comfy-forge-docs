@@ -122,13 +122,6 @@ Real packs cover the whole spectrum of these hooks:
   [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) ships one too.
   This hook exists precisely because it runs *before* anything imports --
   the only moment you can still fix the environment.
-- **All three** -- comfy-env packs, which occupy each hook with one line
-  (the three-call contract below).
-
-That "well-known class shape" of a node is also what makes comfy-env's
-isolation possible: `register_nodes()` reads `INPUT_TYPES`/`RETURN_TYPES`
-metadata out of a subprocess and synthesizes proxy classes with the same
-shape, so ComfyUI cannot tell a proxied node from a local one.
 
 ## The two problems: environment isolation and CUDA/conda packages
 
