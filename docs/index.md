@@ -140,7 +140,9 @@ One shared environment for every pack breaks in predictable ways:
 comfy-env's answer is **process isolation**: any subdirectory that declares a
 `comfy-env.toml` gets its own pixi-managed environment -- separate
 interpreter, conda packages, pip packages -- and its nodes execute in a
-persistent subprocess worker using that interpreter. The parent synthesizes
+persistent subprocess worker using that interpreter.
+
+The parent synthesizes
 proxy classes with the standard node shape (see the anatomy above), so to
 ComfyUI -- and to the user wiring a workflow -- nothing changed.
 ([ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md),
