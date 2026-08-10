@@ -76,4 +76,8 @@ Supporting choices:
 - Env materialization is fast (uv-backed) and reproducible.
 - comfy-env depends on GitHub availability to bootstrap pixi on first run.
 - Anything pixi cannot express is out of scope by construction; in practice
-  the passthrough design has kept the config schema tiny.
+  the passthrough design has kept the config schema tiny. The one painful
+  instance -- CUDA wheels needing no-deps installs, which pixi cannot
+  express -- forces a post-pixi uv side-channel; the exit paths (pixi
+  PR #5464, or conda-forge-native publishing once torch coverage allows)
+  are tracked in [The two-system problem](../two-system-problem.md).
