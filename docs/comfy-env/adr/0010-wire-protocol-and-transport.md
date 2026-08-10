@@ -119,6 +119,13 @@ transport as built:
   properties (pending map, no-pickle transport, registry) are adopted as
   invariants; its event-loop implementation is not.
 
+## Security posture
+
+Deferred by explicit decision -- see
+[ADR-0011](0011-isolation-before-sandboxing.md). Item 8 above
+(replace cross-version pickle with explicit schemas) doubles as the
+transport-hardening prerequisite for that later work.
+
 ## Consequences
 
 - Until v2 items 1-2 land, the transport's safety rests on the install-time

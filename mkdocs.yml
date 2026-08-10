@@ -68,6 +68,7 @@ nav:
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md
           - "0009: Platform strategy": comfy-env/adr/0009-platform-strategy.md
           - "0010: Wire protocol and transport": comfy-env/adr/0010-wire-protocol-and-transport.md
+          - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md
   - comfy-test:
       - Overview: comfy-test/index.md
   - cuda-wheels:
