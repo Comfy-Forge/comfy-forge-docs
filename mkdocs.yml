@@ -27,6 +27,12 @@ theme:
     - toc.follow
     - content.code.copy
 
+extra_javascript:
+  - javascripts/mermaid-zoom.js
+
+extra_css:
+  - stylesheets/mermaid-zoom.css
+
 markdown_extensions:
   - admonition
   - tables
@@ -47,6 +53,7 @@ nav:
           - "install()": comfy-env/install.md
           - "setup_env()": comfy-env/setup-env.md
           - "register_nodes()": comfy-env/register-nodes.md
+      - Config reference: comfy-env/config.md
       - Accelerator declarations: comfy-env/accelerators.md
       - Module inventory: comfy-env/modules.md
       - Decision records:

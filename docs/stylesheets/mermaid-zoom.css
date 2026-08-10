@@ -1,0 +1,65 @@
+/* Mermaid diagrams are clickable */
+.mermaid svg,
+pre.mermaid svg {
+  cursor: zoom-in;
+}
+
+.mermaid-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(10, 12, 16, 0.92);
+  overflow: hidden;
+  cursor: grab;
+}
+
+.mermaid-zoom-overlay.dragging {
+  cursor: grabbing;
+}
+
+.mermaid-zoom-stage {
+  position: absolute;
+  inset: 4vh 4vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center center;
+  background: var(--md-default-bg-color, #fff);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.mermaid-zoom-stage svg {
+  max-height: 100%;
+}
+
+.mermaid-zoom-close {
+  position: fixed;
+  top: 0.75rem;
+  right: 1rem;
+  z-index: 10000;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mermaid-zoom-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.mermaid-zoom-hint {
+  position: fixed;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.7rem;
+  font-family: var(--md-text-font-family, sans-serif);
+  pointer-events: none;
+}

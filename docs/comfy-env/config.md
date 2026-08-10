@@ -1,0 +1,140 @@
+# Config reference: the two TOML files
+
+Two files, two roles ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)):
+`comfy-env-root.toml` at the pack root manages node dependencies and
+pack-wide switches and **never touches the Python environment**;
+`comfy-env.toml` in any subdirectory gives that subdirectory its own
+isolated pixi environment -- the file's *presence* is the isolation switch.
+
+Parsing lives in `config/__init__.py` (`parse_config`). One rule to know:
+**unknown keys are not errors** -- anything comfy-env doesn't recognize
+passes through verbatim into the generated `pixi.toml`, so pixi's full
+manifest surface (channels, targets, system-requirements, activation...)
+stays reachable without comfy-env schema changes.
+
+## `comfy-env-root.toml` (pack root)
+
+```toml
+# ComfyUI-MyPack/comfy-env-root.toml
+
+# Other ComfyUI node packs this pack depends on. Installed by install():
+# cloned from GitHub (git, zip fallback) or downloaded from the Comfy
+# Registry into custom_nodes/, then their requirements.txt + install.py run.
+[node_reqs]
+# short form: name = github URL
+ComfyUI-GeometryPack = "https://github.com/PozzettiAndrea/ComfyUI-GeometryPack"
+# table form: pin a tag/branch/commit, or install from the Comfy Registry
+OtherPack = { github = "https://github.com/x/OtherPack", tag = "v1.2.0" }
+RegistryPack = { registry = "registry-pack-id", version = "1.0.3" }
+
+# Per-pack overrides of comfy-env feature flags (short keys map to
+# COMFY_ENV_* env vars; env vars still win when set explicitly).
+[settings]
+isolate = true            # COMFY_ENV_ISOLATE      (default true)
+install_isolated = true   # COMFY_ENV_INSTALL_ISOLATED (default true)
+auto_install = false      # COMFY_ENV_AUTO_INSTALL (default false)
+pool_ipc = false          # COMFY_ENV_POOL_IPC     (default false)
+worker_vram_budget = 0    # COMFY_ENV_WORKER_VRAM_BUDGET (GB, 0 = auto)
+
+# Conda packages needed by the MAIN (host) environment's template env --
+# merged across every pack's root file at workspace install time.
+[dependencies]
+ffmpeg = "*"
+```
+
+Notes:
+
+- `[node_reqs]` and `[settings]` are the load-bearing sections: `install()`
+  consumes the first, both `install()` and `register_nodes()` consult the
+  second.
+- `[apt]` / `[brew]` are accepted but **currently parsed and discarded** --
+  treat them as reserved.
+- The root file never creates an isolation env; workspace discovery looks
+  only for `comfy-env.toml` files.
+
+## `comfy-env.toml` (any subdirectory)
+
+The real-world reference is
+[GeometryPack's `nodes/comfy-env.toml`](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
+-- one env serving 161 nodes. Condensed and annotated:
+
+```toml
+# ComfyUI-MyPack/nodes/comfy-env.toml
+# Presence of this file = this directory runs in its own isolated env,
+# named <plugin>-<subdir> ("mypack-nodes"), materialized machine-wide.
+
+# Interpreter for the env (defaults to the host's python)
+python = "3.11"
+
+# CUDA-compiled packages, resolved from the cuda-wheels index at install
+# time for this machine's exact (cuda, torch, python) combo. Skipped
+# entirely on machines with no NVIDIA GPU.
+[cuda]
+packages = ["cumesh", "faithc-aot"]
+
+# --- everything below is pixi passthrough (goes into pixi.toml verbatim) ---
+
+# Conda packages (this is WHY pixi: these do not exist on PyPI)
+[dependencies]
+cgal = "*"
+igl = "*"
+trimesh = "*"
+bpy = { version = "*", channel = "pozzettiandrea" }
+
+# Extra conda channels
+[workspace]
+channels = ["conda-forge", "pozzettiandrea"]
+
+# PyPI packages (installed by uv under pixi, same lockfile)
+[pypi-dependencies]
+pymeshfix = "*"
+xatlas = "*"
+
+# Platform-specific deps, pixi target syntax
+[target.linux-64.dependencies]
+mesalib = "*"
+libglu = "*"
+
+[target.win-64.pypi-dependencies]
+msvc-runtime = "*"
+
+# --- comfy-env-consumed sections ---
+
+# Environment variables for this env's workers and metadata scans
+[env_vars]
+KMP_DUPLICATE_LIB_OK = "TRUE"
+
+# Worker tuning
+[options]
+health_check_timeout = 5.0   # seconds; per-env worker ping timeout
+
+# Per-env settings overrides (same keys as the root [settings])
+[settings]
+pool_ipc = false
+```
+
+Notes:
+
+- **Env naming**: `<plugin>-<subdir>`, `ComfyUI-`/`comfyui_` prefix
+  stripped, lowercased, non-`[a-z0-9-]` collapsed to dashes
+  (`comfyui-sam3/nodes` -> `sam3-nodes`). On disk the directory is
+  additionally ABI-qualified (`sam3-nodes-py313-torch2-10-cu128`) so
+  different stacks never share an env
+  ([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)).
+- `[cuda]` packages are **not** written into `pixi.toml` -- they install in
+  a post-pixi `uv pip install --no-deps` pass (pixi cannot express no-deps;
+  see [install()](install.md)). They also define the package list for the
+  [accelerator import rule](accelerators.md).
+- One pack can mix modes: `nodes/main/` with no config imports in-process,
+  `nodes/cgal/` with a config gets its own env.
+- Minimal useful file: an **empty** `comfy-env.toml` already gives the
+  directory its own interpreter and env; add sections as needed.
+
+## Real-world examples
+
+- [ComfyUI-TRELLIS2](https://github.com/PozzettiAndrea/ComfyUI-TRELLIS2) --
+  root file only: CUDA wheel resolution + node deps, no isolation env.
+- [ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
+  -- both files; the heavyweight conda + CUDA isolation env.
+- [cookiecutter-comfy-extension](https://github.com/PozzettiAndrea/cookiecutter-comfy-extension)
+  -- scaffold with the minimal template.

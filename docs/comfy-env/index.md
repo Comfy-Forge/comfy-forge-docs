@@ -265,9 +265,13 @@ ComfyUI installs that declare the same node reuse one materialized env
 
 ## Module layering
 
-The import graph is layered and acyclic at package level, with three
-deliberate module-level cycles broken by function-local (lazy) imports.
-Arrows read "depends on"; dotted arrows are lazy imports.
+The import graph is layered and acyclic at package level, with a handful of
+deliberate module-level cycles that are **lazy-broken**: two modules need
+each other, and one direction's `import` is moved from the top of the file
+into the body of the function that uses it (a *lazy import*). At load time
+neither module imports the other -- Python never sees a circular import --
+and the dependency only materializes at call time, when both modules exist.
+Arrows read "depends on"; dotted arrows are these lazy imports.
 
 ```mermaid
 flowchart TD
@@ -303,7 +307,8 @@ flowchart TD
     detection -.->|"lazy: cuda.py uses pixi info"| packages
 ```
 
-The three lazy-broken cycles, all inside `isolation/`:
+The lazy-broken cycles inside `isolation/` (the `detection -> packages` edge
+in the diagram is the same pattern at package level):
 
 - `wrap.py` <-> `metadata.py` (proxy building needs the worker pool; metadata
   fetch needs env resolution from wrap)
