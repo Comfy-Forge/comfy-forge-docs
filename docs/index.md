@@ -188,8 +188,8 @@ unreachable.
 **Accelerator-agnostic in principle.** Nothing in the design is
 CUDA-specific: backend detection already recognizes ROCm (torch's
 `+rocm` version tag), and ROCm wheels are planned for the index -- currently
-blocked simply on the maintainer not owning ROCm hardware to build and test
-on. Today only the CUDA and CPU paths are wired end-to-end.
+blocked simply on the maintainer not owning ROCm hardware to test on. Today
+only the CUDA wheels are compiled end-to-end.
 
 !!! note "Why this logic lives in comfy-env at all"
     Ideally the CUDA-wheel-specific machinery would not exist here: package
