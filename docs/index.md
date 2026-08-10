@@ -154,6 +154,17 @@ The second problem is delivering the dependencies that `pip install` alone
 cannot: CUDA-compiled packages that need matching binaries, and packages that
 do not exist on PyPI at all.
 
+**Conda packages.** Some dependencies -- `ffmpeg`, `av`'s native half, CGAL,
+Blender's `bpy`, mesa -- are not on PyPI in any usable form; they live on
+conda-forge. This is exactly why comfy-env generates **pixi** manifests.
+pixi is like uv for conda: a fast Rust-based package manager (it actually
+uses uv under the hood for the PyPI side) that speaks conda-forge and PyPI
+in the same file with one lockfile -- so a `comfy-env.toml` can declare
+conda packages, pip packages, and CUDA wheels side by side and have them
+resolved together.
+([ADR-0002](adr/0002-pixi-as-environment-manager.md),
+[ADR-0003](adr/0003-two-config-files-with-two-roles.md))
+
 **CUDA packages -> prebuilt wheels.** Modern CV/ML packs depend on
 CUDA-compiled packages: flash-attn, nvdiffrast, pytorch3d, gsplat, nunchaku.
 Every such wheel is compiled for one exact combination of:
@@ -173,15 +184,6 @@ detected GPU/torch/Python combination and installed as ready-made wheels --
 no compiler, no CUDA toolkit, with a Releases-API fallback when the index is
 unreachable.
 ([ADR-0004](adr/0004-prebuilt-cuda-wheel-index.md))
-
-**Conda packages.** Some dependencies -- `ffmpeg`, `av`'s native half, CGAL,
-Blender's `bpy`, mesa -- are not on PyPI in any usable form; they live on
-conda-forge. This is exactly why comfy-env generates **pixi** manifests:
-pixi speaks conda-forge and PyPI in the same file with one lockfile, so a
-`comfy-env.toml` can declare conda packages, pip packages, and CUDA wheels
-side by side and have them resolved together.
-([ADR-0002](adr/0002-pixi-as-environment-manager.md),
-[ADR-0003](adr/0003-two-config-files-with-two-roles.md))
 
 ## The three-call contract
 
