@@ -113,7 +113,7 @@ Real packs cover the whole spectrum of these hooks:
   (the most-downloaded pack on the Comfy Registry, ~1.9M downloads) and
   [ComfyUI-Custom-Scripts](https://github.com/pythongosssss/ComfyUI-Custom-Scripts)
   ship only Python-stdlib + frontend JS: nothing to install, nothing that can
-  conflict.
+  conflict in the Python environment.
 - **`requirements.txt` only** -- KJNodes, above; the common case.
 - **`prestartup_script.py`** --
   [ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager) itself uses
