@@ -40,6 +40,14 @@ wheels automatically (`packages/cuda_wheels.py`):
 - When no prebuilt wheel exists for a combination, install fails with an
   explicit report rather than a silent source build.
 
+## The wheel farm's own decisions
+
+This ADR covers comfy-env's *consumer-side* choice. The farm itself has its
+own decision record series --
+[cuda-wheels ADRs](../../cuda-wheels/adr/index.md): package configs,
+release storage, index generation, version encoding, the build grid, CI
+strategies, phantom combos, and the proposed upstream watcher.
+
 ## Direction
 
 - The design is accelerator-agnostic in principle; ROCm wheels are planned

@@ -74,3 +74,13 @@ nav:
       - Overview: comfy-test/index.md
   - cuda-wheels:
       - Overview: cuda-wheels/index.md
+      - Decision records:
+          - Index: cuda-wheels/adr/index.md
+          - "0001: Declarative package configs": cuda-wheels/adr/0001-declarative-package-configs.md
+          - "0002: Rolling releases as wheel storage": cuda-wheels/adr/0002-rolling-releases-as-wheel-storage.md
+          - "0003: Static index from the Releases API": cuda-wheels/adr/0003-static-index-from-releases-api.md
+          - "0004: Combo-encoded versions + METADATA patching": cuda-wheels/adr/0004-combo-encoded-versions-and-metadata-patching.md
+          - "0005: Shared grid + arch-list policy": cuda-wheels/adr/0005-shared-grid-and-arch-list-policy.md
+          - "0006: Fitting CUDA compiles into hosted CI": cuda-wheels/adr/0006-fitting-cuda-compiles-into-hosted-ci.md
+          - "0007: Phantom combos denylist": cuda-wheels/adr/0007-phantom-combos-denylist.md
+          - "0008: Upstream torch watcher (proposed)": cuda-wheels/adr/0008-upstream-torch-watcher.md

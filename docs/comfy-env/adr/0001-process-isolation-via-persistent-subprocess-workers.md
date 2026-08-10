@@ -94,7 +94,10 @@ isolated repos need zero changes.
 - Crashes in native node code kill a worker, not ComfyUI; the pool restarts it.
 - All data crossing the boundary must be serialized -- hence the tiered
   strategy ladder ([ADR-0005](0005-tiered-tensor-serialization.md)) and its
-  zero-copy paths for tensors.
+  zero-copy paths for tensors. The torch-family alignment that ladder
+  depends on is *delivered* by the wheel farm's combo-pinned builds -- see
+  the [cuda-wheels ADR series](../../cuda-wheels/adr/index.md), a separate
+  decision record set for that repo.
 - Startup cost: metadata scans spawn subprocesses; mitigated by hash-keyed
   metadata caching.
 - Bidirectional IPC is required (progress reporting, VRAM budget negotiation

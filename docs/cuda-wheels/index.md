@@ -7,6 +7,9 @@ sageattention, spconv and friends. Wheels are compiled across the
 python x torch x CUDA x OS matrix on GitHub Actions, stored in GitHub
 Releases, and served as a PEP 503 pip index from GitHub Pages.
 
+Design decisions are recorded in the
+[cuda-wheels ADR series](adr/index.md).
+
 Links: [Package Index v2](https://pozzettiandrea.github.io/cuda-wheels/v2/) ·
 [Dashboard](https://pozzettiandrea.github.io/cuda-wheels/dashboard/) ·
 [Install Helper](https://pozzettiandrea.github.io/cuda-wheels/dashboard/install.html) ·
