@@ -187,7 +187,8 @@ unreachable.
 
 **Accelerator-agnostic in principle.** Nothing in the design is
 CUDA-specific: backend detection already recognizes ROCm (torch's
-`+rocm` version tag), and ROCm wheels are planned for the index -- currently
+`+rocm` version tag), and ROCm wheels are planned as a separate
+**rocm-wheels** repo with its own index, mirroring cuda-wheels -- currently
 blocked simply on the maintainer not owning ROCm hardware to test on. Today
 only the CUDA wheels are compiled end-to-end.
 

@@ -43,9 +43,12 @@ wheels automatically (`packages/cuda_wheels.py`):
 ## Direction
 
 - The design is accelerator-agnostic in principle; ROCm wheels are planned
-  for the index (backend detection already recognizes torch's `+rocm` tag)
-  but blocked on the maintainer having no ROCm hardware to test on. Today
-  only the CUDA wheels are compiled end-to-end.
+  as a separate **rocm-wheels** repo with its own index, mirroring
+  cuda-wheels (backend detection already recognizes torch's `+rocm` tag,
+  and the consumer's `WHEEL_INDEX_REGISTRY` maps backend -> index, so a
+  second repo is one dict entry) -- blocked on the maintainer having no
+  ROCm hardware to test on. Today only the CUDA wheels are compiled
+  end-to-end.
 - The preferred long-term shape would remove this machinery from comfy-env
   entirely: delegate resolution to conda and publish the prebuilt wheels to
   a conda channel. That is closed off because the PyTorch team publishes no
