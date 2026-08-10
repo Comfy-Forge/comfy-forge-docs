@@ -95,8 +95,12 @@ at different times:
 | `__init__.py` | **ComfyUI core** | every launch | imported; `NODE_CLASS_MAPPINGS` read |
 
 The install-time order is defined in Manager's `execute_install_script`
-(`glob/manager_core.py`): if `requirements.txt` exists it is pip-installed
-first, *then* `install.py` is executed if present. ComfyUI core never runs
+(`glob/manager_core.py`):
+
+- if `requirements.txt` exists it is pip-installed first
+- *then* `install.py` is executed, if present
+
+ComfyUI core never runs
 either -- installing by plain `git clone` skips both steps, and the user is
 expected to run them manually (`pip install -r requirements.txt` and/or
 `python install.py`, typically spelled out in the pack's README, or simply
