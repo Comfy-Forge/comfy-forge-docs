@@ -25,10 +25,13 @@ exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
 
 Two files with sharply separated roles:
 
-- **`comfy-env-root.toml`** (pack root): system packages (apt/brew) and
-  `[node_reqs]` dependencies on other ComfyUI node packs. **Never touches the
-  Python environment** -- PyPI deps stay in `requirements.txt`, per ComfyUI
-  convention.
+- **`comfy-env-root.toml`** (pack root): `[node_reqs]` dependencies on
+  other ComfyUI node packs, plus pack-level `[settings]` and `[env_vars]`.
+  **Never touches the Python environment** -- PyPI deps stay in
+  `requirements.txt`, per ComfyUI convention. (Early versions also planned
+  `[apt]`/`[brew]` system packages; that idea predates realizing everything
+  those would deliver installs through pixi/conda-forge -- the keys were
+  removed in the 2026-08 cleanup.)
 - **`comfy-env.toml`** (any subdirectory): the subdirectory gets its **own
   isolated Python environment** via pixi -- separate interpreter, conda
   packages, pip packages, and prebuilt CUDA wheels. Env name:
@@ -91,10 +94,12 @@ behaviors are hoped, not checked:
   uses a different torch pin rule and writes no hash at all.
 - **Settings precedence is inverted** vs. its own documentation: a pack's
   `[settings]` beats the user's explicit `COMFY_ENV_*` env var.
-- **pixi is bootstrapped unpinned** from `releases/latest`, so the effective
-  config schema floats with pixi's release calendar.
-- Dead config beyond `[apt]`/`[brew]`: root `[dependencies]` (consumer has
-  zero callers), subdir `[node_reqs]` and subdir `[settings]` (parsed, never
+- ~~pixi is bootstrapped unpinned from `releases/latest`~~ -- fixed
+  2026-08: pinned version, sha256-verified, comfy-env-owned path
+  ([ADR-0002](0002-pixi-as-environment-manager.md)).
+- Dead config (note: `[apt]`/`[brew]` were removed outright in the 2026-08
+  cleanup -- pre-pixi legacy): root `[dependencies]` (consumer has zero
+  callers), subdir `[node_reqs]` and subdir `[settings]` (parsed, never
   consumed); one runtime consumer re-parses the TOML directly instead of
   using the config layer.
 

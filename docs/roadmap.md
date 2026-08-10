@@ -40,9 +40,9 @@ stay listed (struck) so the list doubles as a change record.
 3. **libomp dedupe beyond macOS; stop blanket `KMP_DUPLICATE_LIB_OK`** --
    the enforcement arm of the lineage-coherence principle
    ([ADR-0002](comfy-env/adr/0002-pixi-as-environment-manager.md)).
-4. **Housekeeping**: delete dead `[apt]`/`[brew]` parsing; fix
-   `workspace.py`'s self-contradicting module docstring; add `--as-is` to
-   `_read_env_torch_version`.
+4. ~~Housekeeping: `[apt]`/`[brew]` removed (pre-pixi legacy);
+   `workspace.py` docstring now describes reality; dead
+   `_read_env_torch_version` deleted outright~~ -- done.
 5. *Deferred by design*: uv-first materialization for envs with zero conda
    content; CI-pre-solved `pixi.lock` per env x ABI-tag for the ComfyUI
    Desktop population; py-rattler (watch item).

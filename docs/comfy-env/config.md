@@ -48,9 +48,9 @@ auto_install = false      # COMFY_ENV_AUTO_INSTALL (default false)
 pool_ipc = false          # COMFY_ENV_POOL_IPC     (default false)
 worker_vram_budget = 0    # COMFY_ENV_WORKER_VRAM_BUDGET (GB, 0 = auto)
 
-# NOTE: do NOT declare [dependencies] / [cuda] / [apt] / [brew] here.
-# They are parsed but have no consumer in v0.4 -- and installing packages
-# from the ROOT file would violate the host-environment principle above.
+# NOTE: do NOT declare [dependencies] / [cuda] here. They are parsed but
+# have no consumer at ROOT scope in v0.4 -- and installing packages from
+# the root file would violate the host-environment principle above.
 # Anything installable belongs in a subdirectory comfy-env.toml.
 ```
 
@@ -59,8 +59,12 @@ Notes:
 - `[node_reqs]` and `[settings]` are the load-bearing sections: `install()`
   consumes the first, both `install()` and `register_nodes()` consult the
   second.
-- `[apt]` / `[brew]` are accepted but **currently parsed and discarded** --
-  treat them as reserved.
+- `[apt]` / `[brew]` **no longer exist** (removed 2026-08): they predate
+  the realization that everything they would deliver installs through
+  pixi/conda-forge -- declare the equivalent conda package under a
+  subdirectory's `[dependencies]` instead (e.g. `mesalib` replaces apt
+  `libgl1-mesa-glx`). Unknown tables are harmless: the manifest generator
+  only copies allowlisted keys.
 - The root file never creates an isolation env; workspace discovery looks
   only for `comfy-env.toml` files.
 
