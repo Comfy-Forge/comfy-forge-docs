@@ -50,9 +50,42 @@ half, behind `COMFY_ENV_PATCH_SHAREABLE_POOL`, DOES patch
 "no monkey-patching ComfyUI" scope applies to the worker->parent direction
 only (see [setup_env()](../setup-env.md)).
 
+### Runtime verification: the canary handshake
+
+An honesty clause first: strategies 1-3 ride **torch's private,
+unversioned multiprocessing reduction protocol** (`reduce_tensor()` /
+`reduce_storage()` positional tuples). That is a pragmatic sin -- torch
+makes no cross-version compatibility promise for it, and reimplementing
+CUDA IPC handle exchange ourselves is not reasonable. Having committed the
+sin, we compensate the only defensible way: **probe reality instead of
+predicting it**.
+
+At worker creation, the parent round-trips a canary tensor through the
+**production serialization path** (`_to_shm`/`_from_shm` via a dedicated
+`echo` request -- deliberately NOT a parallel test serializer, which would
+validate nothing) and compares bytes:
+
+- **CPU tier fails** -> hard error; that is broken IPC, not version skew,
+  and the worker is refused.
+- **GPU zero-copy tier fails or corrupts** -> that worker is *demoted* to
+  CPU transport, loudly, and keeps working.
+- **Parent/worker torch families differ** (e.g. a fallback-combo env under
+  a newer host torch) -> a warning, plus whatever the canaries prove.
+  Pickle-based tiers (5-6) are genuinely cross-version safe and are never
+  gated.
+
+There is deliberately **no hand-maintained compatibility matrix** ("torch
+2.8 talks to 2.10 but not..."). Version-pair tables rot; the probe is the
+single source of truth and never needs updating when torch changes -- when
+torch breaks the protocol, the probe is what reports it. Opt-out:
+`COMFY_ENV_TRANSPORT_PROBE=0`.
+
 ## Consequences
 
 - Common cases (large CPU tensors, Linux GPU tensors) are zero-copy.
+- Cross-version transport is verified empirically per worker at startup,
+  not assumed from version numbers; mismatched-but-compatible pairs keep
+  zero-copy, broken pairs degrade loudly.
 - Every strategy needs an implementation **on both sides** of the boundary,
   which forces the deliberate code duplication described in
   [ADR-0006](0006-worker-crosses-the-boundary-as-source-text.md).
