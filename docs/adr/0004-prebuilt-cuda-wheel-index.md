@@ -39,3 +39,17 @@ wheels automatically (`packages/cuda_wheels.py`):
   (`detection/`) feeds the install pipeline.
 - When no prebuilt wheel exists for a combination, install fails with an
   explicit report rather than a silent source build.
+
+## Direction
+
+- The design is accelerator-agnostic in principle; ROCm wheels are planned
+  for the index (backend detection already recognizes torch's `+rocm` tag)
+  but blocked on the maintainer having no ROCm hardware. Only CUDA and CPU
+  are wired end-to-end today.
+- The preferred long-term shape would remove this machinery from comfy-env
+  entirely: delegate resolution to conda and publish the prebuilt wheels to
+  a conda channel. That is closed off because the PyTorch team publishes no
+  conda packages -- ironic, given torch is the poster child for the native
+  library problems (bundled libomp copies, import-order-sensitive loading)
+  that conda exists to solve. Until torch resolves through conda, the index
+  and the torch-family pinning logic stay here.

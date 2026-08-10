@@ -185,6 +185,23 @@ no compiler, no CUDA toolkit, with a Releases-API fallback when the index is
 unreachable.
 ([ADR-0004](adr/0004-prebuilt-cuda-wheel-index.md))
 
+**Accelerator-agnostic in principle.** Nothing in the design is
+CUDA-specific: backend detection already recognizes ROCm (torch's
+`+rocm` version tag), and ROCm wheels are planned for the index -- currently
+blocked simply on the maintainer not owning ROCm hardware to build and test
+on. Today only the CUDA and CPU paths are wired end-to-end.
+
+!!! note "Why this logic lives in comfy-env at all"
+    Ideally the CUDA-wheel-specific machinery would not exist here: package
+    resolution would be delegated to conda and the prebuilt wheels published
+    to a conda channel, resolved together with everything else. That path is
+    closed because the PyTorch team does not publish conda packages --
+    which is rather egregious given that torch is the poster child for the
+    exact problems conda exists to solve (bundled libomp copies,
+    import-this-library-before-that-one native loading order). Until torch
+    is resolvable through conda, the custom index, combo detection, and
+    torch-family pinning stay in comfy-env.
+
 ## The three-call contract
 
 A consuming node pack integrates with exactly three lines:
