@@ -36,10 +36,31 @@ stay listed (struck) so the list doubles as a change record.
    ([The two-system problem](comfy-env/two-system-problem.md))
 2. **Finish the orphaned system-env path** -- `_collect_root_conda_deps`
    is defined and never called; wire it as the shared GL/ffmpeg runtime
-   layer.
+   layer. *Resolved by deletion 2026-08: its only would-be consumers
+   (root-scope `[dependencies]` in UniRig/HYWM2) duplicated deps their
+   subdir envs already deliver; those root sections were removed too. The
+   shared-system-env idea stays here in case it is ever properly designed.*
 3. **libomp dedupe beyond macOS; stop blanket `KMP_DUPLICATE_LIB_OK`** --
    the enforcement arm of the lineage-coherence principle
    ([ADR-0002](comfy-env/adr/0002-pixi-as-environment-manager.md)).
+   **Needs a design pass before code**, because the macOS fix does not
+   transplant:
+    - macOS today: `dedupe_libomp()` symlinks every bundled `libomp.dylib`
+      in site-packages to torch's canonical copy (`environment/libomp.py`,
+      run at prestartup and per materialized env).
+    - Windows: symlinks need privileges/dev-mode; needs hardlink-or-copy
+      semantics plus DLL search-order care (`os.add_dll_directory`,
+      Library/bin precedence) -- and the DLL name differs (`libiomp5md.dll`
+      vs conda's `libomp.dll` family), so name-matching is part of the
+      design.
+    - Linux: soname variants (`libomp.so.5`, `libgomp`) and RPATH-baked
+      loads; symlinking inside site-packages works but must respect the
+      env's conda `libomp` as canonical when the env is conda-lineage
+      (lineage coherence), torch's copy otherwise.
+    - Exit criterion: once dedupe verifiably runs on all three platforms,
+      remove `KMP_DUPLICATE_LIB_OK=TRUE` from `[activation.env]` in
+      generated manifests and both hand-rolled env builders, so duplicate
+      OMP runtimes fail LOUDLY instead of silently corrupting numerics.
 4. ~~Housekeeping: `[apt]`/`[brew]` removed (pre-pixi legacy);
    `workspace.py` docstring now describes reality; dead
    `_read_env_torch_version` deleted outright~~ -- done.
