@@ -49,6 +49,27 @@ Only runs if the config declares `[node_reqs]`:
 - **Re-run this pack's own `requirements.txt`** in the main env --
   installing a peer pack may have downgraded or clobbered shared deps.
 
+### Stale comfy-env pin check (always runs)
+
+Independent of `[node_reqs]`, every install scans the *sibling* packs'
+`requirements.txt` files under `custom_nodes/` for comfy-env pins that would
+downgrade the installed version -- an exact pin like `comfy-env==0.3.9`, or
+an upper bound below it (`<=0.4.0`, `<0.4`). Each hit produces a warning
+(`check_sibling_comfy_env_pins` in `install/plugin.py`):
+
+```
+[comfy-env] WARNING: ComfyUI-OldPack/requirements.txt pins 'comfy-env==0.3.9'
+but comfy-env 0.4.12 is installed. If that pack reinstalls its requirements,
+comfy-env will be DOWNGRADED for every pack -- update ComfyUI-OldPack (or
+relax its pin).
+```
+
+Why: the shared main env has exactly one comfy-env, and whichever pack
+reinstalls its requirements last wins -- a stale pin in *any* pack silently
+downgrades comfy-env for every pack on that pack's next update. The check is
+warn-only (`>=`, unpinned, and `~=` pins are fine and not flagged) and never
+fails an install.
+
 ### 2. Workspace half (isolated environments)
 
 Gated on the `COMFY_ENV_INSTALL_ISOLATED` flag (default **on**;
