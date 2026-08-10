@@ -5,11 +5,19 @@
 ## Context
 
 Node packs have two very different needs that a single config file kept
-conflating: (a) declaring system packages and dependencies on *other node
-packs* without touching the Python environment at all, and (b) requesting a
-fully isolated Python environment. Packs like ComfyUI-TRELLIS2 only need CUDA
-wheel resolution in the host env; packs like ComfyUI-GeometryPack need a whole
-conda stack (CGAL, `bpy`, pyvista) that cannot live in the host venv.
+conflating: (a) declaring dependencies on *other node packs* and per-pack
+runtime configuration without touching any Python environment, and (b)
+requesting a fully isolated Python environment. Some packs only need (a);
+packs like ComfyUI-GeometryPack also need a whole conda stack (CGAL, `bpy`,
+pyvista) plus CUDA wheels that cannot live in the host venv.
+
+Underlying principle, stated explicitly: **comfy-env never installs anything
+into the host environment.** The host env's only comfy-env-related content
+is comfy-env itself (`pip install comfy-env`, via the pack's
+`requirements.txt`). CUDA wheels, conda packages, and pip dependencies all
+belong in isolated envs; a pack's own `requirements.txt` should converge to
+exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
+`trimesh`, `comfy-3d-viewers`) are slated for removal, not accommodation.
 
 ## Decision
 
@@ -32,8 +40,11 @@ section triggers wheel resolution ([ADR-0004](0004-prebuilt-cuda-wheel-index.md)
 
 ## Consequences
 
-- The lightest integration (root file only) adds CUDA wheel resolution and
-  node-dependency management with zero isolation machinery.
+- The lightest integration (root file only) adds node-dependency management
+  and per-pack settings with zero isolation machinery -- never package
+  installation into the host env. (A root-file `[cuda]` section has no
+  consumer in v0.4 and would violate the principle above; it is
+  reserved-to-delete, not reserved-to-implement.)
 - Presence of `comfy-env.toml` *is* the isolation switch -- no separate flag
   to keep in sync.
 - One pack can mix modes: `nodes/main/` imported in-process, `nodes/cgal/`

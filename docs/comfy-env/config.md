@@ -6,6 +6,14 @@ pack-wide switches and **never touches the Python environment**;
 `comfy-env.toml` in any subdirectory gives that subdirectory its own
 isolated pixi environment -- the file's *presence* is the isolation switch.
 
+!!! warning "The host-environment principle"
+    **comfy-env NEVER installs anything into the host environment.** The
+    host env's only comfy-env-related content is `comfy-env` itself (the
+    one line in your `requirements.txt`). CUDA wheels, conda packages, and
+    pip dependencies all live in isolated envs -- there is no config key,
+    and there will be no config key, that installs a library into ComfyUI's
+    own environment.
+
 Parsing lives in `config/__init__.py` (`parse_config`). One rule to know:
 **unknown keys are not errors** -- anything comfy-env doesn't recognize
 passes through verbatim into the generated `pixi.toml`, so pixi's full
@@ -36,10 +44,10 @@ auto_install = false      # COMFY_ENV_AUTO_INSTALL (default false)
 pool_ipc = false          # COMFY_ENV_POOL_IPC     (default false)
 worker_vram_budget = 0    # COMFY_ENV_WORKER_VRAM_BUDGET (GB, 0 = auto)
 
-# Conda packages needed by the MAIN (host) environment's template env --
-# merged across every pack's root file at workspace install time.
-[dependencies]
-ffmpeg = "*"
+# NOTE: do NOT declare [dependencies] / [cuda] / [apt] / [brew] here.
+# They are parsed but have no consumer in v0.4 -- and installing packages
+# from the ROOT file would violate the host-environment principle above.
+# Anything installable belongs in a subdirectory comfy-env.toml.
 ```
 
 Notes:
@@ -133,7 +141,10 @@ Notes:
 ## Real-world examples
 
 - [ComfyUI-TRELLIS2](https://github.com/PozzettiAndrea/ComfyUI-TRELLIS2) --
-  root file only: CUDA wheel resolution + node deps, no isolation env.
+  root file only today (node deps + env vars). Its CUDA packages are moving
+  into an isolated env: as a principle, comfy-env never installs anything
+  into the host environment
+  ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)).
 - [ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
   -- both files; the heavyweight conda + CUDA isolation env.
 - [cookiecutter-comfy-extension](https://github.com/PozzettiAndrea/cookiecutter-comfy-extension)

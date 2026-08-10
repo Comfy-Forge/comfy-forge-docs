@@ -49,6 +49,15 @@ Only runs if the config declares `[node_reqs]`:
 - **Re-run this pack's own `requirements.txt`** in the main env --
   installing a peer pack may have downgraded or clobbered shared deps.
 
+!!! note "This is ComfyUI-convention mechanics, not comfy-env installing to the host"
+    The requirements.txt reinstalls above follow ComfyUI's standard install
+    flow for the packs involved. comfy-env's own principle is that it
+    **never installs libraries into the host environment** -- the host gets
+    exactly one thing, `comfy-env` itself, and a pack's `requirements.txt`
+    should converge to just that
+    ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)). Everything
+    else belongs in isolated envs.
+
 ### Stale comfy-env pin check (always runs)
 
 Independent of `[node_reqs]`, every install scans the *sibling* packs'

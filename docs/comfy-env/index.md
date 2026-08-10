@@ -140,7 +140,10 @@ One shared environment for every pack breaks in predictable ways:
 comfy-env's answer is **process isolation**: any subdirectory that declares a
 `comfy-env.toml` gets its own pixi-managed environment -- separate
 interpreter, conda packages, pip packages -- and its nodes execute in a
-persistent subprocess worker using that interpreter.
+persistent subprocess worker using that interpreter. As a principle,
+comfy-env **never installs anything into the host environment** -- the host
+env's only comfy-env-related content is `comfy-env` itself
+([ADR-0003](adr/0003-two-config-files-with-two-roles.md)).
 
 The parent synthesizes
 proxy classes with the standard node shape (see the anatomy above), so to
