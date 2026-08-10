@@ -31,12 +31,23 @@ pillars**:
    native builds (`occt-rt`). conda-forge is the only channel delivering
    these per-user, solver-managed, without admin rights.
 
-Everything outside the three pillars -- `av`, `ffmpeg`, scipy, pillow,
-trimesh, and the rest of the ordinary scientific stack -- has official PyPI
-wheels and should be declared as pip deps, not conda deps. (Earlier versions
-of this ADR cited `av`/`ffmpeg` as the motivating examples; that was wrong
--- PyAV has shipped bundled-FFmpeg wheels since v9, and ComfyUI itself
-pip-installs `av`. The conclusion stood; the evidence didn't.)
+The three pillars justify conda's *existence* in an env. Membership of each
+package is then governed by a fourth principle: **native-lineage coherence**.
+An env whose native closure comes from conda-forge (bpy linking conda's
+ffmpeg, CGAL/VTK on conda's C++ runtime, conda's libomp) must take its OTHER
+native-linked Python packages (`av`, opencv, pymeshlab) from conda-forge
+too -- mixing a pip wheel's bundled dylibs with conda's builds inside one
+process is the duplicate-native-library disease (dyld/symbol collisions,
+OMP state corruption; worst on macOS, where a pip `av` in a conda env fails
+unless host libraries leak in, defeating isolation). Conversely, ComfyUI's
+host env takes `av` from pip correctly -- it is pip-lineage end to end. One
+lineage per process; conda envs are conda-lineage by construction.
+
+(Earlier versions of this ADR cited `av`/`ffmpeg` as packages that "cannot
+be installed from PyPI" -- imprecise: PyAV ships bundled-FFmpeg wheels. The
+real reason they come from conda here is lineage coherence, not
+availability. Only pure-Python, zero-native-linkage deps are
+lineage-neutral.)
 
 Alternatives:
 
