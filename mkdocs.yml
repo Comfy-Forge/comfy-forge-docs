@@ -43,6 +43,10 @@ nav:
   - Home: index.md
   - comfy-env:
       - Architecture: comfy-env/index.md
+      - The three calls:
+          - "install()": comfy-env/install.md
+          - "setup_env()": comfy-env/setup-env.md
+          - "register_nodes()": comfy-env/register-nodes.md
       - Module inventory: comfy-env/modules.md
       - Decision records:
           - Index: comfy-env/adr/index.md

@@ -218,9 +218,14 @@ from comfy_env import register_nodes
 NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS = register_nodes()
 ```
 
-These map to the three lifecycle phases below: **build time**
-(`install/__init__.py:39`), **startup** (`environment/setup.py:135`), and
-**runtime** (`isolation/wrap.py:701`).
+These map to the three lifecycle phases below, and each call has its own
+documentation page:
+
+| Call | Phase | Page |
+|------|-------|------|
+| `install()` | build time (Manager install / `python install.py`) | [install()](install.md) |
+| `setup_env()` | every launch, before the server boots | [setup_env()](setup-env.md) |
+| `register_nodes()` | every launch, node registration | [register_nodes()](register-nodes.md) |
 
 ## System context
 
