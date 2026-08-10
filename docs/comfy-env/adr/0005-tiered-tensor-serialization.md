@@ -38,12 +38,17 @@ worker A -> parent -> worker B forwarding.
 
 ComfyUI sets `PYTORCH_CUDA_ALLOC_CONF=backend:cudaMallocAsync`, which
 propagates to workers and **breaks legacy CUDA IPC**: `reduce_tensor()`
-raises `cudaMallocAsync does not yet support shareIpcHandle`. Known defect:
-the `_probe_cuda_ipc()` checks on both sides test `Event` + allocation but
-never `reduce_tensor()`, so they can report IPC as usable when it is not.
-Pool-based IPC (worker-side shareable pools; no changes to the parent's
-allocator, no monkey-patching ComfyUI) is the fix, restoring zero-copy
-worker -> parent GPU transfer under `cudaMallocAsync`.
+raises `cudaMallocAsync does not yet support shareIpcHandle`. *Historical
+defect, fixed:* the `_probe_cuda_ipc()` checks originally tested only
+`Event` + allocation and mis-reported IPC as usable under `cudaMallocAsync`;
+both probes now exercise `reduce_tensor()` and fail closed (verified
+independently three times in the 2026-08 reviews). Pool-based IPC
+(worker-side shareable pools) is the zero-copy path under `cudaMallocAsync`
+-- implemented end-to-end but untested and default-off; its parent-side
+half, behind `COMFY_ENV_PATCH_SHAREABLE_POOL`, DOES patch
+`comfy.model_management`'s memory accounting, so the original
+"no monkey-patching ComfyUI" scope applies to the worker->parent direction
+only (see [setup_env()](../setup-env.md)).
 
 ## Consequences
 

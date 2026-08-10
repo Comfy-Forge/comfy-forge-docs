@@ -17,3 +17,4 @@ v0.4.12 (August 2026).
 | [0007](0007-machine-wide-workspace-with-per-env-manifests.md) | Machine-wide workspace, per-env manifests | One shared store per machine; one `pixi.toml` per env; stamps guard staleness. |
 | [0008](0008-graceful-degradation-everywhere.md) | Graceful degradation everywhere | Every failure path ends in "ComfyUI still boots". |
 | [0009](0009-platform-strategy.md) | Platform strategy | Windows/macOS/Linux each get targeted workarounds, not lowest-common-denominator. |
+| [0010](0010-wire-protocol-and-transport.md) | Wire protocol and transport | Hand-rolled framing stays; the v2 direction versions the wire and unifies the stack. |

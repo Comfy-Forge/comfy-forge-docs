@@ -33,8 +33,15 @@ file) -- unreadable, unlintable, undiffable.
 - The worker file gets real tooling again: syntax highlighting, ruff, diffs.
 - comfy-env does not need to be installed (or even installable) in isolated
   envs; envs stay minimal and node-defined.
-- The duplicated serialization logic must be kept in sync by hand -- the
-  standing tax of this design. The wire protocol (length-prefixed JSON +
-  named strategies) is the contract; changes must land on both sides.
+- The duplicated serialization logic must be kept in sync by hand. *2026-08
+  correction:* the review showed this "standing tax" framing is half false --
+  shipping the worker as source text does NOT force duplicating the stack.
+  `_ipc_shared.py` is copied beside the worker precisely so it can be
+  imported (it is stdlib-only at module scope), the parent already uses its
+  shared walker, and the worker re-implements it by neglect. Deleting the
+  worker's copy is v2 work item 3 in
+  [ADR-0010](0010-wire-protocol-and-transport.md). The wire protocol
+  (length-prefixed JSON + named strategies) is the contract; changes must
+  land on both sides.
 - Version skew between parent and worker code cannot happen: the parent
   always ships the worker source it was released with.
