@@ -14,7 +14,7 @@ after a short ComfyUI primer.
 
 ## ComfyUI background, for newcomers
 
-ComfyUI loads every custom node pack into
+Vanilla ComfyUI loads every custom node pack into
 one shared Python process with one shared environment. A node pack is a
 directory under `custom_nodes/` whose `__init__.py` exports
 `NODE_CLASS_MAPPINGS`. At install time, the standard installation flow
