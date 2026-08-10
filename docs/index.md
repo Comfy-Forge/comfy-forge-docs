@@ -91,8 +91,10 @@ at different times:
 The install-time order is defined in Manager's `execute_install_script`
 (`glob/manager_core.py`): if `requirements.txt` exists it is pip-installed
 first, *then* `install.py` is executed if present. ComfyUI core never runs
-either -- installing by plain `git clone` skips both, which is why packs must
-tolerate missing deps at import time.
+either -- installing by plain `git clone` skips both steps, and the user is
+expected to run them manually (`pip install -r requirements.txt` and/or
+`python install.py`, typically spelled out in the pack's README, or simply
+assumed).
 
 Real packs cover the whole spectrum of these hooks:
 
