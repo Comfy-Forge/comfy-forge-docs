@@ -32,7 +32,9 @@ Supporting choices:
   install comfy-env` is the only prerequisite.
 - comfy-env acts as a **manifest compiler** (`packages/toml_generator.py`):
   it generates `pixi.toml` files rather than driving a package API. Unknown
-  keys in `comfy-env.toml` pass through to the generated manifest untouched
+  keys in `comfy-env.toml` are intended to pass through to the generated
+  manifest untouched (in v0.4 only an allowlist actually does -- see
+  [ADR-0003](0003-two-config-files-with-two-roles.md))
   ([ADR-0003](0003-two-config-files-with-two-roles.md)), so pixi's full
   feature set stays reachable without comfy-env schema changes.
 - uv is also used directly for main-env pip work (`install/helpers.py`

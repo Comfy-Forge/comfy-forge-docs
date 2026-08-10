@@ -18,7 +18,7 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 
 | File | ~LoC | Responsibility |
 |------|-----:|----------------|
-| `config/__init__.py` | 104 | The entire config layer. Loads `comfy-env.toml` / `comfy-env-root.toml` via `tomli` into `ComfyEnvConfig` (dict subclass with dot access). Unknown TOML keys are not errors -- they land in `pixi_passthrough` and flow into the generated `pixi.toml` untouched. |
+| `config/__init__.py` | 104 | The entire config layer. Loads `comfy-env.toml` / `comfy-env-root.toml` via `tomli` into `ComfyEnvConfig` (dict subclass with dot access). Unknown TOML keys are not errors -- they land in `pixi_passthrough`; the generator then copies only an allowlist of them into the generated `pixi.toml` (see the config reference). |
 
 ## `detection/` -- pure functions, no side effects
 

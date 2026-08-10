@@ -15,10 +15,14 @@ isolated pixi environment -- the file's *presence* is the isolation switch.
     own environment.
 
 Parsing lives in `config/__init__.py` (`parse_config`). One rule to know:
-**unknown keys are not errors** -- anything comfy-env doesn't recognize
-passes through verbatim into the generated `pixi.toml`, so pixi's full
-manifest surface (channels, targets, system-requirements, activation...)
-stays reachable without comfy-env schema changes.
+**unknown keys are not errors** -- anything comfy-env doesn't recognize is
+collected as passthrough. Caveat (v0.4): only an **allowlist** actually
+reaches the generated `pixi.toml` -- `[dependencies]`,
+`[pypi-dependencies]`, `[target.*]`, `[pypi-options]`,
+`[system-requirements]`, and `workspace.channels`. Other tables
+(`[tasks]`, `[activation]`, typos) are currently dropped silently -- a
+known defect slated for honest passthrough + warnings (see
+[ADR-0003](adr/0003-two-config-files-with-two-roles.md)).
 
 ## `comfy-env-root.toml` (pack root)
 
@@ -80,7 +84,8 @@ python = "3.11"
 [cuda]
 packages = ["cumesh", "faithc-aot"]
 
-# --- everything below is pixi passthrough (goes into pixi.toml verbatim) ---
+# --- everything below is pixi passthrough (v0.4 caveat: only the
+# ---  allowlisted tables shown here actually reach pixi.toml; see intro) ---
 
 # Conda packages (this is WHY pixi: these do not exist on PyPI)
 [dependencies]

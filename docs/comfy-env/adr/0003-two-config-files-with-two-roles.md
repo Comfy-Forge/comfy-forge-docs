@@ -33,10 +33,19 @@ Two files with sharply separated roles:
   `<plugin>-<subdir>`, `ComfyUI-` prefix stripped, lowercased
   (`environment/cache.py:get_env_name`).
 
-Parsing (`config/__init__.py`) treats unknown TOML keys as **passthrough**,
-not errors: they flow into the generated `pixi.toml` verbatim. The `[cuda]`
-section triggers wheel resolution ([ADR-0004](0004-prebuilt-cuda-wheel-index.md));
-`[settings]` allows per-node overrides of feature flags via `SETTINGS_KEY_MAP`.
+Parsing (`config/__init__.py`) treats unknown TOML keys as **passthrough in
+intent**: they are collected rather than rejected. In the v0.4
+implementation, however, the manifest generator copies only an **allowlist**
+into the per-env `pixi.toml` -- `[dependencies]`, `[pypi-dependencies]`,
+`[target.*]`, `[pypi-options]`, `[system-requirements]`, and
+`workspace.channels` (`toml_generator.py:263-310, 630`). Anything else --
+`[tasks]`, `[activation]` (the generator emits its own), any typo'd table --
+is **silently dropped**. That gap between intent and implementation is a
+known defect: the repair direction is honest passthrough with a short
+deny-list of compiler-owned keys, plus loud warnings for every dropped key.
+The `[cuda]` section triggers wheel resolution
+([ADR-0004](0004-prebuilt-cuda-wheel-index.md)); `[settings]` allows
+per-node overrides of feature flags via `SETTINGS_KEY_MAP`.
 
 ## Consequences
 
@@ -49,5 +58,7 @@ section triggers wheel resolution ([ADR-0004](0004-prebuilt-cuda-wheel-index.md)
   to keep in sync.
 - One pack can mix modes: `nodes/main/` imported in-process, `nodes/cgal/`
   isolated.
-- The passthrough rule means comfy-env's schema never needs to chase pixi's
-  feature set; the flip side is that typos in known keys are not caught.
+- The passthrough *intent* means comfy-env's schema never needs to chase
+  pixi's feature set -- but until the allowlist gap above is repaired, keys
+  outside the allowlist do NOT reach pixi, and typos anywhere (inside owned
+  sections or out) are silently swallowed rather than caught.
