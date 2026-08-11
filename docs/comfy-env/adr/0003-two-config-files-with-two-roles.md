@@ -76,34 +76,6 @@ exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
   inside its own sections and rejects role-inappropriate ones (closed root
   schema; root-only sections rejected in env files).
 
-## 2026-08 review: all repairs landed
-
-What the review confirmed about the design: the split carves at a real
-joint (root = shared-state mutation, env file = hermetic env definition);
-dependency-locality is the payoff; presence-as-switch is a good trade given
-graceful degradation (ADR-0008). What it found broken was **enforcement**;
-nearly all of it has since been repaired (2026-08: pinned + checksummed
-pixi; closed root role schema; duplicate-env-name hard errors; discovery
-matched to the binder; string-only `python` pins; dead sections and
-plumbing removed; derivation-output cache identity with fallback
-self-upgrade and a unified `auto_install`; settings precedence resolved by
-documentation -- pack `[settings]` > env var, specific beats general. See
-git history for each.) The final two items closed 2026-08:
-
-- **Passthrough**: [ADR-0013](0013-env-file-passthrough-contract.md) is
-  implemented -- honest passthrough with the deny/rewrite/merge table,
-  owned-section typo warnings, `schema = 1`, and provenance headers on
-  generated manifests.
-- **Subdir `[settings]` / `[node_reqs]`**: resolved by *rejection* -- these
-  are root-only sections, and an env file declaring them now fails at
-  parse time (they were parsed-but-consumed-by-nothing since forever; no
-  backward compatibility by decision). The config reference no longer
-  documents per-env `[settings]`.
-
-(The last stray -- `wrap.py`'s inline TOML re-parse -- was unified onto
-the config layer once the serializer work it was deferred behind had
-settled. One parser.)
-
 ## Considered alternatives (2026-08)
 
 - **pyproject.toml for everything** -- rejected. The env config is compiled
