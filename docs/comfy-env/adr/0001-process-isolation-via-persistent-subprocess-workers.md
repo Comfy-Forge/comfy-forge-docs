@@ -165,7 +165,10 @@ scheduler-level async integration with ComfyUI implemented at the
 synthesized-proxy seam (preserving the zero-code-change contract); making
 the ComfyUI-facing hooks official upstream instead of monkey patches.
 
-## Consequences
+## Consequences of the decision
+
+These follow from choosing persistent per-env workers, regardless of what
+ComfyUI does upstream:
 
 - Conflicting torch/CUDA/Python stacks coexist on one ComfyUI install.
 - Crashes in native node code kill a worker, not ComfyUI; the pool restarts it.
@@ -179,3 +182,50 @@ the ComfyUI-facing hooks official upstream instead of monkey patches.
   metadata caching.
 - Bidirectional IPC is required (progress reporting, VRAM budget negotiation
   flow worker -> parent).
+- Standing resource cost per env (RAM, CUDA context where created) -- the
+  measured table above.
+
+## Current ComfyUI state (0.30.0)
+
+Facts about ComfyUI as it stands today (verified against a 0.30.0
+checkout) that this architecture leans on -- each is upstream's to change,
+so this section is version-stamped and must be re-verified when ComfyUI
+moves:
+
+- One shared Python process and environment for all packs; packs integrate
+  via `__init__.py` (`NODE_CLASS_MAPPINGS`), optional `install.py`
+  (Manager-run) and per-pack `prestartup_script.py` (core-run, pre-boot).
+- The executor runs **one node at a time**; the V3 node API
+  (`comfy_api.latest.io`) additionally supports async node execution.
+- ComfyUI sets `PYTORCH_CUDA_ALLOC_CONF=backend:cudaMallocAsync`
+  (`cuda_malloc.py`), which propagates to child processes.
+- There is **no official API** for remote/isolated node execution, VRAM
+  leasing, or progress/interrupt forwarding -- `comfy.model_management`,
+  `LoadedModel`, and `current_loaded_models` are internals with no
+  stability promise.
+
+## Consequences of current ComfyUI state (0.30.0)
+
+What those facts force on this architecture *today* -- distinct from the
+decision's own consequences above, and revisited when upstream changes:
+
+- **No official hooks -> the monkey-patch surface.** Zero-code-change
+  integration requires patching around internals: the worker hooks
+  `Module.to()`/`.cuda()` and shims `load_models_gpu`; the parent
+  subclasses `ModelPatcher` and inserts into `current_loaded_models`.
+  comfy-env is effectively maintaining an unofficial stable ABI over
+  ComfyUI internals; making a slice of it official upstream is the
+  maintenance endgame tracked in ADR-0010.
+- **One-node-at-a-time execution -> single-in-flight transport suffices.**
+  The synchronous, one-call-per-worker wire (ADR-0010) is safe *because*
+  the executor serializes node execution; any concurrent path into a
+  worker (e.g. proxied HTTP routes) is a hazard until full correlation
+  lands, and an upstream move to parallel execution would promote that
+  from hazard to requirement.
+- **`cudaMallocAsync` by default -> legacy CUDA IPC is dead in practice.**
+  This single upstream choice is why Pool IPC (ADR-0005 strategy 2) exists
+  and why the canary handshake demotes rather than assumes.
+- **V3 async node API exists -> the async-proxy seam is open.** Isolated
+  nodes could become awaitable at the *synthesized proxy* (no pack-author
+  changes), unlocking cross-env overlap without abandoning the
+  zero-code-change contract.
