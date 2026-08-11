@@ -9,7 +9,9 @@ agreed repair list are recorded below; the factoring itself stands.
 Two files with sharply separated roles:
 
 - **`comfy-env-root.toml`** (pack root): `[node_reqs]` dependencies on
-  other ComfyUI node packs, plus pack-level `[settings]` and `[env_vars]`.
+  other ComfyUI node packs, plus pack-level `[settings]`. Nothing else --
+  a root `[env_vars]` has no effect (worker env vars belong in the
+  subdirectory `comfy-env.toml`) and `install()` warns if one is present.
   **Never touches the Python environment** -- PyPI deps stay in
   `requirements.txt`, per ComfyUI convention. (Early versions also planned
   `[apt]`/`[brew]` system packages; that idea predates realizing everything
