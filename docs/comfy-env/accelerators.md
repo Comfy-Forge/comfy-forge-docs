@@ -28,10 +28,14 @@ class RemeshGPUNode(io.ComfyNode):
    -- comfy-env skips CUDA wheels when no GPU is present), that import kills
    the metadata scan and **every node in the env silently vanishes**, CPU
    nodes included.
-3. **Degradation, not disappearance.** On a machine lacking the declared
-   backend, the node still **registers** -- with its real inputs and
-   outputs, a "(requires CUDA -- unavailable on this machine)" description
-   badge -- and raises a named-reason error when executed:
+3. **Registered but menu-hidden**
+   ([ADR-0010](adr/0010-unavailable-nodes-hidden-not-unregistered.md)).
+   On a machine lacking the declared backend, the node still **registers**
+   with its real inputs and outputs -- so shared workflows load and
+   dispatcher node-ids resolve -- but it is hidden from the node
+   picker/search (via `DEPRECATED`), a startup warning summarizes the
+   hidden nodes, and executing it (via a loaded workflow) raises a
+   named-reason error:
 
    ```
    Node 'GeomPackRemesh_GPU' requires CUDA; this machine has backend 'cpu'
@@ -39,8 +43,9 @@ class RemeshGPUNode(io.ComfyNode):
    machine with CUDA.
    ```
 
-   Hiding the node was rejected deliberately: a missing node type breaks
-   shared-workflow loading with an inscrutable frontend error.
+   Full *unregistration* was rejected deliberately: a missing node type
+   breaks shared-workflow loading with an inscrutable "node type not
+   found". Menu-hiding gives the clean picker without that cost.
 
 ## Multi-backend nodes: the dispatch pattern
 

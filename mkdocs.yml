@@ -70,6 +70,7 @@ nav:
           - "0007: Machine-wide workspace, per-env manifests": comfy-env/adr/0007-machine-wide-workspace-with-per-env-manifests.md
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md
           - "0009: Platform strategy": comfy-env/adr/0009-platform-strategy.md
+          - "0010: Unavailable nodes hidden, not unregistered": comfy-env/adr/0010-unavailable-nodes-hidden-not-unregistered.md
           - "0010: Wire protocol and transport": comfy-env/adr/0010-wire-protocol-and-transport.md
           - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md
   - comfy-test:
