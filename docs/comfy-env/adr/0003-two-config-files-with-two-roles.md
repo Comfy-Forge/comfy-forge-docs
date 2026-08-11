@@ -9,9 +9,11 @@ agreed repair list are recorded below; the factoring itself stands.
 Two files with sharply separated roles:
 
 - **`comfy-env-root.toml`** (pack root): `[node_reqs]` dependencies on
-  other ComfyUI node packs, plus pack-level `[settings]`. Nothing else --
-  a root `[env_vars]` has no effect (worker env vars belong in the
-  subdirectory `comfy-env.toml`) and `install()` warns if one is present.
+  other ComfyUI node packs, plus pack-level `[settings]`. Nothing else:
+  the root file has a **closed role schema** -- any other section (legacy
+  keys, typos, env-file sections like `[env_vars]` or `[cuda]`) is rejected
+  at parse time with a generic unsupported-section error. No backward
+  compatibility for dead keys, by decision; no legacy key is named in code.
   **Never touches the Python environment** -- PyPI deps stay in
   `requirements.txt`, per ComfyUI convention. (Early versions also planned
   `[apt]`/`[brew]` system packages; that idea predates realizing everything
