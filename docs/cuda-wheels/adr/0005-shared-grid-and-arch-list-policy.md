@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **One shared grid; arch lists mirror PyTorch's own build scripts, with
+> +PTX always on the highest arch.** Not per-package matrices (drift);
+> not taste-curated arch lists (copied from upstream CI, with one
+> deliberate forward-compat deviation); stable CPython 3.10-3.14 only.
+
 - **One grid** in `packages/_defaults.yml` (21 combos at the time of
   writing: cu124 x torch 2.4-2.6 through cu130 x torch 2.9-2.11), each row
   carrying its Python list and GPU arch list. Packages inherit it wholesale

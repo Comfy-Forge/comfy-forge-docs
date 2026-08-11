@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **A curated denylist of upstream gaps, subtracted at matrix time.** Not
+> build-and-fail discovery on every run (red noise, wasted CI, confusing
+> late failures at torch-install time); known-impossible cells cost
+> zero.
+
 `PHANTOM_COMBOS`: an explicit denylist of `(cuda, torch, python, platform)`
 tuples known to be unpublished upstream. Matrix generation silently drops
 matching cells. Curation is manual: when a new combo lands, missing upstream

@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **A priority ladder: the best strategy the data and platform allow,
+> falling through gracefully.** Not one wire format for everything
+> (zero-copy where possible, copies only when forced); JSON carries
+> metadata only -- bulk bytes never transit the socket.
+
 Serialize via a **priority ladder** -- try the best strategy the data and
 platform allow, fall through otherwise. JSON messages over the socket carry
 metadata only; bulk bytes travel through shared memory or GPU handles.

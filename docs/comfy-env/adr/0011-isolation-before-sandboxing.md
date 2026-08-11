@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **v1 ships dependency isolation only; sandboxing is deferred with the
+> path mapped.** Not security theater (isolation is never sold as a
+> boundary); not negligence (vanilla ComfyUI has no sandbox either, and
+> process isolation is sandboxing's precondition).
+
 **v1 scope is dependency isolation only.** Sandboxing is *deferred*, not
 rejected. Engineering effort goes to making isolation work end-to-end
 (envs, workers, transport -- ADR-0001/0007/0010) before any security

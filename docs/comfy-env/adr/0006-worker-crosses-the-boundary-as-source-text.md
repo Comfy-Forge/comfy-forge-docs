@@ -4,6 +4,12 @@
 
 ## Decision
 
+> **The worker crosses the boundary as source text, never as an import.**
+> Not comfy-env installed in every env (envs stay minimal and
+> node-defined); not a shared package (the two interpreters may not even
+> be the same Python) -- the parent ships the exact worker source it was
+> released with, making version skew structurally impossible.
+
 - The worker lives in a real module, `workers/_persistent_worker.py`
   (~1850 lines), but is **never imported by the parent**. The parent reads it
   as text at import time (`subprocess.py:106-109`) and materializes it into a

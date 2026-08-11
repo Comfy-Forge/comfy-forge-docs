@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **A static PEP 503 index on Pages, generated from the Releases API.**
+> Not an index server (cost and uptime); the API is the source of truth,
+> the index a pure projection of it, and the API itself doubles as the
+> consumer's different-routing-edge fallback.
+
 `scripts/generate_index.py` reads the **GitHub Releases API as the source
 of truth** and emits a static PEP 503 simple index to `docs/`, deployed to
 GitHub Pages (orphan-branch deploy). Two parallel trees: **v2** (real

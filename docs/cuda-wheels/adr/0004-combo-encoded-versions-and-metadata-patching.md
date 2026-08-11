@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **The (CUDA x torch) combo lives in the version -- in the filename AND
+> inside the wheel.** Not separate indexes per combo; not filename-only
+> (uv hard-fails on filename/METADATA mismatch); local version tags with
+> METADATA patched to match.
+
 - Append a **local version tag** encoding the combo:
   `<pkg>-<version>+cu<CCC>torch<M.m>-cp<PY>-...whl`
   (e.g. `flash_attn-2.8.3+cu124torch2.4-cp311-cp311-win_amd64.whl`). v2

@@ -4,6 +4,12 @@
 
 ## Decision
 
+> **One machine-wide workspace; one manifest per env; identity = env name
+> + ABI tag.** Not per-install workspaces (multi-GB envs would
+> duplicate); not one workspace-wide manifest (a single parse error
+> poisoned every env -- the v0.3 failure); per-env manifests with
+> stamped ABI validation at bind time.
+
 - **One machine-wide workspace root**: `%LOCALAPPDATA%\Programs\comfy-env` on
   Windows (next to the ComfyUI Desktop install; no admin needed), `~/.ce` on
   Unix; override with `COMFY_ENV_ROOT` (`environment/cache.py`).

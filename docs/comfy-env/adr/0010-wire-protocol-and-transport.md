@@ -27,6 +27,12 @@ transport as built:
 
 ## Decision (v1, as built -- and what we keep)
 
+> **Keep the hand-rolled framing and the synchronous core; fix the
+> invariants, not the transport family.** Not gRPC/Cap'n Proto (worker
+> envs must stay stdlib-minimal); not the sibling project's asyncio
+> engine (event-loop lifecycle scar tissue); a versioned handshake,
+> call-id correlation, and one serialization stack on the existing wire.
+
 1. **Keep the hand-rolled framing.** The disqualifier for gRPC/Cap'n Proto
    is the worker-side dependency: ADR-0006's constraint that isolated envs
    need nothing beyond stdlib(+torch) is load-bearing, and a ~100-line

@@ -17,6 +17,12 @@ unconnected -- `fetch_torch_matrix.py` knows what upstream publishes,
 
 ## Decision (proposed)
 
+> **A daily watcher: detect new upstream combos, update the grid, dispatch
+> builds -- humans gate only what structurally needs a human (a new CUDA
+> index).** Not manual grid edits (already drifted two torch minors
+> behind); not full autonomy where workflow files and installer URLs
+> require hand edits.
+
 A **daily scheduled workflow** (`torch-watch.yml`) driving a new
 `scripts/torch_watch.py`:
 

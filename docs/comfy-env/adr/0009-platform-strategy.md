@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **Target each platform's best mechanism behind common interfaces.** Not
+> lowest-common-denominator (that would forfeit Linux CUDA IPC to appease
+> Windows); dozens of platform branches, each earning its keep with a
+> documented reason.
+
 Target each platform's best available mechanism behind common interfaces
 (~49 platform branches across the tree), rather than restricting to the
 intersection:

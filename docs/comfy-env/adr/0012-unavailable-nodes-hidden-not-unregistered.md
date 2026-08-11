@@ -4,6 +4,13 @@
 
 ## Decision
 
+> **Register always; hide from the menu; explain twice.** Not
+> unregistration (a missing node type breaks shared-workflow loading
+> inscrutably); not a visible-but-broken picker entry (CPU users would
+> browse nodes they can never run); registered with real inputs/outputs,
+> menu-hidden via `DEPRECATED`, with a startup summary and a named-reason
+> error on execution.
+
 Three layers:
 
 1. **Always register** the node type: proxies for unavailable nodes are

@@ -6,6 +6,12 @@ agreed repair list are recorded below; the factoring itself stands.
 
 ## Decision
 
+> **Two files, two roles: the pack root declares relationships, the
+> subdirectory declares an environment.** Not one file doing both (the
+> roles conflict -- root must never touch the Python environment); not a
+> separate isolation flag -- the presence of `comfy-env.toml` IS the
+> isolation switch.
+
 Two files with sharply separated roles:
 
 - **`comfy-env-root.toml`** (pack root): `[node_reqs]` dependencies on

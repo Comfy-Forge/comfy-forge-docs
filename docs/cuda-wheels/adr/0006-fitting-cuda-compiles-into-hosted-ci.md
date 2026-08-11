@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **GitHub-hosted runners by default, with escape hatches for the 6-hour
+> cap.** Not self-hosted-only (couples the farm to personal hardware and
+> locks out forks); disk freeing, compile sharding, and checkpoint
+> chains keep hosted builds converging across re-runs.
+
 **GitHub-hosted runners are the default** (`ubuntu-22.04` /
 `windows-2022`), with an opt-in `runner=self-hosted` input for homelab
 machines. Three escape hatches keep hosted builds inside the caps:

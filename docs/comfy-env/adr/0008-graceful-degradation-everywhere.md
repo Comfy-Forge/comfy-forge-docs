@@ -4,6 +4,12 @@
 
 ## Decision
 
+> **Every failure path ends in "ComfyUI still boots".** Not fail-fast
+> (comfy-env sits in the startup path of end-user machines, where a hard
+> failure reads as "ComfyUI is broken"); every subsystem has an explicit
+> fallback, and the terminal fallback is a working ComfyUI with
+> isolation off.
+
 Every subsystem has an explicit fallback, and the terminal fallback is always
 **ComfyUI still boots**:
 

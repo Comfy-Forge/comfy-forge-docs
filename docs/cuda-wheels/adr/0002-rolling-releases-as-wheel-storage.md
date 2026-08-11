@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **One rolling GitHub Release per package holds every wheel.** Not PyPI
+> (local version tags are forbidden there); not paid object storage
+> (cost, credentials); Releases as free CDN-backed storage with
+> skip-existing idempotence.
+
 **One rolling GitHub Release per package**, tagged `<pkg>-latest`, holding
 every wheel for that package across all combos and versions as release
 assets. CI uploads with `--clobber`; the matrix generator and each build

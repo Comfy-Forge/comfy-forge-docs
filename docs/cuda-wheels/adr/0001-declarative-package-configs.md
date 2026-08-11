@@ -4,6 +4,11 @@
 
 ## Decision
 
+> **A package is one YAML config plus an optional patch script; the build
+> engine stays generic.** Not per-package shell scripts (N unmaintainable
+> build systems); not a monolithic engine full of special cases;
+> declarative configs inheriting one shared grid.
+
 A package is **one YAML file** (`packages/<name>.yml`: source repo + tag,
 version, extra deps, nvcc flags, arch overrides, sharding/checkpoint knobs)
 plus an optional **Python patch script** (`patches/<name>.py`) run against

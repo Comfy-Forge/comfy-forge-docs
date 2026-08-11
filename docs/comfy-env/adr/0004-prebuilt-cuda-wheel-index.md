@@ -4,6 +4,12 @@
 
 ## Decision
 
+> **Prebuilt CUDA wheels from our own index, resolved at install time for
+> the user's exact machine.** Not source builds (no end user has
+> nvcc/MSVC); not upstream wheels alone (they cover a fraction of the
+> ABI x torch x CUDA x OS x arch matrix); a companion wheel farm plus a
+> two-tier resolver with a known-good fallback combo.
+
 Maintain a companion wheel farm,
 [cuda-wheels](https://github.com/PozzettiAndrea/cuda-wheels), and resolve
 wheels automatically (`packages/cuda_wheels.py`):
