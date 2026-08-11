@@ -4,20 +4,23 @@ Every comfy-env setting, its default, and how to change it.
 
 ## How settings resolve
 
-Three tiers, highest priority first:
+Four tiers, highest priority first -- **most specific wins** (a per-pack
+declaration is more specific than a global environment variable):
 
-1. **Environment variable** -- `COMFY_ENV_ISOLATE=0 python main.py`
-2. **Persistent file** -- `~/.comfy-env/settings.env`, plain `KEY=VALUE`
-   lines; edited comfortably via the `comfy-env settings` TUI
-3. **Built-in default**
+1. **Per-pack `[settings]`** in that pack's `comfy-env-root.toml`, using
+   the short keys below:
 
-Additionally, a pack can override per-node in its `comfy-env-root.toml`
-using the short keys below:
+    ```toml
+    [settings]
+    isolate = false          # this pack's nodes run in-process
+    ```
 
-```toml
-[settings]
-isolate = false          # this pack's nodes run in-process
-```
+2. **Environment variable** -- `COMFY_ENV_ISOLATE=0 python main.py`
+3. **Persistent file** -- `~/.comfy-env/settings.env`, plain `KEY=VALUE`
+   lines; edited comfortably via the `comfy-env settings` TUI. Loaded with
+   `setdefault`, so it fills *unset* env vars and can never override an
+   explicitly-set one.
+4. **Built-in default**
 
 Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 

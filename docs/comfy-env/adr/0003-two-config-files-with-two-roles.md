@@ -95,22 +95,30 @@ and plumbing removed -- see git history for details). Still open:
   Decided in [ADR-0013](0013-env-file-passthrough-contract.md) (honest
   passthrough; compiler-owned deny/rewrite/merge table; owned-section
   warnings; `schema = 1`); implementation pending.
-- **Cache identity is wrong in both directions**: the install hash covers
-  raw config bytes (comment edits force rebuilds) but not derivation results
-  (a fallback-combo env never upgrades when the missing wheel is later
-  published; GPU-presence flips do not move the hash), and `auto_install`
-  uses a different torch pin rule and writes no hash at all. Repair: hash
-  the *generated* manifest instead of input bytes; unify `auto_install`
-  with the install path.
-- **Settings precedence is inverted** vs. its own documentation: a pack's
-  `[settings]` beats the user's explicit `COMFY_ENV_*` env var. Repair:
-  user env var wins.
-- **Dead-config remainder**: subdir `[node_reqs]` and subdir `[settings]`
-  are parsed but never consumed -- and the config reference currently
-  documents per-env `[settings]` as a feature, so this is now an
-  implement-or-un-document decision, not a deletion. One runtime consumer
-  (`wrap.py`) still re-parses the TOML inline instead of using the config
-  layer (deferred while that block carries in-flight serializer work).
+- ~~Cache identity wrong in both directions~~ -- fixed 2026-08: rebuild
+  decisions now key on the *derivation output* (canonical generated
+  manifest + resolved wheel URLs), behind a pure-local fast key that keeps
+  the all-clean path network-free. Comment edits never rebuild; envs
+  stamped `:fallback` re-derive every run and self-upgrade when their
+  missing wheel is published; GPU flips rebuild; `auto_install` shares the
+  generator and pin rule and records the same identity. Legacy v1 hashes
+  are grandfathered (no surprise rebuilds on upgrade).
+- ~~Settings precedence inverted vs. its own documentation~~ -- resolved
+  2026-08 **by documentation**: the code's behavior is intended -- a
+  per-pack `[settings]` is *more specific* than a global env var and wins
+  (specific beats general). The `settings.py` docstring and the docs were
+  wrong, not the code; both now state the real order (pack `[settings]` >
+  env var > `~/.comfy-env/settings.env`, which only fills unset vars >
+  default).
+- **Dead-config remainder** (root vs subdir matters here): the ROOT copies
+  of `[node_reqs]` and `[settings]` are fully consumed (install plugin
+  half; per-pack settings). The dead ones are the SUBDIR copies -- a
+  `[node_reqs]` or `[settings]` inside `comfy-env.toml` is parsed but
+  consumed by nothing. The config reference currently documents per-env
+  `[settings]` as a feature, so this is an implement-or-un-document
+  decision, not a deletion. One runtime consumer (`wrap.py`) still
+  re-parses the TOML inline instead of using the config layer (deferred
+  while that block carries in-flight serializer work).
 
 ## Considered alternatives (2026-08)
 

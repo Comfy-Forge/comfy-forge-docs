@@ -43,7 +43,8 @@ OtherPack = { github = "https://github.com/x/OtherPack", tag = "v1.2.0" }
 RegistryPack = { registry = "registry-pack-id", version = "1.0.3" }
 
 # Per-pack overrides of comfy-env feature flags (short keys map to
-# COMFY_ENV_* env vars; env vars still win when set explicitly).
+# COMFY_ENV_* env vars; a pack's [settings] wins over env vars --
+# most specific wins; see the settings reference).
 [settings]
 isolate = true            # COMFY_ENV_ISOLATE      (default true)
 install_isolated = true   # COMFY_ENV_INSTALL_ISOLATED (default true)
