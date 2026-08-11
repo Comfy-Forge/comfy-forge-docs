@@ -51,7 +51,7 @@ nav:
   - Roadmap: roadmap.md
   - comfy-env:
       - Architecture: comfy-env/index.md
-      - Pack author reference:
+      - Nodepack Author Reference:
           - Lifecycle hooks:
               - "install()": comfy-env/install.md
               - "setup_env()": comfy-env/setup-env.md
