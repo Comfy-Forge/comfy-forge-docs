@@ -44,15 +44,17 @@ the Python object graph that `import torch` builds and copy-on-write data
 pages are per-process by nature. Workers on *different* builds lose the
 shared portion too (~220 MB each, plus duplicated disk/page cache) --
 one more reason to keep the env combo spread small. Add a CUDA context
-where one is created. Corroboration: pyisolate -- Comfy-Org's
-own isolation library -- independently made the same choice: the child is
-spawned once at extension load (`_internal/host.py:490`) and serves RPC on
-one long-lived connection until an explicit `stop()`; there is no
-spawn-per-call mode (earlier pyisolate iterations used impermanent
-workers; the shipped design converged on persistence). Notably, neither
-project had ever benchmarked the two models head-to-head -- pyisolate's
-benchmark suite measures only warm RPC overhead -- until the measurement
-below.
+where one is created.
+
+!!! info "Corroboration: pyisolate converged on the same design"
+    *pyisolate -- Comfy-Org's own isolation library -- independently made
+    the same choice: the child is spawned once at extension load
+    (`_internal/host.py:490`) and serves RPC on one long-lived connection
+    until an explicit `stop()`; there is no spawn-per-call mode. Earlier
+    pyisolate iterations used impermanent workers; the shipped design
+    converged on persistence. Notably, neither project had ever benchmarked
+    the two models head-to-head -- pyisolate's benchmark suite measures
+    only warm RPC overhead -- until the measurement below.*
 
 ### Measured: spawn-per-call vs persistent (2026-08)
 
