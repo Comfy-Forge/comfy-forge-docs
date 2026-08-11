@@ -18,6 +18,9 @@ have.
 
 ## Where to start
 
+- What binds the three tools -- the mission, the eight principles, and the
+  recorded non-goals: [Aims & principles](aims.md).
+
 - New to ComfyUI packaging? Read the
   [ComfyUI background](comfy-env/index.md#comfyui-background-for-newcomers)
   primer first.
