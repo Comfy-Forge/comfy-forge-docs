@@ -64,7 +64,12 @@ transport as built:
   that may run different Python versions and native-lib builds.
 - **A health-check ping round-trip (with unconditional stderr prints) is
   paid on every call**, and the per-call overhead figure in the docstrings
-  ("~50-100ms") has never been measured; there is no benchmark harness.
+  ("~50-100ms") was folklore until 2026-08: a first real measurement (see
+  ADR-0001's spawn-vs-persistent table) puts the warm per-call floor at
+  ~30 ms *including* the per-call ping -- so the docstring was pessimistic,
+  but the floor is still ~100x pyisolate's measured 0.31 ms, and the ping
+  plus redundant tree-walks are the visible gap. A standing benchmark
+  harness is still missing.
 
 ## Direction (v2 -- agreed by both reviewers)
 

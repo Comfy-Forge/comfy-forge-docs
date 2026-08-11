@@ -48,7 +48,46 @@ where one is created. Corroboration: pyisolate -- Comfy-Org's
 own isolation library -- independently made the same choice: the child is
 spawned once at extension load (`_internal/host.py:490`) and serves RPC on
 one long-lived connection until an explicit `stop()`; there is no
-spawn-per-call mode.
+spawn-per-call mode (earlier pyisolate iterations used impermanent
+workers; the shipped design converged on persistence). Notably, neither
+project had ever benchmarked the two models head-to-head -- pyisolate's
+benchmark suite measures only warm RPC overhead -- until the measurement
+below.
+
+### Measured: spawn-per-call vs persistent (2026-08)
+
+Direct A/B on real `SubprocessWorker`s -- Windows 11, NVIDIA RTX-class
+machine, CPU-only torch, same-interpreter workers (no pixi activation in
+the loop), trivial echo module as the node stand-in. Persistent = one
+spawn, then 50 warm calls; spawn-per-call = 5 full cycles of
+spawn + one call + kill. (`tests/fixtures/echo_node.py` is the fixture;
+the run predates removal of the per-call health ping, so warm figures
+include it.)
+
+| model | per-call cost |
+|---|---|
+| cold start (spawn + `import torch` + first call) | 2,403 ms |
+| persistent, warm (tiny payload) | 30.1 ms |
+| persistent, warm (1 MB tensor) | 30.4 ms |
+| **spawn-per-call** (spawn + call + kill) | **1,559 ms -- 52x warm** |
+
+Interpretation, with the caveats stated honestly:
+
+- **52x is spawn-per-call's BEST case.** The measurement deliberately
+  excludes the two costs that dominate real packs: CUDA context creation
+  (adds ~1-3 s and hundreds of MB VRAM per spawn) and model reloads
+  (multi-GB, disk -> RAM -> VRAM, tens of seconds). A real GPU node under
+  spawn-per-call pays 10-100+ seconds per execution versus ~30 ms warm; a
+  20-node workflow queued twice would spend minutes purely on re-imports.
+- **Payload size is not the cost at small scale**: 1 MB tensor == tiny int
+  (30.4 vs 30.1 ms). The warm floor is fixed transport overhead -- and the
+  run itself exposed that every warm call was paying the per-call health
+  ping (ADR-0010 defect list), so the true floor is lower than 30 ms.
+- **The refinement worth having is an idle reaper, not spawning**: keep
+  workers hot while in use, reap after an idle window to reclaim the
+  ~180-220 MB (and CUDA context) of envs the user stopped touching. That
+  caps standing cost without ever putting the 1.5-s spawn on the execution
+  path.
 
 The parent **never imports node code**. At registration time,
 `isolation/metadata.py` spawns a short-lived subprocess inside the isolation
