@@ -2,6 +2,13 @@
 
 **Status:** accepted (direction: make it data, then self-maintaining)
 
+## Decision
+
+`PHANTOM_COMBOS`: an explicit denylist of `(cuda, torch, python, platform)`
+tuples known to be unpublished upstream. Matrix generation silently drops
+matching cells. Curation is manual: when a new combo lands, missing upstream
+cells are discovered by build failure and added.
+
 ## Context
 
 Upstream PyTorch does not publish every (cuda, torch, python, platform)
@@ -10,13 +17,6 @@ shipped. A grid cell whose torch wheel does not exist fails late and
 confusingly: the matrix generates, the job spins up, and dies at
 `uv pip install torch==...` inside the build-env setup. Nothing at
 matrix-generation time validates a cell against upstream reality.
-
-## Decision
-
-`PHANTOM_COMBOS`: an explicit denylist of `(cuda, torch, python, platform)`
-tuples known to be unpublished upstream. Matrix generation silently drops
-matching cells. Curation is manual: when a new combo lands, missing upstream
-cells are discovered by build failure and added.
 
 ## Consequences
 

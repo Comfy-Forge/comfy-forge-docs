@@ -2,12 +2,6 @@
 
 **Status:** accepted
 
-## Context
-
-Which (CUDA, torch, Python, platform) cells to build is the farm's central
-policy question. Per-package answers drift; a single grid keeps ~38
-packages aligned and makes coverage auditable.
-
 ## Decision
 
 - **One grid** in `packages/_defaults.yml` (21 combos at the time of
@@ -33,6 +27,12 @@ packages aligned and makes coverage auditable.
   tracking them would roughly double the matrix for zero current users.
   Revisit when a ComfyUI distribution ships a free-threaded interpreter.
   Dev/rc builds upstream are never targeted.
+
+## Context
+
+Which (CUDA, torch, Python, platform) cells to build is the farm's central
+policy question. Per-package answers drift; a single grid keeps ~38
+packages aligned and makes coverage auditable.
 
 ## Consequences
 

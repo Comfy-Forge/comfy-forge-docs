@@ -2,13 +2,6 @@
 
 **Status:** accepted (defects acknowledged; direction agreed)
 
-## Context
-
-Thousands of wheels (3,400+ at last count) need free, CDN-backed storage
-with programmatic upload from CI. PyPI is out (local version tags like
-`+cu128torch2.9` are forbidden there); object storage costs money and adds
-credentials.
-
 ## Decision
 
 **One rolling GitHub Release per package**, tagged `<pkg>-latest`, holding
@@ -16,6 +9,13 @@ every wheel for that package across all combos and versions as release
 assets. CI uploads with `--clobber`; the matrix generator and each build
 job check existing assets first (`gh release view`), so re-runs build only
 what is missing -- idempotent, resumable CI at wheel granularity.
+
+## Context
+
+Thousands of wheels (3,400+ at last count) need free, CDN-backed storage
+with programmatic upload from CI. PyPI is out (local version tags like
+`+cu128torch2.9` are forbidden there); object storage costs money and adds
+credentials.
 
 ## Consequences
 

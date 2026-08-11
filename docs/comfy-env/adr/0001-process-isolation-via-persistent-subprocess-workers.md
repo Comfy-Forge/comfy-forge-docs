@@ -5,6 +5,43 @@ review (two reviewers, both verdicts: the decision stands; criticism
 concentrates on the transport layer, now split into
 [ADR-0010](0010-wire-protocol-and-transport.md))
 
+## Decision
+
+> **One permanent worker process per environment.** Not one shared
+> environment (conflicts are structural, see Context); not a fresh process
+> per execution (model reloads make it unusable); a **persistent** process
+> per isolated env -- spawned lazily on first use, resident until shutdown,
+> restarted on crash.
+
+Concretely: nodes that declare a `comfy-env.toml` run in **persistent
+subprocess workers**, one per environment, using the isolated env's own
+interpreter (`isolation/wrap.py`). Workers are spawned lazily on the first
+call to that env, then stay alive across executions (models stay resident),
+auto-restart on crash, and are keyed by env directory.
+
+Why persistent rather than spawn-per-execution: a fresh spawn pays
+interpreter boot + `import torch` + CUDA context creation (seconds and
+hundreds of MB) *plus reloading every model the node holds* -- multi-GB
+weights, disk -> RAM -> VRAM -- on every graph execution, of which a
+workflow has many. Persistence amortizes all of that to once per session;
+`SubprocessModelPatcher` exists precisely so resident models still obey
+ComfyUI's VRAM manager (evict to CPU under pressure) instead of the two
+processes OOMing each other. Measured cost of persistence: ~180 MB private
+RAM per idle CPU worker (torch code pages are shared between workers on the
+same build), plus a CUDA context where one is created.
+
+The parent **never imports node code**. At registration time,
+`isolation/metadata.py` spawns a short-lived subprocess inside the isolation
+env to serialize node metadata (`INPUT_TYPES`, `RETURN_TYPES`, ...), and the
+parent synthesizes **proxy classes** from that metadata. To ComfyUI a proxied
+node is indistinguishable from a normal one.
+
+Worker-resident GPU models participate in ComfyUI's VRAM management through
+`SubprocessModelPatcher` (`isolation/model_patcher.py`): ComfyUI eviction
+calls `unpatch_model()`, which IPCs the worker to move the model to CPU.
+Model detection is automatic (the worker hooks `Module.to()` / `.cuda()`), so
+isolated repos need zero changes.
+
 ## Context
 
 ComfyUI custom nodes share a single Python environment and a single process.
@@ -56,43 +93,6 @@ contexts into one; CUDA MPS as a measurable partial mitigation (Linux only);
 scheduler-level async integration with ComfyUI implemented at the
 synthesized-proxy seam (preserving the zero-code-change contract); making
 the ComfyUI-facing hooks official upstream instead of monkey patches.
-
-## Decision
-
-> **One permanent worker process per environment.** Not one shared
-> environment (conflicts are structural, see Context); not a fresh process
-> per execution (model reloads make it unusable); a **persistent** process
-> per isolated env -- spawned lazily on first use, resident until shutdown,
-> restarted on crash.
-
-Concretely: nodes that declare a `comfy-env.toml` run in **persistent
-subprocess workers**, one per environment, using the isolated env's own
-interpreter (`isolation/wrap.py`). Workers are spawned lazily on the first
-call to that env, then stay alive across executions (models stay resident),
-auto-restart on crash, and are keyed by env directory.
-
-Why persistent rather than spawn-per-execution: a fresh spawn pays
-interpreter boot + `import torch` + CUDA context creation (seconds and
-hundreds of MB) *plus reloading every model the node holds* -- multi-GB
-weights, disk -> RAM -> VRAM -- on every graph execution, of which a
-workflow has many. Persistence amortizes all of that to once per session;
-`SubprocessModelPatcher` exists precisely so resident models still obey
-ComfyUI's VRAM manager (evict to CPU under pressure) instead of the two
-processes OOMing each other. Measured cost of persistence: ~180 MB private
-RAM per idle CPU worker (torch code pages are shared between workers on the
-same build), plus a CUDA context where one is created.
-
-The parent **never imports node code**. At registration time,
-`isolation/metadata.py` spawns a short-lived subprocess inside the isolation
-env to serialize node metadata (`INPUT_TYPES`, `RETURN_TYPES`, ...), and the
-parent synthesizes **proxy classes** from that metadata. To ComfyUI a proxied
-node is indistinguishable from a normal one.
-
-Worker-resident GPU models participate in ComfyUI's VRAM management through
-`SubprocessModelPatcher` (`isolation/model_patcher.py`): ComfyUI eviction
-calls `unpatch_model()`, which IPCs the worker to move the model to CPU.
-Model detection is automatic (the worker hooks `Module.to()` / `.cuda()`), so
-isolated repos need zero changes.
 
 ## Consequences
 

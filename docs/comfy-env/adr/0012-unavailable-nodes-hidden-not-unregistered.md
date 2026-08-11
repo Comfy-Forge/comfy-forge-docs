@@ -2,6 +2,22 @@
 
 **Status:** accepted
 
+## Decision
+
+Three layers:
+
+1. **Always register** the node type: proxies for unavailable nodes are
+   built with their real inputs/outputs, so workflows load and validate
+   and dispatcher ids resolve.
+2. **Hide from the menu**: the unavailable stub sets `DEPRECATED = True`
+   (plus the "(requires CUDA -- unavailable on this machine)" description
+   badge for anyone who surfaces it, e.g. via a loaded workflow).
+3. **Explain twice**: one summary warning at startup
+   ("N node(s) require CUDA; no such accelerator on this machine --
+   registered but hidden from the node menu"), and the named-reason error
+   if the node is ever executed anyway (via a loaded workflow):
+   `Node 'X' requires CUDA; this machine has backend 'cpu' ...`.
+
 ## Context
 
 When a node declares an accelerator the machine lacks (ADR via the
@@ -22,22 +38,6 @@ Both concerns are real; they concern different surfaces. "Visible"
 conflates two things -- **menu presence** and **type registration** -- and
 ComfyUI already separates them: a node with `DEPRECATED = True` is hidden
 from the node picker and search but remains registered and executable.
-
-## Decision
-
-Three layers:
-
-1. **Always register** the node type: proxies for unavailable nodes are
-   built with their real inputs/outputs, so workflows load and validate
-   and dispatcher ids resolve.
-2. **Hide from the menu**: the unavailable stub sets `DEPRECATED = True`
-   (plus the "(requires CUDA -- unavailable on this machine)" description
-   badge for anyone who surfaces it, e.g. via a loaded workflow).
-3. **Explain twice**: one summary warning at startup
-   ("N node(s) require CUDA; no such accelerator on this machine --
-   registered but hidden from the node menu"), and the named-reason error
-   if the node is ever executed anyway (via a loaded workflow):
-   `Node 'X' requires CUDA; this machine has backend 'cpu' ...`.
 
 ## Consequences
 

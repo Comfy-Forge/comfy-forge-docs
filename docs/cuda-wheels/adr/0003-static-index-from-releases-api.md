@@ -2,12 +2,6 @@
 
 **Status:** accepted (defects acknowledged; direction agreed)
 
-## Context
-
-Consumers (comfy-env's resolver, plain pip users) need an installable index
-over the wheels stored in Releases (CW-ADR-0002). Running an index server
-costs money and uptime; a static site does not.
-
 ## Decision
 
 `scripts/generate_index.py` reads the **GitHub Releases API as the source
@@ -18,6 +12,12 @@ filenames, dotted torch tag: `+cu128torch2.9`) and a **v1 compat shim**
 comfy-env versions. Every index entry links directly to the release-asset
 download URL. The consumer keeps the Releases API itself as a
 different-routing-edge fallback when the Pages CDN is blocked.
+
+## Context
+
+Consumers (comfy-env's resolver, plain pip users) need an installable index
+over the wheels stored in Releases (CW-ADR-0002). Running an index server
+costs money and uptime; a static site does not.
 
 ## Consequences
 

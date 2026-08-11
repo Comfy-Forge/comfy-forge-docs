@@ -2,14 +2,6 @@
 
 **Status:** accepted
 
-## Context
-
-ComfyUI's user base spans Windows (including the Desktop app), Linux
-(including headless servers), and macOS (Apple Silicon without CUDA). The
-IPC, filesystem, and GPU layers differ enough that a
-lowest-common-denominator implementation would forfeit the best mechanism on
-every platform (e.g. giving up CUDA IPC because Windows lacks it).
-
 ## Decision
 
 Target each platform's best available mechanism behind common interfaces
@@ -43,6 +35,14 @@ intersection:
   passing, CUDA IPC (Linux-only, per
   [ADR-0005](0005-tiered-tensor-serialization.md)); glibc pin in generated
   features.
+
+## Context
+
+ComfyUI's user base spans Windows (including the Desktop app), Linux
+(including headless servers), and macOS (Apple Silicon without CUDA). The
+IPC, filesystem, and GPU layers differ enough that a
+lowest-common-denominator implementation would forfeit the best mechanism on
+every platform (e.g. giving up CUDA IPC because Windows lacks it).
 
 ## Consequences
 

@@ -2,18 +2,6 @@
 
 **Status:** accepted
 
-## Context
-
-The worker program runs in the isolated env's interpreter, which does **not
-have comfy-env installed** -- the whole point is that the isolated env
-contains only what the node declared. So the worker cannot `import comfy_env`
-and share code with the parent the normal way. The two interpreters may even
-be different Python versions with different installed packages.
-
-An earlier iteration embedded the entire worker as a giant string constant
-(`_PERSISTENT_WORKER_SCRIPT`) inside `subprocess.py` (~2500 lines in one
-file) -- unreadable, unlintable, undiffable.
-
 ## Decision
 
 - The worker lives in a real module, `workers/_persistent_worker.py`
@@ -27,6 +15,18 @@ file) -- unreadable, unlintable, undiffable.
   `workers/_ipc_parent.py`, worker-side inside `_persistent_worker.py`. They
   implement the same wire protocol ([ADR-0005](0005-tiered-tensor-serialization.md))
   against potentially different torch builds.
+
+## Context
+
+The worker program runs in the isolated env's interpreter, which does **not
+have comfy-env installed** -- the whole point is that the isolated env
+contains only what the node declared. So the worker cannot `import comfy_env`
+and share code with the parent the normal way. The two interpreters may even
+be different Python versions with different installed packages.
+
+An earlier iteration embedded the entire worker as a giant string constant
+(`_PERSISTENT_WORKER_SCRIPT`) inside `subprocess.py` (~2500 lines in one
+file) -- unreadable, unlintable, undiffable.
 
 ## Consequences
 

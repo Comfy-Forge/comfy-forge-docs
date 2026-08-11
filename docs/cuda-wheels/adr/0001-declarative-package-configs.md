@@ -2,14 +2,6 @@
 
 **Status:** accepted
 
-## Context
-
-Every CUDA package (flash-attn, nvdiffrast, pytorch3d, ...) has its own
-build quirks: source layout, extra deps, nvcc flags, MSVC bugs, submodules,
-arch constraints. Encoding each as a bespoke shell script produces N
-unmaintainable scripts; encoding nothing produces a build engine full of
-special cases.
-
 ## Decision
 
 A package is **one YAML file** (`packages/<name>.yml`: source repo + tag,
@@ -22,6 +14,14 @@ config and patches.
 Packages **inherit the shared build grid** (CW-ADR-0005) unless they
 declare their own `build_matrix` -- so one edit to `_defaults.yml`
 propagates a new torch/cuda to ~38 packages at once.
+
+## Context
+
+Every CUDA package (flash-attn, nvdiffrast, pytorch3d, ...) has its own
+build quirks: source layout, extra deps, nvcc flags, MSVC bugs, submodules,
+arch constraints. Encoding each as a bespoke shell script produces N
+unmaintainable scripts; encoding nothing produces a build engine full of
+special cases.
 
 ## Consequences
 

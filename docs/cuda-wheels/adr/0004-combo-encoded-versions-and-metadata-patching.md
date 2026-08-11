@@ -2,13 +2,6 @@
 
 **Status:** accepted
 
-## Context
-
-Every wheel is compiled for exactly one (CUDA x torch) pairing, but wheel
-filenames only encode package version, Python ABI, and platform. Without
-the pairing in the *version*, two wheels for different CUDA/torch combos
-would collide, and resolvers could not select by combo.
-
 ## Decision
 
 - Append a **local version tag** encoding the combo:
@@ -27,6 +20,13 @@ would collide, and resolvers could not select by combo.
   every wheel is tied to a torch family -- the same family pin comfy-env
   replicates into its generated envs
   ([comfy-env ADR-0004](../../comfy-env/adr/0004-prebuilt-cuda-wheel-index.md)).
+
+## Context
+
+Every wheel is compiled for exactly one (CUDA x torch) pairing, but wheel
+filenames only encode package version, Python ABI, and platform. Without
+the pairing in the *version*, two wheels for different CUDA/torch combos
+would collide, and resolvers could not select by combo.
 
 ## Consequences
 

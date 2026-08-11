@@ -2,13 +2,6 @@
 
 **Status:** accepted
 
-## Context
-
-CUDA compiles of packages like pytorch3d or natten run for many hours;
-GitHub-hosted runners cap a job at 6 hours and offer limited disk. The
-alternative -- self-hosted only -- couples the farm's availability to
-personal hardware and blocks outside contributors from running builds.
-
 ## Decision
 
 **GitHub-hosted runners are the default** (`ubuntu-22.04` /
@@ -27,6 +20,13 @@ machines. Three escape hatches keep hosted builds inside the caps:
    preserve nanosecond mtimes, because ninja's restat check breaks on
    re-cloned sources (build/-only checkpoints were tried and abandoned) --
    and a chained follow-up job resumes.
+
+## Context
+
+CUDA compiles of packages like pytorch3d or natten run for many hours;
+GitHub-hosted runners cap a job at 6 hours and offer limited disk. The
+alternative -- self-hosted only -- couples the farm's availability to
+personal hardware and blocks outside contributors from running builds.
 
 ## Consequences
 

@@ -2,15 +2,6 @@
 
 **Status:** accepted (strategy 2 in progress)
 
-## Context
-
-Node inputs and outputs -- often multi-gigabyte image/video tensors and
-meshes -- must cross the process boundary between ComfyUI and workers
-([ADR-0001](0001-process-isolation-via-persistent-subprocess-workers.md)).
-Naive pickling over the socket would copy every tensor twice and destroy
-throughput. The optimal mechanism differs by data type, device, and platform,
-and some mechanisms fail at runtime for environmental reasons.
-
 ## Decision
 
 Serialize via a **priority ladder** -- try the best strategy the data and
@@ -79,6 +70,15 @@ There is deliberately **no hand-maintained compatibility matrix** ("torch
 single source of truth and never needs updating when torch changes -- when
 torch breaks the protocol, the probe is what reports it. Opt-out:
 `COMFY_ENV_TRANSPORT_PROBE=0`.
+
+## Context
+
+Node inputs and outputs -- often multi-gigabyte image/video tensors and
+meshes -- must cross the process boundary between ComfyUI and workers
+([ADR-0001](0001-process-isolation-via-persistent-subprocess-workers.md)).
+Naive pickling over the socket would copy every tensor twice and destroy
+throughput. The optimal mechanism differs by data type, device, and platform,
+and some mechanisms fail at runtime for environmental reasons.
 
 ## Consequences
 

@@ -2,6 +2,44 @@
 
 **Status:** accepted
 
+## Decision
+
+Use [pixi](https://pixi.sh): a fast Rust-based manager that speaks
+**conda-forge and PyPI in the same `pixi.toml`**, ships a per-env lockfile,
+installs entirely per-user with no admin rights or system-Python pollution,
+and uses [uv](https://github.com/astral-sh/uv) underneath for the PyPI side.
+
+An honesty note on what the lockfile buys (2026-08 review): **per-machine
+solve determinism and local idempotence** -- skip-if-unchanged installs,
+stamped and hash-checked. NOT cross-machine reproducibility: packs ship
+`comfy-env.toml`, each machine generates its manifest from host detection
+and solves fresh against the rolling channel, and the CUDA wheels currently
+install outside the lock entirely (the
+[two-system problem](../two-system-problem.md)). Cross-machine
+reproducibility would arrive via CI-pre-solved lockfiles per env x ABI tag
+(deferred; most valuable for the ComfyUI Desktop population).
+
+Supporting choices:
+
+- The pixi binary is **self-bootstrapped, pinned, and verified**
+  (`packages/pixi.py`): a pinned `PIXI_VERSION` is downloaded as the
+  official release archive, checked against sha256 hashes vendored from the
+  release's `sha256.sum`, and installed to a comfy-env-owned, version-keyed
+  path (`~/.comfy-env/pixi/<version>/`) -- never touching a user's own
+  `~/.pixi` install. `pip install comfy-env` remains the only prerequisite;
+  upgrading pixi is a one-constant, CI-tested change. (Originally this
+  downloaded whatever `releases/latest` served, unpinned and unverified --
+  identified as the system's worst tail risk in the 2026-08 review and
+  fixed.)
+- comfy-env acts as a **manifest compiler** (`packages/toml_generator.py`):
+  it generates `pixi.toml` files rather than driving a package API. Unknown
+  keys in `comfy-env.toml` are intended to pass through to the generated
+  manifest untouched (in v0.4 only an allowlist actually does -- see
+  [ADR-0003](0003-two-config-files-with-two-roles.md)), so pixi's full
+  feature set stays reachable without comfy-env schema changes.
+- uv is also used directly for main-env pip work (`install/helpers.py`
+  `_find_uv()`), with plain pip as fallback.
+
 ## Context
 
 Conda cannot be avoided -- but for precise, enumerable reasons, not "some
@@ -56,44 +94,6 @@ Alternatives:
 - **conda/mamba directly** -- solves the native problem but PyPI interop is
   bolted on, solves are slower, and there is no single-manifest,
   single-lockfile story across both ecosystems.
-
-## Decision
-
-Use [pixi](https://pixi.sh): a fast Rust-based manager that speaks
-**conda-forge and PyPI in the same `pixi.toml`**, ships a per-env lockfile,
-installs entirely per-user with no admin rights or system-Python pollution,
-and uses [uv](https://github.com/astral-sh/uv) underneath for the PyPI side.
-
-An honesty note on what the lockfile buys (2026-08 review): **per-machine
-solve determinism and local idempotence** -- skip-if-unchanged installs,
-stamped and hash-checked. NOT cross-machine reproducibility: packs ship
-`comfy-env.toml`, each machine generates its manifest from host detection
-and solves fresh against the rolling channel, and the CUDA wheels currently
-install outside the lock entirely (the
-[two-system problem](../two-system-problem.md)). Cross-machine
-reproducibility would arrive via CI-pre-solved lockfiles per env x ABI tag
-(deferred; most valuable for the ComfyUI Desktop population).
-
-Supporting choices:
-
-- The pixi binary is **self-bootstrapped, pinned, and verified**
-  (`packages/pixi.py`): a pinned `PIXI_VERSION` is downloaded as the
-  official release archive, checked against sha256 hashes vendored from the
-  release's `sha256.sum`, and installed to a comfy-env-owned, version-keyed
-  path (`~/.comfy-env/pixi/<version>/`) -- never touching a user's own
-  `~/.pixi` install. `pip install comfy-env` remains the only prerequisite;
-  upgrading pixi is a one-constant, CI-tested change. (Originally this
-  downloaded whatever `releases/latest` served, unpinned and unverified --
-  identified as the system's worst tail risk in the 2026-08 review and
-  fixed.)
-- comfy-env acts as a **manifest compiler** (`packages/toml_generator.py`):
-  it generates `pixi.toml` files rather than driving a package API. Unknown
-  keys in `comfy-env.toml` are intended to pass through to the generated
-  manifest untouched (in v0.4 only an allowlist actually does -- see
-  [ADR-0003](0003-two-config-files-with-two-roles.md)), so pixi's full
-  feature set stays reachable without comfy-env schema changes.
-- uv is also used directly for main-env pip work (`install/helpers.py`
-  `_find_uv()`), with plain pip as fallback.
 
 ## Consequences
 

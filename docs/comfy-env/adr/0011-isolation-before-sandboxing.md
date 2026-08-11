@@ -2,6 +2,13 @@
 
 **Status:** accepted (2026-08)
 
+## Decision
+
+**v1 scope is dependency isolation only.** Sandboxing is *deferred*, not
+rejected. Engineering effort goes to making isolation work end-to-end
+(envs, workers, transport -- ADR-0001/0007/0010) before any security
+hardening.
+
 ## Context
 
 comfy-env's workers run node-pack code with the user's full privileges: no
@@ -17,13 +24,6 @@ anti-RCE invariant.
 Containers were evaluated separately (ADR-0001 alternatives): rejected as
 the universal mechanism (Windows host<->container memory boundary,
 Docker-Desktop prerequisite), viable later as an optional Linux backend.
-
-## Decision
-
-**v1 scope is dependency isolation only.** Sandboxing is *deferred*, not
-rejected. Engineering effort goes to making isolation work end-to-end
-(envs, workers, transport -- ADR-0001/0007/0010) before any security
-hardening.
 
 ## Why this is legitimate (and not negligence)
 

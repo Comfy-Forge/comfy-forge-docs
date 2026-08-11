@@ -2,15 +2,6 @@
 
 **Status:** accepted
 
-## Context
-
-Modern CV/ML node packs depend on CUDA-compiled packages -- flash-attn,
-nvdiffrast, nunchaku, pytorch3d, gsplat. Every such wheel is compiled for a
-specific combination of Python ABI (3.10-3.13) x torch version (2.4-2.11) x
-CUDA version x OS x GPU architecture. Expecting end users to have a CUDA
-toolkit and C++ compiler and to build from source is a support disaster;
-upstream projects publish wheels for only a fraction of the matrix.
-
 ## Decision
 
 Maintain a companion wheel farm,
@@ -28,6 +19,15 @@ wheels automatically (`packages/cuda_wheels.py`):
   products RST `Python-urllib`; if Pages is unreachable end-to-end, the
   resolver **falls back to the GitHub Releases API**, which sits on a
   different routing edge.
+
+## Context
+
+Modern CV/ML node packs depend on CUDA-compiled packages -- flash-attn,
+nvdiffrast, nunchaku, pytorch3d, gsplat. Every such wheel is compiled for a
+specific combination of Python ABI (3.10-3.13) x torch version (2.4-2.11) x
+CUDA version x OS x GPU architecture. Expecting end users to have a CUDA
+toolkit and C++ compiler and to build from source is a support disaster;
+upstream projects publish wheels for only a fraction of the matrix.
 
 ## Consequences
 

@@ -2,14 +2,6 @@
 
 **Status:** accepted (supersedes the v0.3.x single-file layout)
 
-## Context
-
-Materialized envs are multi-gigabyte (torch + CUDA + conda stacks). Users
-often run several ComfyUI installs (portable, Desktop, git clone) that
-declare the same node packs. v0.3.x used one workspace-wide `pixi.toml` with
-an `[environments.<name>]` entry per env -- so one malformed env definition
-poisoned the single manifest and broke **every** env's scan and install.
-
 ## Decision
 
 - **One machine-wide workspace root**: `%LOCALAPPDATA%\Programs\comfy-env` on
@@ -33,6 +25,14 @@ poisoned the single manifest and broke **every** env's scan and install.
   version + torch pin; `validate_env_stamp` rejects envs built under a
   different ABI or version, and `_compute_env_hash` skips reinstalls when the
   config is unchanged.
+
+## Context
+
+Materialized envs are multi-gigabyte (torch + CUDA + conda stacks). Users
+often run several ComfyUI installs (portable, Desktop, git clone) that
+declare the same node packs. v0.3.x used one workspace-wide `pixi.toml` with
+an `[environments.<name>]` entry per env -- so one malformed env definition
+poisoned the single manifest and broke **every** env's scan and install.
 
 ## Consequences
 

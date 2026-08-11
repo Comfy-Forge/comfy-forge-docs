@@ -4,23 +4,6 @@
 reviewers + debate) -- verdict **sound-with-repairs**. Known defects and the
 agreed repair list are recorded below; the factoring itself stands.
 
-## Context
-
-Node packs have two very different needs that a single config file kept
-conflating: (a) declaring dependencies on *other node packs* and per-pack
-runtime configuration without touching any Python environment, and (b)
-requesting a fully isolated Python environment. Some packs only need (a);
-packs like ComfyUI-GeometryPack also need a whole conda stack (CGAL, `bpy`,
-pyvista) plus CUDA wheels that cannot live in the host venv.
-
-Underlying principle, stated explicitly: **comfy-env never installs anything
-into the host environment.** The host env's only comfy-env-related content
-is comfy-env itself (`pip install comfy-env`, via the pack's
-`requirements.txt`). CUDA wheels, conda packages, and pip dependencies all
-belong in isolated envs; a pack's own `requirements.txt` should converge to
-exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
-`trimesh`, `comfy-3d-viewers`) are slated for removal, not accommodation.
-
 ## Decision
 
 Two files with sharply separated roles:
@@ -51,6 +34,23 @@ deny-list of compiler-owned keys, plus loud warnings for every dropped key.
 The `[cuda]` section triggers wheel resolution
 ([ADR-0004](0004-prebuilt-cuda-wheel-index.md)); `[settings]` allows
 per-node overrides of feature flags via `SETTINGS_KEY_MAP`.
+
+## Context
+
+Node packs have two very different needs that a single config file kept
+conflating: (a) declaring dependencies on *other node packs* and per-pack
+runtime configuration without touching any Python environment, and (b)
+requesting a fully isolated Python environment. Some packs only need (a);
+packs like ComfyUI-GeometryPack also need a whole conda stack (CGAL, `bpy`,
+pyvista) plus CUDA wheels that cannot live in the host venv.
+
+Underlying principle, stated explicitly: **comfy-env never installs anything
+into the host environment.** The host env's only comfy-env-related content
+is comfy-env itself (`pip install comfy-env`, via the pack's
+`requirements.txt`). CUDA wheels, conda packages, and pip dependencies all
+belong in isolated envs; a pack's own `requirements.txt` should converge to
+exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
+`trimesh`, `comfy-3d-viewers`) are slated for removal, not accommodation.
 
 ## Consequences
 
