@@ -1,8 +1,8 @@
 # ADR-0003: Two config files, two roles
 
 **Status:** accepted; adversarially reviewed 2026-08 (two independent
-reviewers + debate) -- verdict **sound-with-repairs**. Known defects and the
-agreed repair list are recorded below; the factoring itself stands.
+reviewers + debate) -- verdict **sound-with-repairs**. The repairs have
+since landed except two open items (recorded below); the factoring stands.
 
 ## Decision
 
@@ -40,9 +40,10 @@ into the per-env `pixi.toml` -- `[dependencies]`, `[pypi-dependencies]`,
 `[target.*]`, `[pypi-options]`, `[system-requirements]`, and
 `workspace.channels` (`toml_generator.py:263-310, 630`). Anything else --
 `[tasks]`, `[activation]` (the generator emits its own), any typo'd table --
-is **silently dropped**. That gap between intent and implementation is a
-known defect: the repair direction is honest passthrough with a short
-deny-list of compiler-owned keys, plus loud warnings for every dropped key.
+is **silently dropped**. That gap between intent and implementation is
+decided in [ADR-0013](0013-env-file-passthrough-contract.md) (honest
+passthrough with a compiler-owned deny/rewrite/merge table); until that
+lands, this paragraph describes the shipping behavior.
 The `[cuda]` section triggers wheel resolution
 ([ADR-0004](0004-prebuilt-cuda-wheel-index.md)); `[settings]` allows
 per-node overrides of feature flags via `SETTINGS_KEY_MAP`.
@@ -76,49 +77,38 @@ exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
 - One pack can mix modes: `nodes/main/` imported in-process, `nodes/cgal/`
   isolated.
 - The passthrough *intent* means comfy-env's schema never needs to chase
-  pixi's feature set -- but until the allowlist gap above is repaired, keys
-  outside the allowlist do NOT reach pixi, and typos anywhere (inside owned
-  sections or out) are silently swallowed rather than caught.
+  pixi's feature set -- but until ADR-0013's implementation lands, keys
+  outside the allowlist do NOT reach pixi, and env-file typos are silently
+  swallowed rather than caught. (Root-file typos ARE caught -- closed role
+  schema.)
 
-## 2026-08 review: remaining known defects
+## 2026-08 review: two open items
 
 What the review confirmed about the design: the split carves at a real
 joint (root = shared-state mutation, env file = hermetic env definition);
 dependency-locality is the payoff; presence-as-switch is a good trade given
-graceful degradation (ADR-0008). What it found broken was **enforcement**.
-Most of the enforcement gaps have since been repaired (2026-08: pinned +
-checksummed pixi, closed root role schema, duplicate-env-name hard errors,
-discovery matched to the binder, string-only `python` pins, dead sections
-and plumbing removed -- see git history for details). Still open:
+graceful degradation (ADR-0008). What it found broken was **enforcement**;
+nearly all of it has since been repaired (2026-08: pinned + checksummed
+pixi; closed root role schema; duplicate-env-name hard errors; discovery
+matched to the binder; string-only `python` pins; dead sections and
+plumbing removed; derivation-output cache identity with fallback
+self-upgrade and a unified `auto_install`; settings precedence resolved by
+documentation -- pack `[settings]` > env var, specific beats general. See
+git history for each.) Exactly two items remain open:
 
-- **Allowlist-not-passthrough** (see Decision above) -- the headline gap.
-  Decided in [ADR-0013](0013-env-file-passthrough-contract.md) (honest
-  passthrough; compiler-owned deny/rewrite/merge table; owned-section
-  warnings; `schema = 1`); implementation pending.
-- ~~Cache identity wrong in both directions~~ -- fixed 2026-08: rebuild
-  decisions now key on the *derivation output* (canonical generated
-  manifest + resolved wheel URLs), behind a pure-local fast key that keeps
-  the all-clean path network-free. Comment edits never rebuild; envs
-  stamped `:fallback` re-derive every run and self-upgrade when their
-  missing wheel is published; GPU flips rebuild; `auto_install` shares the
-  generator and pin rule and records the same identity. Legacy v1 hashes
-  are grandfathered (no surprise rebuilds on upgrade).
-- ~~Settings precedence inverted vs. its own documentation~~ -- resolved
-  2026-08 **by documentation**: the code's behavior is intended -- a
-  per-pack `[settings]` is *more specific* than a global env var and wins
-  (specific beats general). The `settings.py` docstring and the docs were
-  wrong, not the code; both now state the real order (pack `[settings]` >
-  env var > `~/.comfy-env/settings.env`, which only fills unset vars >
-  default).
-- **Dead-config remainder** (root vs subdir matters here): the ROOT copies
-  of `[node_reqs]` and `[settings]` are fully consumed (install plugin
-  half; per-pack settings). The dead ones are the SUBDIR copies -- a
-  `[node_reqs]` or `[settings]` inside `comfy-env.toml` is parsed but
-  consumed by nothing. The config reference currently documents per-env
-  `[settings]` as a feature, so this is an implement-or-un-document
-  decision, not a deletion. One runtime consumer (`wrap.py`) still
-  re-parses the TOML inline instead of using the config layer (deferred
-  while that block carries in-flight serializer work).
+1. **Passthrough implementation** -- the allowlist-not-passthrough gap
+   described in the Decision above is *decided* in
+   [ADR-0013](0013-env-file-passthrough-contract.md) (honest passthrough;
+   deny/rewrite/merge table; owned-section warnings; `schema = 1`) but not
+   yet implemented; until then the Decision section's description of
+   current behavior stands.
+2. **Subdir `[settings]` / `[node_reqs]`** -- the SUBDIR copies of these
+   sections are parsed but consumed by nothing (the ROOT copies are fully
+   consumed). The config reference documents per-env `[settings]` as a
+   feature, so this is an implement-or-un-document decision awaiting the
+   maintainer. Related hygiene rides with it: `wrap.py` still re-parses
+   the env TOML inline instead of using the config layer (deferred while
+   that block carries in-flight serializer work).
 
 ## Considered alternatives (2026-08)
 
