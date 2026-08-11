@@ -1,13 +1,22 @@
 # ADR-0002: pixi as environment manager
 
-**Status:** accepted
+**Status:** accepted -- reaffirmed 2026-08 after an independent adversarial
+review (two reviewers, both verdicts: keep pixi; the premise was narrowed
+to the three pillars below and the delivery/lockfile claims were fixed)
 
 ## Decision
 
-Use [pixi](https://pixi.sh): a fast Rust-based manager that speaks
-**conda-forge and PyPI in the same `pixi.toml`**, ships a per-env lockfile,
-installs entirely per-user with no admin rights or system-Python pollution,
-and uses [uv](https://github.com/astral-sh/uv) underneath for the PyPI side.
+> **pixi is the environment engine: conda-forge and PyPI in one manifest,
+> one lockfile per env, installed per-user with no admin rights.** Not
+> venv + pip (cannot deliver the conda tail -- see the three pillars in
+> Context); not conda/mamba driven directly (no unified manifest/lockfile,
+> slower solves); **pixi** -- pinned and checksum-verified, driven through
+> generated manifests, with [uv](https://github.com/astral-sh/uv)
+> underneath for the PyPI side.
+
+Concretely: [pixi](https://pixi.sh) is a fast Rust-based manager that
+speaks conda-forge and PyPI in the same `pixi.toml`, ships a per-env
+lockfile, and installs entirely per-user with no system-Python pollution.
 
 An honesty note on what the lockfile buys (2026-08 review): **per-machine
 solve determinism and local idempotence** -- skip-if-unchanged installs,
