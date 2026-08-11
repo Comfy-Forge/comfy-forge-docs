@@ -21,7 +21,10 @@ metadata only; bulk bytes travel through shared memory or GPU handles.
 3. **Torch shared memory** (`TensorRef`): `file_system` sharing strategy
    (/dev/shm). Zero-copy CPU.
 4. **NumPy**: converted to a torch tensor, then strategy 3.
-5. **Trimesh / pickle**: pickled into a `SharedMemory` block.
+5. **Pickle**: pickled into a `SharedMemory` block -- the last-resort rung
+   for unregistered types. (Meshes and other pack domain types belong in
+   the serializer registry, [ADR-0014](0014-pack-extensible-serializer-registry.md);
+   the builtin trimesh special case was removed 2026-08, no backcompat.)
 6. **Primitives**: inline in the JSON message.
 
 Pack-declared custom types bypass the pickle rung entirely via the

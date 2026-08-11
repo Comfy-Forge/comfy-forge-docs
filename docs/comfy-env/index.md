@@ -431,7 +431,7 @@ Results and inputs cross the boundary via the first applicable strategy
 | 2 | Pool IPC | `PoolIPC` | `cudaMemPoolExportPointer` + FD passing | zero-copy GPU | in progress; the `cudaMallocAsync` fix |
 | 3 | Torch shared memory | `TensorRef` | `file_system` strategy (/dev/shm) | zero-copy CPU | |
 | 4 | NumPy | -- | converted to torch tensor, then #3 | zero-copy CPU | |
-| 5 | Trimesh / pickle | -- | pickled into a `SharedMemory` block | 1 copy | anything picklable |
+| 5 | Pickle (last resort) | -- | pickled into a `SharedMemory` block | 1 copy | unregistered types (pack types belong in the [serializer registry](adr/0014-pack-extensible-serializer-registry.md)) |
 | 6 | Primitives | -- | inline in the JSON message | -- | small values |
 
 !!! warning "Known caveat"
