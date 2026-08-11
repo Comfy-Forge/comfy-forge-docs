@@ -85,6 +85,45 @@ stay listed (struck) so the list doubles as a change record.
 3. **comfy-env contract seam** -- stop importing `_abi_tag` / hardcoding
    the env layout; consume a stable `comfy-env info --json` instead.
 
+## Hypothetical TODO: RAM/VRAM efficiency levers
+
+*Status: ideas, not commitments. Everything here was measured/discussed on
+**Windows only** (2026-08, one machine -- Windows 11, RTX 4060 Ti; numbers
+in [ADR-0001's cost table](comfy-env/adr/0001-process-isolation-via-persistent-subprocess-workers.md)).
+The Linux items are unmeasured hypotheses. Re-measure before building any
+of this.*
+
+Ranked by value-per-effort as currently understood:
+
+1. **Same-volume placement** (free; Windows-measured). OS page sharing of
+   torch binaries only works between processes mapping the *same file* --
+   measured ~157 MB shared per same-build CUDA worker. Host venvs on D:
+   and the workspace on C: get zero sharing between ComfyUI-main and
+   workers despite identical builds (hardlinks cannot cross volumes).
+   Candidate: a `comfy-env doctor` advisory when host env and workspace
+   volumes differ.
+2. **Idle worker reaper** (already proposed in ADR-0001). Each env the
+   user stopped touching holds ~550 MB host + ~150 MB VRAM (CUDA context);
+   reap after an idle window, never putting spawn latency back on the
+   execution path.
+3. **Narrow the combo spread** (wheel-farm coverage). Every tier-2
+   fallback env (cu128/torch2.8 beside a cu130/torch2.12 bootstrap) is an
+   unshareable second torch on disk AND in RAM (~400 MB private per
+   worker becomes fully private). Building the missing wheels converts
+   duplication into sharing.
+4. **Linux-only, unmeasured**: CUDA MPS (shares context infrastructure
+   across processes); fork/COW zygote (heap "hardlinking" -- blocked on
+   Windows, defeated by one-worker-per-env, CUDA does not survive fork);
+   KSM `madvise(MERGEABLE)` (kernel dedupes identical anonymous pages,
+   server-only, CPU cost). File under "if forge ever runs server fleets".
+5. **Tensor daemon** (endgame, ADR-0010 future work): one GPU-owner
+   process, one CUDA context total; workers become CPU orchestrators.
+   Big redesign; parked.
+
+Irreducible on Windows (do not chase): the per-process Python heap
+(~250 MB/worker beyond shared pages) and the per-process CUDA context
+(~125 MB host + ~150 MB VRAM) -- no OS primitive shares either.
+
 ## Upstream watch items
 
 - **pixi PR [#5464](https://github.com/prefix-dev/pixi/pull/5464)**
