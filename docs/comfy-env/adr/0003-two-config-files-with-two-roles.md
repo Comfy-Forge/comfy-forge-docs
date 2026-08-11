@@ -80,47 +80,37 @@ exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
   outside the allowlist do NOT reach pixi, and typos anywhere (inside owned
   sections or out) are silently swallowed rather than caught.
 
-## 2026-08 review: known defects and agreed repairs
+## 2026-08 review: remaining known defects
 
 What the review confirmed about the design: the split carves at a real
 joint (root = shared-state mutation, env file = hermetic env definition);
 dependency-locality is the payoff; presence-as-switch is a good trade given
-graceful degradation (ADR-0008). What it found broken is **enforcement** --
-the roles are enforced by filename convention only, and several documented
-behaviors are hoped, not checked:
+graceful degradation (ADR-0008). What it found broken was **enforcement**.
+Most of the enforcement gaps have since been repaired (2026-08: pinned +
+checksummed pixi, closed root role schema, duplicate-env-name hard errors,
+discovery matched to the binder, string-only `python` pins, dead sections
+and plumbing removed -- see git history for details). Still open:
 
 - **Allowlist-not-passthrough** (see Decision above) -- the headline gap.
-- ~~Env-name collisions cause silent rebuild thrash~~ -- fixed 2026-08:
-  duplicate derived env names are a hard install error naming both paths.
-- ~~Discovery/binding asymmetry~~ -- fixed 2026-08: install, runtime, and
-  the startup banner all enumerate exactly the two bindable shapes
-  (`nodes/`, `nodes/<subdir>`); no recursive globs, nothing materialized
-  that cannot bind.
-- ~~`python = 3.10` unquoted becomes `"3.1"`~~ -- fixed 2026-08: non-string
-  `python` pins are rejected at parse time with a quote-it message.
+  Repair direction: honest passthrough with a compiler-owned deny-list,
+  plus warnings for every dropped or unrecognized env-file key, and a
+  `schema = 1` version key while touching the parser.
 - **Cache identity is wrong in both directions**: the install hash covers
   raw config bytes (comment edits force rebuilds) but not derivation results
   (a fallback-combo env never upgrades when the missing wheel is later
   published; GPU-presence flips do not move the hash), and `auto_install`
-  uses a different torch pin rule and writes no hash at all.
+  uses a different torch pin rule and writes no hash at all. Repair: hash
+  the *generated* manifest instead of input bytes; unify `auto_install`
+  with the install path.
 - **Settings precedence is inverted** vs. its own documentation: a pack's
-  `[settings]` beats the user's explicit `COMFY_ENV_*` env var.
-- ~~pixi is bootstrapped unpinned from `releases/latest`~~ -- fixed
-  2026-08: pinned version, sha256-verified, comfy-env-owned path
-  ([ADR-0002](0002-pixi-as-environment-manager.md)).
-- Dead config (note: `[apt]`/`[brew]` were removed outright in the 2026-08
-  cleanup -- pre-pixi legacy): root `[dependencies]` (consumer has zero
-  callers), subdir `[node_reqs]` and subdir `[settings]` (parsed, never
-  consumed); one runtime consumer re-parses the TOML directly instead of
-  using the config layer.
-
-**Agreed repair order** (all backward-compatible; no format change):
-pin + checksum the pixi bootstrap; loud errors on duplicate env names and
-warnings on unbindable configs; validation batch (warn on every dropped or
-unrecognized key, reject float `python`, add `schema = 1`); single parser +
-dead-plumbing deletion; settings-precedence fix (user env var wins); hash
-the *generated* manifest instead of input bytes and unify `auto_install`
-with the install path.
+  `[settings]` beats the user's explicit `COMFY_ENV_*` env var. Repair:
+  user env var wins.
+- **Dead-config remainder**: subdir `[node_reqs]` and subdir `[settings]`
+  are parsed but never consumed -- and the config reference currently
+  documents per-env `[settings]` as a feature, so this is now an
+  implement-or-un-document decision, not a deletion. One runtime consumer
+  (`wrap.py`) still re-parses the TOML inline instead of using the config
+  layer (deferred while that block carries in-flight serializer work).
 
 ## Considered alternatives (2026-08)
 
