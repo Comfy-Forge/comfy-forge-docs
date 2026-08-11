@@ -59,7 +59,14 @@ until then, compatibility is the weapon.
 Consequences we hold ourselves to; a proposal that violates one must
 change it here first, in writing.
 
-1. **No compiler, no toolkit, no admin** on the user's machine, ever.
+1. **No user-facing toolchain, no admin.** The user never installs or
+   configures a compiler, build tools, or a CUDA toolkit. Compilation MAY
+   happen on the user's machine -- some envs deliver a conda toolchain and
+   build small extensions automatically, inside their isolated env, like
+   any other dependency. What is forbidden is the user doing toolchain
+   setup, anything touching the host, and CUDA kernel builds (the
+   nvcc/arch matrix cannot be delivered quietly -- that burden is
+   centralized in the wheel farm).
 2. **The host environment is sacred.** comfy-env never installs anything
    into ComfyUI's env; the only host-side content is `comfy-env` itself.
 3. **Never break ComfyUI startup.** Every failure degrades visibly
