@@ -9,9 +9,9 @@ concentrates on the transport layer, now split into
 
 > **One permanent worker process per environment.** Not one shared
 > environment (conflicts are structural, see Context); not a fresh process
-> per execution (model reloads make it unusable); a **persistent** process
-> per isolated env -- spawned lazily on first use, resident until shutdown,
-> restarted on crash.
+> per execution (per-call interpreter + torch + CUDA startup makes it
+> unusable); a **persistent** process per isolated env -- spawned lazily on
+> first use, resident until shutdown, restarted on crash.
 
 Concretely: nodes that declare a `comfy-env.toml` run in **persistent
 subprocess workers**, one per environment, using the isolated env's own
@@ -19,16 +19,31 @@ interpreter (`isolation/wrap.py`). Workers are spawned lazily on the first
 call to that env, then stay alive across executions (models stay resident),
 auto-restart on crash, and are keyed by env directory.
 
-Why persistent rather than spawn-per-execution: a fresh spawn pays
-interpreter boot + `import torch` + CUDA context creation (seconds and
-hundreds of MB) *plus reloading every model the node holds* -- multi-GB
-weights, disk -> RAM -> VRAM -- on every graph execution, of which a
-workflow has many. Persistence amortizes all of that to once per session;
-`SubprocessModelPatcher` exists precisely so resident models still obey
-ComfyUI's VRAM manager (evict to CPU under pressure) instead of the two
-processes OOMing each other. Measured cost of persistence: ~180 MB private
-RAM per idle CPU worker (torch code pages are shared between workers on the
-same build), plus a CUDA context where one is created.
+Why persistent rather than spawn-per-execution, in order of generality:
+
+1. **Per-call startup latency (applies to every node, model or not).** A
+   fresh spawn pays interpreter boot + `import torch` (seconds) + CUDA
+   context creation (more seconds, hundreds of MB) on *every* node
+   execution -- and a workflow run executes many isolated nodes. Most
+   isolated nodes (the CGAL/mesh ops) hold no models at all; this cost
+   alone disqualifies spawning.
+2. **Cross-call state.** The worker's by-reference object cache lets one
+   call's result (a mesh handle, a scene object) be consumed by a later
+   call without serializing it; compiled-kernel and JIT caches also
+   persist. Spawn-per-call structurally breaks both.
+3. **Model residency (the multiplier, where models exist).** ML packs
+   would additionally reload multi-GB weights disk -> RAM -> VRAM per
+   execution. `SubprocessModelPatcher` exists precisely so resident models
+   still obey ComfyUI's VRAM manager (evict to CPU under pressure) instead
+   of the two processes OOMing each other.
+
+Measured cost of persistence: ~180 MB private RAM per idle CPU worker
+(torch code pages are shared between workers on the same build), plus a
+CUDA context where one is created. Corroboration: pyisolate -- Comfy-Org's
+own isolation library -- independently made the same choice: the child is
+spawned once at extension load (`_internal/host.py:490`) and serves RPC on
+one long-lived connection until an explicit `stop()`; there is no
+spawn-per-call mode.
 
 The parent **never imports node code**. At registration time,
 `isolation/metadata.py` spawns a short-lived subprocess inside the isolation
