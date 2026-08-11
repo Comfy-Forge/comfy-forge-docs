@@ -21,3 +21,4 @@ v0.4.12 (August 2026).
 | [0011](0011-isolation-before-sandboxing.md) | Isolation before sandboxing | v1 ships dependency isolation only; security is deferred with the path mapped, and isolation is never sold as a security boundary. |
 | [0012](0012-unavailable-nodes-hidden-not-unregistered.md) | Unavailable nodes: menu-hidden, never unregistered | Workflows must load; menus must not show dead nodes. `DEPRECATED` separates the two. |
 | [0013](0013-env-file-passthrough-contract.md) | Env-file config: honest passthrough | Forward everything pixi owns; comfy-env keeps 4 denied keys, 1 rewritten family, 1 merged table. Amends ADR-0003. |
+| [0014](0014-pack-extensible-serializer-registry.md) | Pack-extensible serializer registry | Packs register their own wire types; payloads decompose into schema + tensors, never pickle; unknown tags pass through opaque. |

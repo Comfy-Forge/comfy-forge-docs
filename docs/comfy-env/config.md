@@ -133,6 +133,13 @@ KMP_DUPLICATE_LIB_OK = "TRUE"
 [options]
 health_check_timeout = 5.0   # seconds; per-env worker ping timeout
 
+# Custom wire types: modules imported on BOTH sides for their
+# register_serializer() side effects (ADR-0014). Payloads decompose into
+# schema + shared-memory tensors -- never pickle; a side that cannot
+# import the module passes the type through opaquely.
+[serializers]
+modules = ["my_pack.wire_types"]
+
 # NOTE: [settings] and [node_reqs] are ROOT-file sections and are REJECTED
 # here -- in an env file they never had any effect.
 ```

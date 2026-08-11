@@ -77,6 +77,7 @@ nav:
           - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md
           - "0012: Unavailable nodes hidden, not unregistered": comfy-env/adr/0012-unavailable-nodes-hidden-not-unregistered.md
           - "0013: Env-file config: honest passthrough": comfy-env/adr/0013-env-file-passthrough-contract.md
+          - "0014: Pack-extensible serializer registry": comfy-env/adr/0014-pack-extensible-serializer-registry.md
   - comfy-test:
       - Overview: comfy-test/index.md
   - cuda-wheels:

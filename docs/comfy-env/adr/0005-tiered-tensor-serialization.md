@@ -24,6 +24,11 @@ metadata only; bulk bytes travel through shared memory or GPU handles.
 5. **Trimesh / pickle**: pickled into a `SharedMemory` block.
 6. **Primitives**: inline in the JSON message.
 
+Pack-declared custom types bypass the pickle rung entirely via the
+serializer registry
+([ADR-0014](0014-pack-extensible-serializer-registry.md)): they decompose
+into schema + tensors that ride rungs 1-4.
+
 Supporting machinery: `TensorKeeper` (`isolation/tensor_utils.py`) holds
 references for a retention window so shared tensors are not GC'd while the
 peer still maps them; `release_tensor()` reclaims mappings with
