@@ -76,6 +76,7 @@ nav:
           - "0010: Wire protocol and transport": comfy-env/adr/0010-wire-protocol-and-transport.md
           - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md
           - "0012: Unavailable nodes hidden, not unregistered": comfy-env/adr/0012-unavailable-nodes-hidden-not-unregistered.md
+          - "0013: Env-file config: honest passthrough": comfy-env/adr/0013-env-file-passthrough-contract.md
   - comfy-test:
       - Overview: comfy-test/index.md
   - cuda-wheels:

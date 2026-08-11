@@ -92,9 +92,9 @@ discovery matched to the binder, string-only `python` pins, dead sections
 and plumbing removed -- see git history for details). Still open:
 
 - **Allowlist-not-passthrough** (see Decision above) -- the headline gap.
-  Repair direction: honest passthrough with a compiler-owned deny-list,
-  plus warnings for every dropped or unrecognized env-file key, and a
-  `schema = 1` version key while touching the parser.
+  Decided in [ADR-0013](0013-env-file-passthrough-contract.md) (honest
+  passthrough; compiler-owned deny/rewrite/merge table; owned-section
+  warnings; `schema = 1`); implementation pending.
 - **Cache identity is wrong in both directions**: the install hash covers
   raw config bytes (comment edits force rebuilds) but not derivation results
   (a fallback-combo env never upgrades when the missing wheel is later

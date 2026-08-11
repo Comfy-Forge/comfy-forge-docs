@@ -20,3 +20,4 @@ v0.4.12 (August 2026).
 | [0010](0010-wire-protocol-and-transport.md) | Wire protocol and transport | Hand-rolled framing stays; the v2 direction versions the wire and unifies the stack. |
 | [0011](0011-isolation-before-sandboxing.md) | Isolation before sandboxing | v1 ships dependency isolation only; security is deferred with the path mapped, and isolation is never sold as a security boundary. |
 | [0012](0012-unavailable-nodes-hidden-not-unregistered.md) | Unavailable nodes: menu-hidden, never unregistered | Workflows must load; menus must not show dead nodes. `DEPRECATED` separates the two. |
+| [0013](0013-env-file-passthrough-contract.md) | Env-file config: honest passthrough | Forward everything pixi owns; comfy-env keeps 4 denied keys, 1 rewritten family, 1 merged table. Amends ADR-0003. |
