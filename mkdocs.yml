@@ -51,14 +51,17 @@ nav:
   - Roadmap: roadmap.md
   - comfy-env:
       - Architecture: comfy-env/index.md
-      - The three calls:
-          - "install()": comfy-env/install.md
-          - "setup_env()": comfy-env/setup-env.md
-          - "register_nodes()": comfy-env/register-nodes.md
-      - Config reference: comfy-env/config.md
-      - Accelerator declarations: comfy-env/accelerators.md
-      - The two-system problem: comfy-env/two-system-problem.md
-      - Module inventory: comfy-env/modules.md
+      - Pack author reference:
+          - Lifecycle hooks:
+              - "install()": comfy-env/install.md
+              - "setup_env()": comfy-env/setup-env.md
+              - "register_nodes()": comfy-env/register-nodes.md
+          - Config reference: comfy-env/config.md
+          - Settings reference: comfy-env/settings.md
+          - Accelerator declarations: comfy-env/accelerators.md
+      - Internals:
+          - The two-system problem: comfy-env/two-system-problem.md
+          - Module inventory: comfy-env/modules.md
       - Decision records:
           - Index: comfy-env/adr/index.md
           - "0001: Process isolation via persistent subprocess workers": comfy-env/adr/0001-process-isolation-via-persistent-subprocess-workers.md
