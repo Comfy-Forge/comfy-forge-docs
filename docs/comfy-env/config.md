@@ -18,14 +18,18 @@ seen rather than silently materialized-but-unused.)
     own environment.
 
 Parsing lives in `config/__init__.py` (`parse_config`). One rule to know:
-**unknown keys are not errors** -- anything comfy-env doesn't recognize is
-collected as passthrough. Caveat (v0.4): only an **allowlist** actually
-reaches the generated `pixi.toml` -- `[dependencies]`,
-`[pypi-dependencies]`, `[target.*]`, `[pypi-options]`,
-`[system-requirements]`, and `workspace.channels`. Other tables
-(`[tasks]`, `[activation]`, typos) are currently dropped silently -- a
-known defect slated for honest passthrough + warnings (see
-[ADR-0003](adr/0003-two-config-files-with-two-roles.md)).
+**honest passthrough**
+([ADR-0013](adr/0013-env-file-passthrough-contract.md)) -- every table
+comfy-env does not own is forwarded verbatim into the generated
+`pixi.toml` at feature level (`[tasks]`, `[activation]` -- merged with the
+compiler's entries -- future pixi tables, everything), and the *pinned*
+pixi validates its own language at install. The exceptions are the
+compiler-owned keys, which error loudly if you set them:
+`[environments]`, `[feature.*]`, `workspace.name/version/platforms`
+(host-derived identity); torch-family pins are rewritten to the host
+family. Typos inside comfy-env's own sections (`[cuda]`, `[options]`,
+`[settings]`, `[serializers]`) produce warnings. An optional `schema = 1`
+key versions the format.
 
 ## `comfy-env-root.toml` (pack root)
 
@@ -129,9 +133,8 @@ KMP_DUPLICATE_LIB_OK = "TRUE"
 [options]
 health_check_timeout = 5.0   # seconds; per-env worker ping timeout
 
-# Per-env settings overrides (same keys as the root [settings])
-[settings]
-pool_ipc = false
+# NOTE: [settings] and [node_reqs] are ROOT-file sections and are REJECTED
+# here -- in an env file they never had any effect.
 ```
 
 Notes:

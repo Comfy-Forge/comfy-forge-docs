@@ -1,8 +1,8 @@
 # ADR-0003: Two config files, two roles
 
 **Status:** accepted; adversarially reviewed 2026-08 (two independent
-reviewers + debate) -- verdict **sound-with-repairs**. The repairs have
-since landed except two open items (recorded below); the factoring stands.
+reviewers + debate) -- verdict **sound-with-repairs**. All review repairs
+have since landed (summary below); the factoring stands.
 
 ## Decision
 
@@ -33,17 +33,12 @@ Two files with sharply separated roles:
   `<plugin>-<subdir>`, `ComfyUI-` prefix stripped, lowercased
   (`environment/cache.py:get_env_name`).
 
-Parsing (`config/__init__.py`) treats unknown TOML keys as **passthrough in
-intent**: they are collected rather than rejected. In the v0.4
-implementation, however, the manifest generator copies only an **allowlist**
-into the per-env `pixi.toml` -- `[dependencies]`, `[pypi-dependencies]`,
-`[target.*]`, `[pypi-options]`, `[system-requirements]`, and
-`workspace.channels` (`toml_generator.py:263-310, 630`). Anything else --
-`[tasks]`, `[activation]` (the generator emits its own), any typo'd table --
-is **silently dropped**. That gap between intent and implementation is
-decided in [ADR-0013](0013-env-file-passthrough-contract.md) (honest
-passthrough with a compiler-owned deny/rewrite/merge table); until that
-lands, this paragraph describes the shipping behavior.
+Parsing (`config/__init__.py`) treats unknown TOML keys as **honest
+passthrough** ([ADR-0013](0013-env-file-passthrough-contract.md),
+implemented 2026-08): every table comfy-env does not own is forwarded
+verbatim into the generated `pixi.toml`, where the pinned pixi validates
+its own language. The compiler-owned exceptions (deny/rewrite/merge) and
+the owned-section typo warnings are specified in ADR-0013.
 The `[cuda]` section triggers wheel resolution
 ([ADR-0004](0004-prebuilt-cuda-wheel-index.md)); `[settings]` allows
 per-node overrides of feature flags via `SETTINGS_KEY_MAP`.
@@ -76,13 +71,12 @@ exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
   to keep in sync.
 - One pack can mix modes: `nodes/main/` imported in-process, `nodes/cgal/`
   isolated.
-- The passthrough *intent* means comfy-env's schema never needs to chase
-  pixi's feature set -- but until ADR-0013's implementation lands, keys
-  outside the allowlist do NOT reach pixi, and env-file typos are silently
-  swallowed rather than caught. (Root-file typos ARE caught -- closed role
-  schema.)
+- Honest passthrough means comfy-env's schema never chases pixi's feature
+  set: pixi validates its own language; comfy-env warns on typos only
+  inside its own sections and rejects role-inappropriate ones (closed root
+  schema; root-only sections rejected in env files).
 
-## 2026-08 review: two open items
+## 2026-08 review: all repairs landed
 
 What the review confirmed about the design: the split carves at a real
 joint (root = shared-state mutation, env file = hermetic env definition);
@@ -94,21 +88,21 @@ matched to the binder; string-only `python` pins; dead sections and
 plumbing removed; derivation-output cache identity with fallback
 self-upgrade and a unified `auto_install`; settings precedence resolved by
 documentation -- pack `[settings]` > env var, specific beats general. See
-git history for each.) Exactly two items remain open:
+git history for each.) The final two items closed 2026-08:
 
-1. **Passthrough implementation** -- the allowlist-not-passthrough gap
-   described in the Decision above is *decided* in
-   [ADR-0013](0013-env-file-passthrough-contract.md) (honest passthrough;
-   deny/rewrite/merge table; owned-section warnings; `schema = 1`) but not
-   yet implemented; until then the Decision section's description of
-   current behavior stands.
-2. **Subdir `[settings]` / `[node_reqs]`** -- the SUBDIR copies of these
-   sections are parsed but consumed by nothing (the ROOT copies are fully
-   consumed). The config reference documents per-env `[settings]` as a
-   feature, so this is an implement-or-un-document decision awaiting the
-   maintainer. Related hygiene rides with it: `wrap.py` still re-parses
-   the env TOML inline instead of using the config layer (deferred while
-   that block carries in-flight serializer work).
+- **Passthrough**: [ADR-0013](0013-env-file-passthrough-contract.md) is
+  implemented -- honest passthrough with the deny/rewrite/merge table,
+  owned-section typo warnings, `schema = 1`, and provenance headers on
+  generated manifests.
+- **Subdir `[settings]` / `[node_reqs]`**: resolved by *rejection* -- these
+  are root-only sections, and an env file declaring them now fails at
+  parse time (they were parsed-but-consumed-by-nothing since forever; no
+  backward compatibility by decision). The config reference no longer
+  documents per-env `[settings]`.
+
+One hygiene note remains, deferred: `wrap.py` re-parses the env TOML
+inline instead of using the config layer (that block carries in-flight
+serializer work).
 
 ## Considered alternatives (2026-08)
 

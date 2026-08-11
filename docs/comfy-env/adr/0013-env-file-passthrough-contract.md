@@ -1,8 +1,8 @@
 # ADR-0013: Env-file config -- honest passthrough with a compiler-owned deny-list
 
-**Status:** accepted 2026-08, implementation pending. Amends
+**Status:** accepted 2026-08, **implemented 2026-08**. Amends
 [ADR-0003](0003-two-config-files-with-two-roles.md): resolves its
-"allowlist-not-passthrough" defect by decision.
+"allowlist-not-passthrough" defect.
 
 ## Context
 
