@@ -3,8 +3,11 @@
 Two files, two roles ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)):
 `comfy-env-root.toml` at the pack root manages node dependencies and
 pack-wide switches and **never touches the Python environment**;
-`comfy-env.toml` in any subdirectory gives that subdirectory its own
-isolated pixi environment -- the file's *presence* is the isolation switch.
+`comfy-env.toml` at `nodes/` or `nodes/<subdir>` gives that directory its
+own isolated pixi environment -- the file's *presence* is the isolation
+switch. (Those two locations are the only ones supported: discovery and the
+runtime binder deliberately match, so a config anywhere else is simply not
+seen rather than silently materialized-but-unused.)
 
 !!! warning "The host-environment principle"
     **comfy-env NEVER installs anything into the host environment.** The
@@ -68,7 +71,7 @@ Notes:
 - The root file never creates an isolation env; workspace discovery looks
   only for `comfy-env.toml` files.
 
-## `comfy-env.toml` (any subdirectory)
+## `comfy-env.toml` (`nodes/` or `nodes/<subdir>`)
 
 The real-world reference is
 [GeometryPack's `nodes/comfy-env.toml`](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)

@@ -25,7 +25,9 @@ Two files with sharply separated roles:
   `[apt]`/`[brew]` system packages; that idea predates realizing everything
   those would deliver installs through pixi/conda-forge -- the keys were
   removed in the 2026-08 cleanup.)
-- **`comfy-env.toml`** (any subdirectory): the subdirectory gets its **own
+- **`comfy-env.toml`** (`nodes/` or `nodes/<subdir>` -- the two shapes the
+  runtime binder supports; discovery deliberately matches the binder
+  exactly, fixed 2026-08): the subdirectory gets its **own
   isolated Python environment** via pixi -- separate interpreter, conda
   packages, pip packages, and prebuilt CUDA wheels. Env name:
   `<plugin>-<subdir>`, `ComfyUI-` prefix stripped, lowercased
@@ -88,15 +90,14 @@ the roles are enforced by filename convention only, and several documented
 behaviors are hoped, not checked:
 
 - **Allowlist-not-passthrough** (see Decision above) -- the headline gap.
-- **Env-name collisions cause silent rebuild thrash**: identity derives from
-  folder names using only the last path segment; duplicate names silently
-  overwrite each other's install hashes and share one env dir, producing a
-  permanent multi-GB reinstall loop with no diagnostic.
-- **Discovery/binding asymmetry**: install materializes any discovered
-  `comfy-env.toml` (recursive glob, no fences); runtime binds only `nodes/`
-  or `nodes/<subdir>`. Configs elsewhere (vendored trees, deeper nesting)
-  become multi-GB envs that are never used, silently.
-- **`python = 3.10` unquoted** is a TOML float and silently becomes `"3.1"`.
+- ~~Env-name collisions cause silent rebuild thrash~~ -- fixed 2026-08:
+  duplicate derived env names are a hard install error naming both paths.
+- ~~Discovery/binding asymmetry~~ -- fixed 2026-08: install, runtime, and
+  the startup banner all enumerate exactly the two bindable shapes
+  (`nodes/`, `nodes/<subdir>`); no recursive globs, nothing materialized
+  that cannot bind.
+- ~~`python = 3.10` unquoted becomes `"3.1"`~~ -- fixed 2026-08: non-string
+  `python` pins are rejected at parse time with a quote-it message.
 - **Cache identity is wrong in both directions**: the install hash covers
   raw config bytes (comment edits force rebuilds) but not derivation results
   (a fallback-combo env never upgrades when the missing wheel is later
