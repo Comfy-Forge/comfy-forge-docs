@@ -38,8 +38,13 @@ Why persistent rather than spawn-per-execution, in order of generality:
    of the two processes OOMing each other.
 
 Measured cost of persistence: ~180 MB private RAM per idle CPU worker
-(torch code pages are shared between workers on the same build), plus a
-CUDA context where one is created. Corroboration: pyisolate -- Comfy-Org's
+**even between workers on the identical torch build** -- OS page sharing
+covers only the mapped read-only code/constants (~40 MB, counted once);
+the Python object graph that `import torch` builds and copy-on-write data
+pages are per-process by nature. Workers on *different* builds lose the
+shared portion too (~220 MB each, plus duplicated disk/page cache) --
+one more reason to keep the env combo spread small. Add a CUDA context
+where one is created. Corroboration: pyisolate -- Comfy-Org's
 own isolation library -- independently made the same choice: the child is
 spawned once at extension load (`_internal/host.py:490`) and serves RPC on
 one long-lived connection until an explicit `stop()`; there is no
