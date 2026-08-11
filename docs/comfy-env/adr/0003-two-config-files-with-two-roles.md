@@ -100,9 +100,9 @@ git history for each.) The final two items closed 2026-08:
   backward compatibility by decision). The config reference no longer
   documents per-env `[settings]`.
 
-One hygiene note remains, deferred: `wrap.py` re-parses the env TOML
-inline instead of using the config layer (that block carries in-flight
-serializer work).
+(The last stray -- `wrap.py`'s inline TOML re-parse -- was unified onto
+the config layer once the serializer work it was deferred behind had
+settled. One parser.)
 
 ## Considered alternatives (2026-08)
 
