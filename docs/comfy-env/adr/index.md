@@ -17,6 +17,6 @@ v0.4.12 (August 2026).
 | [0007](0007-machine-wide-workspace-with-per-env-manifests.md) | Machine-wide workspace, per-env manifests | One shared store per machine; one `pixi.toml` per env; stamps guard staleness. |
 | [0008](0008-graceful-degradation-everywhere.md) | Graceful degradation everywhere | Every failure path ends in "ComfyUI still boots". |
 | [0009](0009-platform-strategy.md) | Platform strategy | Windows/macOS/Linux each get targeted workarounds, not lowest-common-denominator. |
-| [0010](0010-unavailable-nodes-hidden-not-unregistered.md) | Unavailable nodes: menu-hidden, never unregistered | Workflows must load; menus must not show dead nodes. `DEPRECATED` separates the two. |
 | [0010](0010-wire-protocol-and-transport.md) | Wire protocol and transport | Hand-rolled framing stays; the v2 direction versions the wire and unifies the stack. |
 | [0011](0011-isolation-before-sandboxing.md) | Isolation before sandboxing | v1 ships dependency isolation only; security is deferred with the path mapped, and isolation is never sold as a security boundary. |
+| [0012](0012-unavailable-nodes-hidden-not-unregistered.md) | Unavailable nodes: menu-hidden, never unregistered | Workflows must load; menus must not show dead nodes. `DEPRECATED` separates the two. |

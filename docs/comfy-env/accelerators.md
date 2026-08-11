@@ -29,7 +29,7 @@ class RemeshGPUNode(io.ComfyNode):
    the metadata scan and **every node in the env silently vanishes**, CPU
    nodes included.
 3. **Registered but menu-hidden**
-   ([ADR-0010](adr/0010-unavailable-nodes-hidden-not-unregistered.md)).
+   ([ADR-0012](adr/0012-unavailable-nodes-hidden-not-unregistered.md)).
    On a machine lacking the declared backend, the node still **registers**
    with its real inputs and outputs -- so shared workflows load and
    dispatcher node-ids resolve -- but it is hidden from the node

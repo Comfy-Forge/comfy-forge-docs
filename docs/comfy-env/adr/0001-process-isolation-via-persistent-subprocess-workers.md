@@ -59,11 +59,17 @@ the ComfyUI-facing hooks official upstream instead of monkey patches.
 
 ## Decision
 
-Nodes that declare a `comfy-env.toml` run in **persistent subprocess
-workers**, one per environment, using the isolated env's own interpreter
-(`isolation/wrap.py`). Workers are spawned lazily on the first call to that
-env, then stay alive across executions (models stay resident), auto-restart
-on crash, and are keyed by env directory.
+> **One permanent worker process per environment.** Not one shared
+> environment (conflicts are structural, see Context); not a fresh process
+> per execution (model reloads make it unusable); a **persistent** process
+> per isolated env -- spawned lazily on first use, resident until shutdown,
+> restarted on crash.
+
+Concretely: nodes that declare a `comfy-env.toml` run in **persistent
+subprocess workers**, one per environment, using the isolated env's own
+interpreter (`isolation/wrap.py`). Workers are spawned lazily on the first
+call to that env, then stay alive across executions (models stay resident),
+auto-restart on crash, and are keyed by env directory.
 
 Why persistent rather than spawn-per-execution: a fresh spawn pays
 interpreter boot + `import torch` + CUDA context creation (seconds and

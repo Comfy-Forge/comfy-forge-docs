@@ -5,10 +5,8 @@
 ## Context
 
 Conda cannot be avoided -- but for precise, enumerable reasons, not "some
-packages aren't on PyPI." A fleet-wide audit (30 env manifests across the
-maintainer's packs, 2026-08) found the genuinely conda-only surface is 14
-package names across 8 repos, every one attributable to one of **three
-pillars**:
+packages aren't on PyPI." The genuinely conda-only packages all belong to
+one of **three pillars**:
 
 1. **Non-Python system libraries with no wheel form.** Wheels package
    Python distributions; these are not Python. The headless GL/X stack

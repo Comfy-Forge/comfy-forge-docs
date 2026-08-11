@@ -61,7 +61,7 @@ nav:
       - Module inventory: comfy-env/modules.md
       - Decision records:
           - Index: comfy-env/adr/index.md
-          - "0001: Process isolation via persistent workers": comfy-env/adr/0001-process-isolation-via-persistent-subprocess-workers.md
+          - "0001: Process isolation via persistent subprocess workers": comfy-env/adr/0001-process-isolation-via-persistent-subprocess-workers.md
           - "0002: pixi as environment manager": comfy-env/adr/0002-pixi-as-environment-manager.md
           - "0003: Two config files, two roles": comfy-env/adr/0003-two-config-files-with-two-roles.md
           - "0004: Prebuilt CUDA wheel index": comfy-env/adr/0004-prebuilt-cuda-wheel-index.md
@@ -70,9 +70,9 @@ nav:
           - "0007: Machine-wide workspace, per-env manifests": comfy-env/adr/0007-machine-wide-workspace-with-per-env-manifests.md
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md
           - "0009: Platform strategy": comfy-env/adr/0009-platform-strategy.md
-          - "0010: Unavailable nodes hidden, not unregistered": comfy-env/adr/0010-unavailable-nodes-hidden-not-unregistered.md
           - "0010: Wire protocol and transport": comfy-env/adr/0010-wire-protocol-and-transport.md
           - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md
+          - "0012: Unavailable nodes hidden, not unregistered": comfy-env/adr/0012-unavailable-nodes-hidden-not-unregistered.md
   - comfy-test:
       - Overview: comfy-test/index.md
   - cuda-wheels:

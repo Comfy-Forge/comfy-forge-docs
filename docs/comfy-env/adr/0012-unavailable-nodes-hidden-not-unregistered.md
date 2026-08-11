@@ -1,4 +1,4 @@
-# ADR-0010: Unavailable accelerator nodes are menu-hidden, never unregistered
+# ADR-0012: Unavailable accelerator nodes are menu-hidden, never unregistered
 
 **Status:** accepted
 
