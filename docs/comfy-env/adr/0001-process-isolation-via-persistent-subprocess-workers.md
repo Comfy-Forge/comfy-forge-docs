@@ -37,14 +37,24 @@ Why persistent rather than spawn-per-execution, in order of generality:
    still obey ComfyUI's VRAM manager (evict to CPU under pressure) instead
    of the two processes OOMing each other.
 
-Measured cost of persistence: ~180 MB private RAM per idle CPU worker
-**even between workers on the identical torch build** -- OS page sharing
-covers only the mapped read-only code/constants (~40 MB, counted once);
-the Python object graph that `import torch` builds and copy-on-write data
-pages are per-process by nature. Workers on *different* builds lose the
-shared portion too (~220 MB each, plus duplicated disk/page cache) --
-one more reason to keep the env combo spread small. Add a CUDA context
-where one is created.
+Measured cost of persistence (2026-08, Windows 11, RTX 4060 Ti):
+
+| worker state | host RAM (private) | VRAM |
+|---|---|---|
+| idle, CPU-only torch build | ~180 MB | 0 |
+| idle, cu128 torch build imported, GPU untouched | ~420 MB | 0 |
+| after first CUDA allocation (context created) | ~550 MB | ~150 MB |
+
+The per-process cost holds **even between workers on the identical torch
+build** -- OS page sharing covers only the mapped read-only code/constants
+(~40 MB, counted once); the Python object graph that `import torch` builds
+and copy-on-write data pages are per-process by nature. Workers on
+*different* builds lose the shared portion too (plus duplicated disk/page
+cache) -- one more reason to keep the env combo spread small. The CUDA
+context (the ~125 MB host + ~150 MB VRAM step) is per-process by CUDA's
+design and only paid by workers that actually execute a CUDA node; context
+size varies by GPU/driver generation. Collapsing N contexts into one is
+the "tensor daemon" future-work item in ADR-0010.
 
 !!! info "Corroboration: pyisolate converged on the same design"
     *pyisolate -- Comfy-Org's own isolation library -- independently made
