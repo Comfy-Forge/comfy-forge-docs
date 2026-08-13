@@ -1,6 +1,13 @@
 # ADR-0014: Pack-extensible serializer registry
 
-**Status:** accepted (as-built, 2026-08)
+**Status:** accepted (as-built, 2026-08) -- partially superseded by
+[ADR-0015](0015-declared-wire-types.md): the `[serializers].modules`
+declaration moved to `[types]` in `comfy-env-root.toml` (path-based
+loading under mangled names), the pack-prefixed-tag guidance flipped to
+type-identity tags for shared library types, and `OpaquePayload` now
+materializes (owns) its frames on receipt instead of holding them
+verbatim (comfy-env 0.4.15). The registry mechanism itself
+(`register_serializer`, MRO lookup, wire framing) is unchanged.
 
 ## Context
 
