@@ -64,11 +64,32 @@ stay listed (struck) so the list doubles as a change record.
 4. ~~Housekeeping: `[apt]`/`[brew]` removed (pre-pixi legacy);
    `workspace.py` docstring now describes reality; dead
    `_read_env_torch_version` deleted outright~~ -- done.
-5. *Deferred by design*: uv-first materialization for envs with zero conda
+5. **Support v3 `comfy_entrypoint` registration in the metadata scan** --
+   the scan reads only `NODE_CLASS_MAPPINGS`, so an isolated package that
+   registers *purely* via `comfy_entrypoint()` (no dict) scans as **0 nodes,
+   silently** -- the same whole-pack-vanishes failure the accelerator rule
+   fixed. Measured over the top 500 Registry packs: **30 (6%) are pure
+   `comfy_entrypoint`** and they are the big/modern ones
+   (cg-use-everywhere #1, animatediff-evolved, advanced-controlnet,
+   inpaint-nodes, prompt-control); the fraction is growing.
+   - *Not urgent under the current opt-in contract* (authors route through
+     `register_nodes`/`initc` -> `NODE_CLASS_MAPPINGS`), but cheap and
+     strategically pointed for the "isolate arbitrary packs" direction --
+     those top packs are exactly the ones one would want to wrap.
+   - *Now (~3 lines):* detect a pure-`comfy_entrypoint` package in the scan
+     and warn loudly ("registers via comfy_entrypoint, which the scan does
+     not read -- expose NODE_CLASS_MAPPINGS or use register_nodes") instead
+     of returning 0 nodes.
+   - *Soon (~20 lines):* full scan support -- mirror ComfyUI's loader
+     (`nodes.py:2297-2327`): call `comfy_entrypoint()`, `await
+     get_node_list()`, `GET_SCHEMA()` per class. The proxy half already
+     exists (`_build_v3_proxy_class`, proven by GeometryPack's v3 classes),
+     so only the scan's entry-door invocation is missing.
+6. *Deferred by design*: uv-first materialization for envs with zero conda
    content; CI-pre-solved `pixi.lock` per env x ABI-tag for the ComfyUI
    Desktop population; py-rattler (watch item).
-6. ~~Pin the pixi binary (version + sha256, version marker)~~ -- done.
-7. ~~Canary transport handshake~~ -- done
+7. ~~Pin the pixi binary (version + sha256, version marker)~~ -- done.
+8. ~~Canary transport handshake~~ -- done
    ([ADR-0005](comfy-env/adr/0005-tiered-tensor-serialization.md)).
 
 ## comfy-test
