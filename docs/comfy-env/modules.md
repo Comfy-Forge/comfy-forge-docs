@@ -33,7 +33,7 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 
 | File | ~LoC | Responsibility |
 |------|-----:|----------------|
-| `packages/pixi.py` | 51 | Bootstraps the pixi binary itself to `~/.pixi/bin/pixi[.exe]` from GitHub latest-release URLs if missing. |
+| `packages/pixi.py` | 51 | Provisions the **pinned** pixi binary (version + sha256 vendored in the file) into the comfy-env-owned `~/.comfy-env/pixi/<version>/` -- deliberately not `~/.pixi`, which belongs to the user's own install. Checksum mismatch refuses to install. |
 | `packages/cuda_wheels.py` | 371 | Resolves prebuilt CUDA wheel URLs from the cuda-wheels GitHub Pages simple index; retries TCP resets with a real User-Agent; falls back to the GitHub Releases API. Derives torch family pins and platform tags. |
 | `packages/toml_generator.py` | 802 | The manifest compiler: ComfyUI `requirements.txt` + each `comfy-env.toml` -> per-env `pixi.toml`. One self-contained `[feature.<env_name>]` per env with `no-default-feature = true`; torch pin replicated verbatim into every feature; CUDA wheels inlined as URL pypi-dependencies. |
 | `packages/node_dependencies.py` | 188 | Installs other ComfyUI node packs declared in `[node_reqs]`: git clone or zip, or Comfy Registry (`api.comfy.org`), then their `requirements.txt` and `install.py`. |
@@ -74,4 +74,4 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 | `workers/subprocess.py` | 851 | Parent-side driver: spawns the isolated interpreter, materializes `_persistent_worker.py` + a copy of `_ipc_shared.py` into a temp dir, handshake, health checks, request/response with timeouts, bidirectional callbacks, exit diagnostics. |
 | `workers/_ipc_parent.py` | 789 | Parent-side IPC internals: socket creation (AF_UNIX, TCP fallback), `SocketTransport` (thread-safe length-prefixed JSON), all tensor serialization strategies, shm helpers. |
 | `workers/_ipc_shared.py` | 467 | Deliberately stdlib-only so it can be *copied* beside the worker script and imported in the isolated venv: CUDA mem-pool ctypes bindings, `SCM_RIGHTS` FD passing, memfd helpers, generic shm walker. |
-| `workers/_persistent_worker.py` | 1851 | The worker program. Never imported by the parent -- read as text (`subprocess.py:106-109`) and run by the isolated interpreter. Own copy of the serialization stack, faulthandler + watchdog, object-reference cache, main loop. |
+| `workers/_persistent_worker.py` | 1851 | The worker program. Never imported by the parent -- read as text (`subprocess.py:106-109`) and run by the isolated interpreter with `_ipc_shared.py` copied alongside (the shared serialization core; the worker keeps only thin side-specific wrappers). Faulthandler + watchdog, object-reference cache, main loop. |

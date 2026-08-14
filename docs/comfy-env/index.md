@@ -254,7 +254,7 @@ flowchart LR
     end
 
     worker["Isolated worker subprocess<br/>(interpreter from the pixi env)"]
-    pixi["pixi binary (+ uv underneath)<br/>self-bootstrapped to ~/.pixi/bin"]
+    pixi["pixi binary (+ uv underneath)<br/>pinned + sha256-verified,<br/>~/.comfy-env/pixi/&lt;version&gt;/"]
     idx["cuda-wheels simple index<br/>(GitHub Pages)"]
     rel["GitHub Releases API<br/>(network fallback)"]
     reg["Comfy Registry / GitHub<br/>(node dependencies)"]
@@ -390,7 +390,7 @@ flowchart LR
     end
 
     subgraph wp["Worker subprocess (isolated pixi env)"]
-        pw["workers/_persistent_worker.py<br/>main loop, watchdog,<br/>own copy of the serialization stack"]
+        pw["workers/_persistent_worker.py<br/>main loop, watchdog,<br/>serialization via copied _ipc_shared.py"]
         node["Actual node code"]
         pw --> node
     end
@@ -431,16 +431,20 @@ Results and inputs cross the boundary via the first applicable strategy
 | 2 | Pool IPC | `PoolIPC` | `cudaMemPoolExportPointer` + FD passing | zero-copy GPU | in progress; the `cudaMallocAsync` fix |
 | 3 | Torch shared memory | `TensorRef` | `file_system` strategy (/dev/shm) | zero-copy CPU | |
 | 4 | NumPy | -- | converted to torch tensor, then #3 | zero-copy CPU | |
-| 5 | Pickle (last resort) | -- | pickled into a `SharedMemory` block | 1 copy | unregistered types (pack types belong in the [serializer registry](adr/0014-pack-extensible-serializer-registry.md)) |
+| 5 | Pickle (last resort) | -- | pickled into a `SharedMemory` block | 1 copy | unregistered types (pack types belong in [`[types]` declarations](adr/0015-declared-wire-types.md)); unpicklable values raise a named error |
 | 6 | Primitives | -- | inline in the JSON message | -- | small values |
 
-!!! warning "Known caveat"
+!!! note "The `cudaMallocAsync` situation"
     ComfyUI sets `PYTORCH_CUDA_ALLOC_CONF=backend:cudaMallocAsync`, which
     breaks legacy CUDA IPC (`reduce_tensor()` raises). The `_probe_cuda_ipc()`
-    checks on both sides test `Event` + allocation but not `reduce_tensor()`,
-    so they can report IPC as available when it is not. Pool IPC (strategy 2)
-    is the in-progress fix; until then the ladder falls back to CPU shared
-    memory.
+    checks on both sides now exercise `reduce_tensor()` itself and **fail
+    closed** (a historical version tested only `Event` + allocation and
+    could misreport -- fixed, see
+    [ADR-0005](adr/0005-tiered-tensor-serialization.md)); the canary
+    handshake additionally verifies the production path per worker at
+    startup. Pool IPC (strategy 2) is the zero-copy path under
+    `cudaMallocAsync`; until it is default-on the ladder falls back to
+    CPU shared memory.
 
 ## Where to go next
 

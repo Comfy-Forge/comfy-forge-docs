@@ -6,6 +6,14 @@ chronological-ish by subsystem, not by date; most decisions were made
 implicitly during development and are recorded here retroactively as of
 v0.4.12 (August 2026).
 
+Where a status line cites "adversarial review": these are structured
+LLM review panels (two independently-briefed reviewer personas that
+investigate the ADRs and code separately, then debate each other's
+findings), run by the maintainer in August 2026. Their claims were
+verified against the working tree before being incorporated; treat the
+citations as "the argument survived cross-examination", not as external
+human endorsement.
+
 | ADR | Decision | One-liner |
 |-----|----------|-----------|
 | [0001](0001-process-isolation-via-persistent-subprocess-workers.md) | Process isolation via persistent subprocess workers | Conflicting node deps get their own interpreter; ComfyUI talks to proxies. |

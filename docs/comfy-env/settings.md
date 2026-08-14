@@ -77,7 +77,7 @@ vars are forwarded to and parsed by workers directly.
 | Env var | set by | consumed by |
 |---|---|---|
 | `COMFY_ENV_ACCEL_PKGS` | `register_nodes()` from `[cuda].packages` | metadata scan's top-level-import check ([accelerator rule](accelerators.md)) |
-| `COMFY_ENV_SERIALIZER_MODULES` | `register_nodes()` from `[serializers].modules` | worker startup, to load custom type serializers (ADR-0010) |
+| `COMFY_ENV_SERIALIZER_FILES` | `register_nodes()` from `[types]` custom entries (`serialization.py` paths) | worker startup, to load custom type serializers ([ADR-0015](adr/0015-declared-wire-types.md)) |
 
 `COMFY_TEST_MOCK_PACKAGES` is the comfy-test harness's variable
 (interpreted by comfy-env at import; see the accelerator page for its

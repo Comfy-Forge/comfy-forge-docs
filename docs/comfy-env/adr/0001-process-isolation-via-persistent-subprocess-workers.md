@@ -118,9 +118,12 @@ Direct A/B on real `SubprocessWorker`s -- Windows 11, NVIDIA RTX-class
 machine, CPU-only torch, same-interpreter workers (no pixi activation in
 the loop), trivial echo module as the node stand-in. Persistent = one
 spawn, then 50 warm calls; spawn-per-call = 5 full cycles of
-spawn + one call + kill. (`tests/fixtures/echo_node.py` is the fixture;
-the run predates removal of the per-call health ping, so warm figures
-include it.)
+spawn + one call + kill. (`tests/fixtures/echo_node.py` is the fixture.
+The warm figures include the per-call health ping, which is **still
+present** at 0.4.x -- `_ensure_started()` pings on every call; its
+removal is planned with the transport correlation work, ADR-0010 v2
+item 2 -- so the true warm floor is lower than shown. A later direct
+measurement put the call floor at 2.4 ms on the same machine.)
 
 | model | per-call cost |
 |---|---|
@@ -138,9 +141,10 @@ Interpretation, with the caveats stated honestly:
   spawn-per-call pays 10-100+ seconds per execution versus ~30 ms warm; a
   20-node workflow queued twice would spend minutes purely on re-imports.
 - **Payload size is not the cost at small scale**: 1 MB tensor == tiny int
-  (30.4 vs 30.1 ms). The warm floor is fixed transport overhead -- and the
-  run itself exposed that every warm call was paying the per-call health
-  ping (ADR-0010 defect list), so the true floor is lower than 30 ms.
+  (30.4 vs 30.1 ms). The warm floor is fixed transport overhead -- the
+  run exposed that every warm call pays the per-call health ping (ADR-0010
+  defect list; still unfixed as of 0.4.17), so the true floor is lower
+  than 30 ms (measured separately at 2.4 ms).
 - **The refinement worth having is an idle reaper, not spawning**: keep
   workers hot while in use, reap after an idle window to reclaim the
   ~180-220 MB (and CUDA context) of envs the user stopped touching. That

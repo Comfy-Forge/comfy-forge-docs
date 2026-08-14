@@ -1,10 +1,19 @@
 # ADR-0008: Graceful degradation everywhere
 
-**Status:** accepted
+**Status:** accepted; amended 2026-08 -- "everywhere" now means the
+**environment plane** only. The data plane fails loudly by decision
+([ADR-0015](0015-declared-wire-types.md)): an unserializable value
+raises a named error instead of leaking, a corrupted CPU-tier canary
+refuses the worker outright ([ADR-0005](0005-tiered-tensor-serialization.md)).
+The live doctrine in one sentence: **degrade on availability
+(missing env, no GPU, no CUDA IPC -- a correct slower path exists),
+fail loudly on correctness (undeliverable payloads, corrupted
+transport, invalid contracts -- no correct fallback exists).**
 
 ## Decision
 
-> **Every failure path ends in "ComfyUI still boots".** Not fail-fast
+> **Every *availability* failure path ends in "ComfyUI still boots".**
+> Not fail-fast
 > (comfy-env sits in the startup path of end-user machines, where a hard
 > failure reads as "ComfyUI is broken"); every subsystem has an explicit
 > fallback, and the terminal fallback is ComfyUI booting with isolation
@@ -50,6 +59,13 @@ prestartup time is the entire application.
   taking the slow CPU path, look like success. Counterweights: the startup
   banner prints per-env `[OK]` / `[MISSING -- run install.py]`, and
   `comfy-env doctor` / the `debug` categories expose what path is active.
+- *2026-08 amendment:* this hiding cost is accepted only where the
+  fallback is **correct** (slower, but right). Where no correct fallback
+  exists -- a payload that cannot be serialized, a transport tier that
+  corrupts bytes -- degradation would convert a loud bug into silent
+  data damage, so those paths raise named errors instead (see Status).
+  The original "worst case is extra copies, not a crash" claim holds for
+  the availability plane only.
 - Fallback chains are more code to maintain than fail-fast would be; this is
   accepted as the cost of shipping to non-developers.
 - **The in-process fallback decays as the host-env principle succeeds.**

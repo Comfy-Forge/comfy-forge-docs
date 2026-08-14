@@ -44,11 +44,25 @@ file) -- unreadable, unlintable, undiffable.
   correction:* the review showed this "standing tax" framing is half false --
   shipping the worker as source text does NOT force duplicating the stack.
   `_ipc_shared.py` is copied beside the worker precisely so it can be
-  imported (it is stdlib-only at module scope), the parent already uses its
-  shared walker, and the worker re-implements it by neglect. Deleting the
-  worker's copy is v2 work item 3 in
+  imported (it is stdlib-only at module scope), and *2026-08 update:* the
+  worker's `_to_shm` now delegates to the shared walker. Residual forks:
+  `SocketTransport` (the worker's copy lacks the parent's
+  `MAX_MESSAGE_SIZE` check) and the side-specific `_from_shm` halves --
+  finishing this is v2 work item 3 in
   [ADR-0010](0010-wire-protocol-and-transport.md). The wire protocol
   (length-prefixed JSON + named strategies) is the contract; changes must
   land on both sides.
 - Version skew between parent and worker code cannot happen: the parent
-  always ships the worker source it was released with.
+  always ships the worker source it was released with. *This -- not the
+  "different Pythons" line above -- is the strongest argument for
+  source-text delivery, together with upgrade reach: `pip install -U
+  comfy-env` upgrades the worker code for every env instantly, including
+  envs materialized months ago, with no re-install. (A pinned
+  `comfy-env-worker` wheel inside each env -- the main rejected
+  alternative -- would rot against an upgraded parent and make a
+  version handshake load-bearing.)*
+- A constraint this delivery mechanism implies but nothing enforces:
+  the worker and `_ipc_shared.py` must stay parseable by the **oldest
+  Python any worker env uses** (the motivating examples above include
+  3.9). CI runs host Pythons only; a `py_compile` lane at the floor
+  version is the planned guard.

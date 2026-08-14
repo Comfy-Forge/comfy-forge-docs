@@ -28,8 +28,8 @@ compiler-owned keys, which error loudly if you set them:
 `[environments]`, `[feature.*]`, `workspace.name/version/platforms`
 (host-derived identity); torch-family pins are rewritten to the host
 family. Typos inside comfy-env's own sections (`[cuda]`, `[options]`,
-`[settings]`, `[serializers]`) produce warnings. An optional `schema = 1`
-key versions the format.
+`[settings]`) produce warnings; invalid `[types]` values are parse
+errors. An optional `schema = 1` key versions the format.
 
 ## `comfy-env-root.toml` (pack root)
 
@@ -40,11 +40,12 @@ key versions the format.
 # cloned from GitHub (git, zip fallback) or downloaded from the Comfy
 # Registry into custom_nodes/, then their requirements.txt + install.py run.
 [node_reqs]
-# short form: name = github URL
-ComfyUI-GeometryPack = "https://github.com/PozzettiAndrea/ComfyUI-GeometryPack"
-# table form: pin a tag/branch/commit, or install from the Comfy Registry
+# table form with an exact git ref -- the required shape per ADR-0016
 OtherPack = { github = "https://github.com/x/OtherPack", tag = "v1.2.0" }
-RegistryPack = { registry = "registry-pack-id", version = "1.0.3" }
+# short form (unpinned) and registry entries are deprecated by ADR-0016
+# (unpinned = unreproducible; registry versions are mutable/unsigned) --
+# still accepted by 0.4.x code, rejected once 0016 enforcement lands.
+ComfyUI-GeometryPack = "https://github.com/PozzettiAndrea/ComfyUI-GeometryPack"
 
 # Per-pack overrides of comfy-env feature flags (short keys map to
 # COMFY_ENV_* env vars; a pack's [settings] wins over env vars --
@@ -56,6 +57,16 @@ auto_install = false      # COMFY_ENV_AUTO_INSTALL (default false)
 pool_ipc = false          # COMFY_ENV_POOL_IPC     (default false)
 worker_vram_budget = 0    # COMFY_ENV_WORKER_VRAM_BUDGET (GB, 0 = auto)
 
+# Wire types this pack puts on node sockets (ADR-0015).
+# "builtin" = automatic transport (tensors/arrays/dicts), listed for
+# humans and tests; "custom" = serialize/deserialize functions in
+# ./serialization.py at the pack root. Validated at register_nodes():
+# a "custom" socket with no registration is a loud startup error.
+[types]
+TRIMESH    = "custom"
+SKELETON   = "builtin"
+INTRINSICS = "builtin"
+
 # NOTE: do NOT declare [dependencies] / [cuda] here. They are parsed but
 # have no consumer at ROOT scope in v0.4 -- and installing packages from
 # the root file would violate the host-environment principle above.
@@ -64,9 +75,11 @@ worker_vram_budget = 0    # COMFY_ENV_WORKER_VRAM_BUDGET (GB, 0 = auto)
 
 Notes:
 
-- `[node_reqs]` and `[settings]` are the load-bearing sections: `install()`
-  consumes the first, both `install()` and `register_nodes()` consult the
-  second.
+- `[node_reqs]`, `[settings]`, and `[types]` are the load-bearing
+  sections: `install()` consumes the first, both `install()` and
+  `register_nodes()` consult the second, and `register_nodes()`
+  validates and loads the third (see
+  [custom wire types](serializers.md)).
 - `[apt]` / `[brew]` **no longer exist** (removed 2026-08): they predate
   the realization that everything they would deliver installs through
   pixi/conda-forge -- declare the equivalent conda package under a
@@ -133,15 +146,11 @@ KMP_DUPLICATE_LIB_OK = "TRUE"
 [options]
 health_check_timeout = 5.0   # seconds; per-env worker ping timeout
 
-# Custom wire types: modules imported on BOTH sides for their
-# register_serializer() side effects (ADR-0014). Payloads decompose into
-# schema + shared-memory tensors -- never pickle; a side that cannot
-# import the module passes the type through opaquely.
-[serializers]
-modules = ["my_pack.wire_types"]
-
-# NOTE: [settings] and [node_reqs] are ROOT-file sections and are REJECTED
-# here -- in an env file they never had any effect.
+# NOTE: [settings], [node_reqs], and [types] are ROOT-file sections and
+# are REJECTED here. [serializers] no longer exists anywhere (removed
+# 0.4.16, hard error with a migration message): declare wire types in
+# the root file's [types] and put custom serializers in
+# <pack>/serialization.py (ADR-0015).
 ```
 
 Notes:

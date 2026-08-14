@@ -52,11 +52,18 @@ transport as built:
   different builds *by design*, yet the tensor endpoints ride torch's
   private reduction tuple with no runtime handshake -- "enforced at install,
   hoped at protocol, no defense in depth." Drift = segfault, not error.
-- **`call_id` is decorative.** Generated, logged, never matched; the
+- **`call_id` is decorative.** *(Partially fixed 2026-08: the parent now
+  drops stale frames whose `call_id` mismatches instead of consuming
+  them; full pending-map correlation -- v2 item 2 -- still pending.)*
+  Originally: generated, logged, never matched; the
   response is "the first non-log/non-callback frame." Safe only under the
   single-in-flight lock -- and the aiohttp route path already lets a second
   thread touch a worker, so the latent desync has a real trigger.
-- **The serialization stack exists three times** (parent, `_ipc_shared.py`,
+- **The serialization stack exists three times** *(largely fixed
+  2026-08: the worker's `_to_shm` now delegates to the shared walker in
+  the copied `_ipc_shared.py`; still forked -- `SocketTransport` (the
+  worker's copy lacks the parent's `MAX_MESSAGE_SIZE` check) and the
+  side-specific `_from_shm` halves.)* Originally: (parent, `_ipc_shared.py`,
   worker). The shared module is copied next to the worker precisely so it
   can import it -- and the worker never does; the parent uses the shared
   walker while the worker re-implements it. Duplication by neglect, not
@@ -72,8 +79,9 @@ transport as built:
   paid on every call**, and the per-call overhead figure in the docstrings
   ("~50-100ms") was folklore until 2026-08: a first real measurement (see
   ADR-0001's spawn-vs-persistent table) puts the warm per-call floor at
-  ~30 ms *including* the per-call ping -- so the docstring was pessimistic,
-  but the floor is still ~100x pyisolate's measured 0.31 ms, and the ping
+  ~30 ms *including* the per-call ping (a later isolated echo measurement:
+  2.4 ms) -- so the docstring was pessimistic,
+  but the floor is still ~8x pyisolate's measured 0.31 ms, and the ping
   plus redundant tree-walks are the visible gap. A standing benchmark
   harness is still missing.
 

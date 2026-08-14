@@ -53,8 +53,12 @@ every platform (e.g. giving up CUDA IPC because Windows lacks it).
 
 - Each platform gets its best transport: Linux keeps GPU zero-copy; Windows
   and macOS remain fully functional on the CPU shared-memory path.
-- Platform-conditional code paths mean bugs can be platform-specific and CI
-  currently exercises none of them (there is no test suite) -- the main
-  standing risk of this ADR.
+- Platform-conditional code paths mean bugs can be platform-specific.
+  *Updated 2026-08:* a real test suite now exists (`tests/`, ~23 files)
+  and CI runs a 3-OS (Linux/Windows/macOS) x 2-Python matrix, so the
+  cross-platform branches are exercised on every push. The residual risk
+  narrows to what hosted CI structurally cannot cover: GPU transport
+  tiers (verified per-machine by the ADR-0005 canary instead) and
+  worker-env interpreters older than the host matrix.
 - The ASCII-only rule is unusual but cheap, and explains the `--` and `->`
   typography throughout the codebase and these docs.
