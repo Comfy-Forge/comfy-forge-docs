@@ -71,7 +71,6 @@ nav:
           - "0018: Worker call timeout": comfy-env/adr/0018-worker-call-timeout.md
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md
           - "0009: Platform strategy": comfy-env/adr/0009-platform-strategy.md
-          - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md
           # Installing things
           - "0002: pixi as environment manager": comfy-env/adr/0002-pixi-as-environment-manager.md
           - "0007: Machine-wide workspace, per-env manifests": comfy-env/adr/0007-machine-wide-workspace-with-per-env-manifests.md
@@ -87,6 +86,7 @@ nav:
           - "0014: Pack-extensible serializer registry": comfy-env/adr/0014-pack-extensible-serializer-registry.md
           - "0015: Declared wire types": comfy-env/adr/0015-declared-wire-types.md
           # Project policy
+          - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md
           - "0017: Pre-1.0, no backward compatibility": comfy-env/adr/0017-pre-1-0-no-backward-compatibility.md
   - comfy-test:
       - Overview: comfy-test/index.md
