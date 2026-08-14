@@ -65,20 +65,26 @@ nav:
           - Module inventory: comfy-env/modules.md
       - Decision records:
           - Index: comfy-env/adr/index.md
+          # Process model
           - "0001: Process isolation via persistent subprocess workers": comfy-env/adr/0001-process-isolation-via-persistent-subprocess-workers.md
-          - "0002: pixi as environment manager": comfy-env/adr/0002-pixi-as-environment-manager.md
-          - "0003: Two config files, two roles": comfy-env/adr/0003-two-config-files-with-two-roles.md
-          - "0004: Prebuilt CUDA wheel index": comfy-env/adr/0004-prebuilt-cuda-wheel-index.md
-          - "0005: Tiered tensor serialization": comfy-env/adr/0005-tiered-tensor-serialization.md
           - "0006: Worker crosses the boundary as source text": comfy-env/adr/0006-worker-crosses-the-boundary-as-source-text.md
-          - "0007: Machine-wide workspace, per-env manifests": comfy-env/adr/0007-machine-wide-workspace-with-per-env-manifests.md
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md
           - "0009: Platform strategy": comfy-env/adr/0009-platform-strategy.md
-          - "0010: Wire protocol and transport": comfy-env/adr/0010-wire-protocol-and-transport.md
           - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md
-          - "0012: Unavailable nodes hidden, not unregistered": comfy-env/adr/0012-unavailable-nodes-hidden-not-unregistered.md
+          # Installing things
+          - "0002: pixi as environment manager": comfy-env/adr/0002-pixi-as-environment-manager.md
+          - "0007: Machine-wide workspace, per-env manifests": comfy-env/adr/0007-machine-wide-workspace-with-per-env-manifests.md
+          - "0004: Prebuilt CUDA wheel index": comfy-env/adr/0004-prebuilt-cuda-wheel-index.md
+          - "0016: Node pack dependencies": comfy-env/adr/0016-node-pack-dependencies.md
+          # Configuration
+          - "0003: Two config files, two roles": comfy-env/adr/0003-two-config-files-with-two-roles.md
           - "0013: Env-file config: honest passthrough": comfy-env/adr/0013-env-file-passthrough-contract.md
+          - "0012: Unavailable nodes hidden, not unregistered": comfy-env/adr/0012-unavailable-nodes-hidden-not-unregistered.md
+          # Transport
+          - "0005: Tiered tensor serialization": comfy-env/adr/0005-tiered-tensor-serialization.md
+          - "0010: Wire protocol and transport": comfy-env/adr/0010-wire-protocol-and-transport.md
           - "0014: Pack-extensible serializer registry": comfy-env/adr/0014-pack-extensible-serializer-registry.md
+          - "0015: Declared wire types": comfy-env/adr/0015-declared-wire-types.md
   - comfy-test:
       - Overview: comfy-test/index.md
   - cuda-wheels:
