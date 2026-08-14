@@ -67,7 +67,7 @@ nav:
           - Index: comfy-env/adr/index.md
           # Process model
           - "0001: Process isolation via persistent subprocess workers": comfy-env/adr/0001-process-isolation-via-persistent-subprocess-workers.md
-          - "0006: Worker crosses the boundary as source text": comfy-env/adr/0006-worker-crosses-the-boundary-as-source-text.md
+          - "0006: comfy-env is never installed into worker envs": comfy-env/adr/0006-worker-crosses-the-boundary-as-source-text.md
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md
           - "0009: Platform strategy": comfy-env/adr/0009-platform-strategy.md
           - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md

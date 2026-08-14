@@ -1,14 +1,15 @@
-# ADR-0006: Worker crosses the boundary as source text
+# ADR-0006: comfy-env is never installed into worker envs
 
 **Status:** accepted
 
 ## Decision
 
-> **The worker crosses the boundary as source text, never as an import.**
-> Not comfy-env installed in every env (envs stay minimal and
-> node-defined); not a shared package (the two interpreters may not even
-> be the same Python) -- the parent ships the exact worker source it was
-> released with, making version skew structurally impossible.
+> **comfy-env is never installed into worker envs -- the worker crosses
+> the boundary as source text, never as an import.** Not comfy-env
+> installed in every env (envs stay minimal and node-defined); not a
+> shared package (the two interpreters may not even be the same Python)
+> -- the parent ships the exact worker source it was released with,
+> making version skew structurally impossible.
 
 - The worker lives in a real module, `workers/_persistent_worker.py`
   (~1850 lines), but is **never imported by the parent**. The parent reads it

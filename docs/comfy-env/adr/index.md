@@ -13,7 +13,7 @@ v0.4.12 (August 2026).
 | [0003](0003-two-config-files-with-two-roles.md) | Two config files, two roles | `comfy-env-root.toml` never touches the Python env; `comfy-env.toml` means full isolation. |
 | [0004](0004-prebuilt-cuda-wheel-index.md) | Prebuilt CUDA wheel index | Kill the ABI x torch x CUDA x OS x arch build matrix for end users. |
 | [0005](0005-tiered-tensor-serialization.md) | Tiered tensor serialization | Six strategies, best-available-first, zero-copy where the platform allows. |
-| [0006](0006-worker-crosses-the-boundary-as-source-text.md) | Worker crosses the boundary as source text | The worker is materialized as a file, never imported; duplication is deliberate. |
+| [0006](0006-worker-crosses-the-boundary-as-source-text.md) | comfy-env is never installed into worker envs | The worker script crosses as source text -- materialized as a file, never imported; duplication is deliberate. |
 | [0007](0007-machine-wide-workspace-with-per-env-manifests.md) | Machine-wide workspace, per-env manifests | One shared store per machine; one `pixi.toml` per env; stamps guard staleness. |
 | [0008](0008-graceful-degradation-everywhere.md) | Graceful degradation everywhere | Every failure path ends in "ComfyUI still boots". |
 | [0009](0009-platform-strategy.md) | Platform strategy | Windows/macOS/Linux each get targeted workarounds, not lowest-common-denominator. |
