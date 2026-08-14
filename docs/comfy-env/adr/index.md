@@ -23,3 +23,4 @@ v0.4.12 (August 2026).
 | [0013](0013-env-file-passthrough-contract.md) | Env-file config: honest passthrough | Forward everything pixi owns; comfy-env keeps 4 denied keys, 1 rewritten family, 1 merged table. Amends ADR-0003. |
 | [0014](0014-pack-extensible-serializer-registry.md) | Pack-extensible serializer registry | Packs register their own wire types; payloads decompose into schema + tensors, never pickle; unknown tags pass through opaque. |
 | [0015](0015-declared-wire-types.md) | Declared wire types | One `[types]` table per pack; `serialization.py` only for hero types; identity tags make shared types interop; failed serialization errors loudly. |
+| [0016](0016-node-pack-dependencies.md) | Node pack dependencies | `[node_reqs]` auto-install stays for headless testing -- but pinned (git refs only; registry untrusted) and comfy-envved only; test-workflow utilities move to comfy-test config. |
