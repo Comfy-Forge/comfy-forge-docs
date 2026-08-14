@@ -24,3 +24,5 @@ v0.4.12 (August 2026).
 | [0014](0014-pack-extensible-serializer-registry.md) | Pack-extensible serializer registry | Packs register their own wire types; payloads decompose into schema + tensors, never pickle; unknown tags pass through opaque. |
 | [0015](0015-declared-wire-types.md) | Declared wire types | One `[types]` table per pack; `serialization.py` only for hero types; identity tags make shared types interop; failed serialization errors loudly. |
 | [0016](0016-node-pack-dependencies.md) | Node pack dependencies | `[node_reqs]` auto-install stays for headless testing -- but pinned (git refs only; registry untrusted) and comfy-envved only; test-workflow utilities move to comfy-test config. |
+| [0017](0017-pre-1-0-no-backward-compatibility.md) | Pre-1.0: no backward compatibility, by decision | Break freely while all consumers are the author's; the era ends at the slow-rollout tripwire, which starts the compat and security clocks. |
+| [0018](0018-worker-call-timeout.md) | Worker call timeout | 600 s default becomes per-env `call_timeout`; expiry keeps kill-the-worker semantics; the mid-call heartbeat is the named successor. |
