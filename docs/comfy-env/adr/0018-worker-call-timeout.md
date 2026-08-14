@@ -71,6 +71,21 @@ lock; without a bound, one wedged native call silently freezes the
 pack forever with no diagnostic. A loud kill after a declared budget
 is strictly better than an invisible hang.
 
+## Cancellation (amended 2026-08-14)
+
+The same policy family, previously unwritten: **user cancellation is
+cooperative-by-progress.** The parent checks ComfyUI's interrupt flag
+only inside the progress-callback handler, and the worker raises only
+when its progress hook receives the error back -- so **a node that
+never reports progress is uncancellable**: the cancel button does
+nothing until this ADR's timeout guillotines the worker. Decided, not
+accidental: signal-based interruption of a wedged native library does
+not work (the same reason timeout expiry kills rather than interrupts),
+so cooperative cancel + kill-as-fallback is the honest pair. The
+mid-call heartbeat (below) is the successor for *both* halves -- a
+heartbeat channel is also a cancel channel, letting slow-but-alive
+nodes see the interrupt without reporting progress.
+
 ## Consequences
 
 - Packs with long-running nodes declare their patience once; losing a
@@ -83,3 +98,6 @@ is strictly better than an invisible hang.
   freedom -- acceptable per-pack, and obsoleted when the heartbeat
   lands (at which point the timeout reverts to a heartbeat-loss
   detector and this ADR gets a successor note).
+- Node authors who want their slow nodes cancellable before the
+  heartbeat exists have exactly one tool: report progress
+  periodically. Worth a line in the pack-author docs.

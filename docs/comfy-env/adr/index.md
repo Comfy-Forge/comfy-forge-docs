@@ -39,3 +39,10 @@ human endorsement.
 | [0021](0021-three-call-contract.md) | The three-call contract | install/setup_env/register_nodes as one-liners; caller inference via stack frames; the file layout is the configuration. |
 | [0022](0022-comfy-env-placement-in-host-env.md) | comfy-env's placement in the host env | The one exception to the host-env principle, kept for pre-1.0; the split-and-relocate alternative recorded for the rollout tripwire. |
 | [0023](0023-metadata-scan-and-proxy-synthesis.md) | Metadata scan and proxy synthesis | The main process interviews packs instead of importing them; scan subprocess + hash-keyed cache + generated V1 proxies. |
+| [0024](0024-upstream-interface-contract.md) | The upstream interface contract | The loan book: every ComfyUI internal we touch, stamped, with the upstream ask that retires it; the posture for the day core ships isolation. |
+| [0025](0025-vram-co-management.md) | VRAM co-management across processes | ComfyUI stays the single VRAM authority; workers hold on lease; WDDM is best-effort by decision; device fields reserved for multi-GPU. |
+| [0026](0026-trust-and-supply-chain.md) | Trust and supply chain | What users trust today, enumerated; wheel hashes and farm qualification move to now; bus factor named; pickle flips at the sandbox. |
+| [0027](0027-testing-and-verification.md) | Testing and verification strategy | CI proves transport and compilers; the canary IS the GPU test; conformance, benchmark harness, and the HEAD-canary lane get owners. |
+| [0028](0028-workspace-disk-lifecycle.md) | Workspace disk lifecycle | Envs are caches evicted with consent: gc categories, a banner nudge, and the refcount design content-addressing is blocked on. |
+| [0029](0029-parent-as-switchboard.md) | Parent as switchboard | All inter-worker data flows through the parent, which owns what it holds; alternatives rejected at 1-2%; revisit trigger named. |
+| [0030](0030-gpu-platform-floors.md) | GPU platform floors | Pinned-memory D2H is the next GPU investment; pool IPC demoted to experimental pending an ownership contract; floors probed, never assumed. |

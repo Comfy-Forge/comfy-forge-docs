@@ -84,6 +84,13 @@ by construction.
   geometry libraries (CGAL, OCC, bpy) segfault on degenerate input as
   a matter of routine, and the blast radius is one call + one pack's
   caches.
+- *Crash-cost footnote (2026-08-14):* both sides deliberately
+  unregister shm blocks from Python's `resource_tracker` to prevent
+  double-unlink -- correct, with the consequence that a **double
+  crash** (parent and worker both killed before cleanup) leaks
+  `/dev/shm` blocks until reboot. The startup sweep cleans stale
+  sockets and temp dirs but not shm; extending it to orphaned
+  `wnsm_`/shm blocks stamped by a dead pid is the known follow-up.
 - Anything a worker holds must be reconstructible: model paths and
   config dicts cross the boundary, live handles do not (confirmed
   ecosystem-wide by the 2026-08 census) -- worker death therefore

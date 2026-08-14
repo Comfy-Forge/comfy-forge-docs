@@ -98,6 +98,15 @@ merge processes.
 - When ComfyUI's executor parallelizes, comfy-env's story is
   cross-pack parallel, intra-pack serial -- and the pending map is the
   prerequisite for even that being safe.
+- *Constraint on that promise (2026-08-14):* the parent's
+  serialization layer holds per-call protocol state in **shared module
+  globals** (`_active_worker_pool`, `_gpu_zero_copy_demoted`) set
+  around each call -- safe under one lock, racy across two workers'
+  locks (a pack-A route call concurrent with a pack-B node call can
+  cross them). Cross-pack parallelism is therefore ahead of the code
+  until that state moves to per-thread/per-call scope; the fix is in
+  flight on the `fixbugs` branch, and any pending-map work must clear
+  this class before the promise is real.
 - The object cache and model registry stay single-worker concepts;
   nothing needs distributed invalidation.
 - A future content-addressed store changes `environment/cache.py`

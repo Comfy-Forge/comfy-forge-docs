@@ -79,3 +79,10 @@ format-versioned rather than best-effort.
 - Proxy classes are V1-shaped by deliberate choice: V1 is the schema
   ComfyUI's executor treats most conservatively, and the scan flattens
   V3 constructs into it rather than tracking both shapes end-to-end.
+- *Fidelity note (2026-08-14):* proxied `self_state` whose class
+  cannot be resolved on the far side crosses as a `SimpleNamespace`
+  attribute bag -- data preserved, methods and class identity silently
+  lost. Acceptable for the schema-shaped state nodes actually store;
+  a node storing behavior-bearing objects on `self` will find them
+  inert, and the fix is the pack declaring the type
+  ([ADR-0015](0015-declared-wire-types.md)), not deeper magic here.

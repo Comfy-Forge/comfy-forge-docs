@@ -1,0 +1,94 @@
+# ADR-0025: VRAM co-management across processes
+
+**Status:** accepted (2026-08-14) -- records the shipped protocol; the
+WDDM position and the `device` field are decisions made here.
+
+## Decision
+
+> **ComfyUI's VRAM manager stays the single authority; workers hold
+> VRAM only on lease.** Worker-resident models exist in ComfyUI's
+> `current_loaded_models` ledger as `SubprocessModelPatcher` entries,
+> get evicted by ComfyUI's normal pressure logic, and the worker asks
+> the parent for room before loading. Two allocator populations, one
+> decision-maker.
+
+The protocol, as shipped:
+
+1. **Detection**: worker-side `Module.to()`/`.cuda()` hooks
+   auto-register models that land on GPU; metadata (id, size, device)
+   rides back on the call response (`_new_models`), and the parent
+   builds a `SubprocessModelPatcher` per model and inserts it into
+   `current_loaded_models`. What "counts": anything that moved to CUDA
+   through the hooked paths -- false negatives (manual cudaMalloc,
+   non-Module allocations) are unbudgeted worker overhead; false
+   positives are possible for transient modules. No pack-side opt-out
+   exists yet; add one if a real pack needs it.
+2. **Admission**: the worker's `load_models_gpu` shim calls back
+   (`request_vram_budget`); the parent evicts through ComfyUI's own
+   machinery until the request x **1.1 headroom** fits, then grants.
+   The 10% headroom absorbs allocator slack and context growth; it is
+   a guess that has held -- change it only with a measurement.
+3. **Eviction**: parent-initiated `model_to_device` commands move
+   worker models to CPU via the worker's patcher path; ComfyUI decides
+   *when* (its normal free-memory loop), comfy-env decides *how*.
+4. **Restart/kill interaction**: on worker death the patchers follow
+   the [ADR-0019](0019-worker-lifecycle.md) `_STALE_PATCHERS` protocol;
+   an [ADR-0018](0018-worker-call-timeout.md) timeout kill therefore
+   also invalidates every lease that worker held -- the caches are
+   rebuilt on the next generation's first load.
+5. **`COMFY_ENV_WORKER_VRAM_BUDGET`** overrides the worker's
+   `vram_state` (a `NO_VRAM` worker is promoted to `NORMAL_VRAM` under
+   an explicit budget) -- the escape hatch for setups where detection
+   misjudges the card.
+
+### Single-device today, and the two recorded landmines
+
+The entire ledger is single-device by assumption: budget negotiation
+uses the singular `mm.get_torch_device()`, the worker binds
+`current_device()`, and the parent-side pool patch hardcodes device 0.
+Decision: acceptable until a real multi-GPU pack exists, **but** the
+budget/`model_to_device` messages gain a `device` field the first time
+anyone touches this protocol again (reserve now, semantics later), and
+the wire's existing `device_idx` (CudaIPC/PoolIPC frames) silently
+assumes **identical device enumeration in parent and worker** -- a
+pack env setting its own `CUDA_VISIBLE_DEVICES` (some do, to hide GPUs
+from bpy) turns `device_idx` into a wrong-device import with no error.
+Any multi-GPU work starts by exchanging device UUIDs in the handshake
+and mapping indices, never trusting them.
+
+### The WDDM position
+
+The protocol reasons in Linux terms: free VRAM is a hard number,
+exhaustion is an OOM. On Windows/WDDM -- the majority platform -- the
+OS pages VRAM, `mem_get_info` is advisory, and overcommit does not
+fail: it silently demotes allocations to system memory and runs ~10x
+slower. Recorded position: the budget protocol is **best-effort on
+WDDM** -- the 1.1 headroom plus ComfyUI's own conservative accounting
+is the mitigation, the failure mode is a slowdown rather than a crash
+(strictly better than the Linux failure mode), and no additional
+WDDM-specific machinery (HAGS detection, residency queries) is built
+until a profiled case shows the slowdown biting in practice. What we
+owe users now is the documentation sentence, which this ADR is.
+
+## Context
+
+This bridge -- two independent allocator populations sharing one GPU
+without OOMing each other -- is arguably the hairiest correctness
+surface in the project and had no record; the 2026-08 reviews ranked
+it the largest unrecorded subsystem. It is also the deepest part of the
+[ADR-0024](0024-upstream-interface-contract.md) loan book (entries
+1-4): the entire mechanism is a stand-in for a VRAM lease API that
+ComfyUI does not offer. This ADR documents the stand-in; 0024 records
+the ask that retires it.
+
+## Consequences
+
+- One decision-maker means no split-brain: workers never evict each
+  other directly; every eviction flows through ComfyUI's loop.
+- The cross-worker call chain (worker A's budget request evicting into
+  worker B) is the lock-ordering hazard named in
+  [ADR-0020](0020-concurrency-and-env-granularity.md); the pending-map
+  work must keep it single-flight or order the locks.
+- Detection-by-hook means the ledger is only as good as the hooks;
+  packs allocating GPU memory outside `nn.Module` movement are
+  invisible to the budget. Known, accepted, revisit per-pack.

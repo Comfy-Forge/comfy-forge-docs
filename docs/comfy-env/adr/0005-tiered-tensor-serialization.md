@@ -54,6 +54,14 @@ half, behind `COMFY_ENV_PATCH_SHAREABLE_POOL`, DOES patch
 "no monkey-patching ComfyUI" scope applies to the worker->parent direction
 only (see [setup_env()](../setup-env.md)).
 
+*Amended 2026-08-14:* an external GPU review found the pool path
+**unsound as a lifetime protocol** (imported pointers never freed;
+exporter-side pinning rides cache eviction; no cross-process sync; the
+parent-side patch silently inert on Python 3.12+). Pool IPC is demoted
+to **experimental** and gated on a written ownership contract --
+decisions and the pinned-memory alternative for the majority platform
+in [ADR-0030](0030-gpu-platform-floors.md).
+
 ### Runtime verification: the canary handshake
 
 An honesty clause first: strategies 1-3 ride **torch's private,
