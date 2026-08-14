@@ -34,3 +34,8 @@ human endorsement.
 | [0016](0016-node-pack-dependencies.md) | Node pack dependencies | `[node_reqs]` auto-install stays for headless testing -- but pinned (git refs only; registry untrusted) and comfy-envved only; test-workflow utilities move to comfy-test config. |
 | [0017](0017-pre-1-0-no-backward-compatibility.md) | Pre-1.0: no backward compatibility, by decision | Break freely while all consumers are the author's; the era ends at the slow-rollout tripwire, which starts the compat and security clocks. |
 | [0018](0018-worker-call-timeout.md) | Worker call timeout | 600 s default becomes per-env `call_timeout`; expiry keeps kill-the-worker semantics; the mid-call heartbeat is the named successor. |
+| [0019](0019-worker-lifecycle.md) | Worker lifecycle | Workers are disposable, replacement is invisible; generations, the stale-patcher invariant, consumed-ack, and the idle reaper decided. |
+| [0020](0020-concurrency-and-env-granularity.md) | Concurrency and env granularity | The pack is the unit of concurrency and fate: one worker + one lock per env; disk may dedupe by content, processes never merge. |
+| [0021](0021-three-call-contract.md) | The three-call contract | install/setup_env/register_nodes as one-liners; caller inference via stack frames; the file layout is the configuration. |
+| [0022](0022-comfy-env-placement-in-host-env.md) | comfy-env's placement in the host env | The one exception to the host-env principle, kept for pre-1.0; the split-and-relocate alternative recorded for the rollout tripwire. |
+| [0023](0023-metadata-scan-and-proxy-synthesis.md) | Metadata scan and proxy synthesis | The main process interviews packs instead of importing them; scan subprocess + hash-keyed cache + generated V1 proxies. |

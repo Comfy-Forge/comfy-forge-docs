@@ -41,6 +41,40 @@ intersection:
   [ADR-0005](0005-tiered-tensor-serialization.md)); glibc pin in generated
   features.
 
+### Platform support table (what each platform actually gets)
+
+| Capability | Linux | Windows | macOS |
+|---|---|---|---|
+| Process isolation, persistent workers | yes | yes | yes |
+| CPU tensor transport | zero-copy (torch shm) | zero-copy (torch shm) | zero-copy (torch shm) |
+| GPU tensor transport | zero-copy (CUDA IPC; Pool IPC under `cudaMallocAsync`, default-off) | **CPU round-trip: GPU -> CPU -> shm -> CPU -> GPU on every CUDA edge** | n/a (no CUDA) |
+| Socket transport | AF_UNIX | AF_UNIX where available, else TCP loopback | AF_UNIX |
+| FD passing (`SCM_RIGHTS`) | yes | no | yes (unused for GPU) |
+
+Stated loudly because Windows is the majority platform: **Windows tensor
+edges pay a double copy today.** Measured context: transport is 1-2% of
+real workflow wall-clock even so ([ADR-0015](0015-declared-wire-types.md)
+context), which is why native Win32 zero-copy (`CU_MEM_HANDLE_TYPE_WIN32`
+pool handles -- security descriptors, handle inheritance, allocator
+interplay; substantially more than a constant swap) stays on the roadmap
+**gated on a profiled workload where the copy demonstrably matters**,
+rather than being built on principle.
+
+### WSL2: ruled out as an isolation primitive
+
+Considered and rejected for the transport reason, not the UX one:
+comfy-env's parent is ComfyUI itself, and Windows users run ComfyUI
+natively. Workers inside WSL2 would put a **VM boundary** through the
+transport -- no shared `/dev/shm` between an NT process and a WSL2
+process, no `SCM_RIGHTS`, and no CUDA IPC across the guest/host driver
+split (GPU-PV in the guest is a separate driver stack; a
+`cudaIpcMemHandle` minted there means nothing to a native Windows
+torch). Every tensor edge would cross a virtio-class boundary --
+strictly worse than the current CPU double-copy. "Run all of ComfyUI
+inside WSL2" remains a valid *user* choice (it is simply the Linux
+column above), but it is a deployment recommendation, not an
+architecture.
+
 ## Context
 
 ComfyUI's user base spans Windows (including the Desktop app), Linux

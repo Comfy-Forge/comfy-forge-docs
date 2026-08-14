@@ -105,6 +105,17 @@ pinned.
 - Suite releases carry pin-bump churn: updating a producer pack means
   bumping pins in its dependents. Accepted cost of determinism; the
   registry, once trustworthy, is the designated relief.
+- Named plainly, this is the **exact-pin diamond**: with GeometryPack
+  at 11 dependents, every GeometryPack release forces a lockstep
+  pin-bump across the suite, and two packs pinning GeometryPack at
+  *different* commits are uninstallable together -- refuse-on-conflict
+  fires by design. Livable while one author owns all 24 consumers and
+  releases in barrages ([ADR-0017](0017-pre-1-0-no-backward-compatibility.md));
+  the first *external* pack pinning GeometryPack independently makes
+  the diamond a stranger's problem. That moment is the same rollout
+  tripwire as 0017's, and the designated exits are registry-backed
+  version ranges (above) or hoisting shared producers out of
+  `[node_reqs]` entirely -- to be chosen then, not now.
 - comfy-test runs additionally record each cloned dependency's resolved
   commit SHA in the run report, so even future registry-based installs
   stay reproducible after the fact.

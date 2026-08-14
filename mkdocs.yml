@@ -69,6 +69,9 @@ nav:
           - "0001: Process isolation via persistent subprocess workers": comfy-env/adr/0001-process-isolation-via-persistent-subprocess-workers.md
           - "0006: comfy-env is never installed into worker envs": comfy-env/adr/0006-worker-crosses-the-boundary-as-source-text.md
           - "0018: Worker call timeout": comfy-env/adr/0018-worker-call-timeout.md
+          - "0019: Worker lifecycle": comfy-env/adr/0019-worker-lifecycle.md
+          - "0020: Concurrency and env granularity": comfy-env/adr/0020-concurrency-and-env-granularity.md
+          - "0023: Metadata scan and proxy synthesis": comfy-env/adr/0023-metadata-scan-and-proxy-synthesis.md
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md
           - "0009: Platform strategy": comfy-env/adr/0009-platform-strategy.md
           # Installing things
@@ -76,7 +79,9 @@ nav:
           - "0007: Machine-wide workspace, per-env manifests": comfy-env/adr/0007-machine-wide-workspace-with-per-env-manifests.md
           - "0004: Prebuilt CUDA wheel index": comfy-env/adr/0004-prebuilt-cuda-wheel-index.md
           - "0016: Node pack dependencies": comfy-env/adr/0016-node-pack-dependencies.md
+          - "0022: comfy-env's placement in the host env": comfy-env/adr/0022-comfy-env-placement-in-host-env.md
           # Configuration
+          - "0021: The three-call contract": comfy-env/adr/0021-three-call-contract.md
           - "0003: Two config files, two roles": comfy-env/adr/0003-two-config-files-with-two-roles.md
           - "0013: Env-file config: honest passthrough": comfy-env/adr/0013-env-file-passthrough-contract.md
           - "0012: Unavailable nodes hidden, not unregistered": comfy-env/adr/0012-unavailable-nodes-hidden-not-unregistered.md

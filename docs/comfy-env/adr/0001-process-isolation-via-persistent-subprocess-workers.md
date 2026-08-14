@@ -202,11 +202,31 @@ are not re-litigated without new facts):
   are disqualifying. Fine for server farms; not this product.
 - **WASM** -- no CUDA. Dead on arrival.
 - **pyisolate-style host-coupled venvs** -- the closest sibling project
-  reconstructs the host's `sys.path` in the child and assumes the host's
+  (facts stamped at pyisolate 0.10.x) reconstructs the host's `sys.path`
+  in the child and assumes the host's
   torch, which reintroduces the shadowing/native-conflict chaos isolation
   exists to kill; its fully-sealed mode transports tensors as JSON lists,
   disqualifying at multi-GB scale. Its transport discipline is worth
   stealing (ADR-0010); its isolation model is not.
+- **Out-of-process broker daemon** (2026-08 review) -- a standing
+  comfy-env service owning the workers, so they outlive ComfyUI
+  restarts and are shared across concurrent ComfyUI instances; also a
+  natural future privilege boundary. Rejected for now: the payoffs
+  serve the maintainer's dev loop and a rare two-instance
+  configuration, while the costs are permanent -- orphan lifecycle,
+  Windows service semantics, broker-vs-client version skew across N
+  ComfyUI installs, and a larger always-on surface. One warm-worker
+  restart per ComfyUI relaunch is the accepted price. Revisit only if
+  the sandbox work (ADR-0011) independently needs a broker.
+
+One scope decision, made deliberately rather than by omission:
+**ComfyUI is the only host comfy-env targets.** No abstraction layer
+for other applications will be added speculatively -- the sibling
+project generalized its host interface and still got the isolation
+model wrong for this ecosystem; host-generality is complexity spent on
+users who do not exist. If a second host ever materializes, the seam is
+the synthesized-proxy layer, and the generalization should be argued
+then, against a real consumer.
 
 Related directions explicitly NOT rejected, tracked as future work in
 ADR-0010: a single GPU-owner process ("tensor daemon") to collapse N CUDA
