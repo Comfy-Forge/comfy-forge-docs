@@ -7,15 +7,20 @@
 > **Every failure path ends in "ComfyUI still boots".** Not fail-fast
 > (comfy-env sits in the startup path of end-user machines, where a hard
 > failure reads as "ComfyUI is broken"); every subsystem has an explicit
-> fallback, and the terminal fallback is a working ComfyUI with
-> isolation off.
+> fallback, and the terminal fallback is ComfyUI booting with isolation
+> off -- which means the failing pack's nodes register **only if the
+> host env can import them**. On a host honoring the host-env principle
+> (comfy-env and nothing else installed), it usually can't: the pack's
+> nodes are then absent with a logged "Failed to import", and workflows
+> using them show missing nodes. "Still boots" protects the
+> *application*, not the failing pack.
 
 Every subsystem has an explicit fallback, and the terminal fallback is always
 **ComfyUI still boots**:
 
 | Failure | Fallback |
 |---------|----------|
-| Isolation env not materialized | Node imported in-process in the main env |
+| Isolation env not materialized | In-process import attempt; on a bare host this fails per-module and those nodes are skipped (logged, never fatal) |
 | Auto-install fails (`isolation/auto_install.py`) | Returns None; caller falls back to in-process import |
 | CUDA IPC unavailable or broken | CPU shared memory (down the [ADR-0005](0005-tiered-tensor-serialization.md) ladder) |
 | cuda-wheels Pages index unreachable | Retry with real User-Agent, then GitHub Releases API ([ADR-0004](0004-prebuilt-cuda-wheel-index.md)) |
@@ -47,3 +52,13 @@ prestartup time is the entire application.
   `comfy-env doctor` / the `debug` categories expose what path is active.
 - Fallback chains are more code to maintain than fail-fast would be; this is
   accepted as the cost of shipping to non-developers.
+- **The in-process fallback decays as the host-env principle succeeds.**
+  It was written when packs still installed their deps into the host env,
+  where an in-process import genuinely worked. On a bare host
+  (requirements.txt = comfy-env only) the bottom rung is empty by
+  construction: fallback means the pack's nodes are missing, not running
+  unisolated. The real safety net there is `COMFY_ENV_AUTO_INSTALL`
+  (materialize the env on first load), which stays default-off because a
+  synchronous pixi install can block startup for minutes -- a deliberate
+  trade of resilience against startup latency that should be revisited if
+  missing-nodes-after-fallback becomes the common failure users hit.
