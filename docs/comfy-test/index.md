@@ -2,10 +2,11 @@
 
 [comfy-test](https://github.com/PozzettiAndrea/comfy-test) is **installation
 testing infrastructure for ComfyUI custom nodes**: it installs a node pack
-the way a real user would -- fresh venv, real ComfyUI, real server -- and
+the way a real user would -- fresh venv, git-cloned ComfyUI, real server -- and
 drives real workflows against it, across the platform matrix ComfyUI users
 actually have. From the README: "Test your nodes install and work correctly
-across Linux, macOS, Windows, and Windows Portable. No pytest code needed."
+across Linux, macOS, macOS Desktop, Windows, Windows Portable, and Windows
+Desktop -- on CPU and CUDA. No pytest code needed."
 
 Adoption is three files in the node repo:
 
