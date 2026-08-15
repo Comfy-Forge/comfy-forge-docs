@@ -60,12 +60,15 @@ and mapping indices, never trusting them.
 
 The protocol reasons in Linux terms: free VRAM is a hard number,
 exhaustion is an OOM. On Windows/WDDM -- the majority platform -- the
-OS pages VRAM, `mem_get_info` is advisory, and overcommit does not
-fail: it silently demotes allocations to system memory and runs ~10x
-slower. Recorded position: the budget protocol is **best-effort on
+OS pages VRAM and `mem_get_info` is advisory. With the driver's default
+sysmem-fallback policy (on since R510), overcommit does not fail: it
+silently demotes allocations to system memory and runs ~10x slower;
+a user who has set "prefer no sysmem fallback" gets a real OOM instead,
+so the softer failure mode is the common case, not a guarantee.
+Recorded position: the budget protocol is **best-effort on
 WDDM** -- the 1.1 headroom plus ComfyUI's own conservative accounting
-is the mitigation, the failure mode is a slowdown rather than a crash
-(strictly better than the Linux failure mode), and no additional
+is the mitigation, the common failure mode is a slowdown rather than a
+crash (better than the Linux failure mode), and no additional
 WDDM-specific machinery (HAGS detection, residency queries) is built
 until a profiled case shows the slowdown biting in practice. What we
 owe users now is the documentation sentence, which this ADR is.

@@ -20,9 +20,14 @@ receipt and emits fresh frames on send -- a multi-pack pipeline
 [ADR-0016](0016-node-pack-dependencies.md) census) moves every
 intermediate through parent memory. GPU frames are the exception
 (the IPC-handle forwarding cache re-emits handles without copies).
-Measured context: transport including these copies is 1-2% of
-workflow wall-clock at current mesh scales -- the copies are noise
-today, which is why this simple shape won.
+Context: transport including these copies is an estimated 1-2% of
+workflow wall-clock at current mesh scales, from ad-hoc echo-path
+timing (2.4 ms call floor, ~1 ms per typical mesh payload); it is not
+from a standing benchmark harness, which does not yet exist
+([ADR-0027](0027-testing-and-verification.md) item 5). Treat the figure
+as an order-of-magnitude estimate, not a measured invariant -- the
+copies are noise at that scale today, which is why this simple shape
+won.
 
 Rejected alternatives, recorded so the re-derivation stops here:
 

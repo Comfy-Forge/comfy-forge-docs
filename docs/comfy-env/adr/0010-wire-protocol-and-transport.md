@@ -61,9 +61,11 @@ transport as built:
   thread touch a worker, so the latent desync has a real trigger.
 - **The serialization stack exists three times** *(largely fixed
   2026-08: the worker's `_to_shm` now delegates to the shared walker in
-  the copied `_ipc_shared.py`; still forked -- `SocketTransport` (the
-  worker's copy lacks the parent's `MAX_MESSAGE_SIZE` check) and the
-  side-specific `_from_shm` halves.)* Originally: (parent, `_ipc_shared.py`,
+  the copied `_ipc_shared.py`; the worker's `SocketTransport` gained the
+  `MAX_MESSAGE_SIZE` check and send/recv locks in 0.4.18, so the two
+  transports are behavior-equivalent -- the only residual fork is the
+  side-specific `_from_shm` halves, which is dedup work, not a
+  correctness gap.)* Originally: (parent, `_ipc_shared.py`,
   worker). The shared module is copied next to the worker precisely so it
   can import it -- and the worker never does; the parent uses the shared
   walker while the worker re-implements it. Duplication by neglect, not
@@ -71,19 +73,21 @@ transport as built:
 - **Type dispatch by class-name string** (`Tensor`/`Trimesh`/etc.) hardcodes
   domain types into the generic layer; every new type is a synchronized
   multi-file edit.
-- **Global mutable deserialization context** (`_active_worker_pool`) races
-  when two workers deserialize concurrently.
+- **Global mutable deserialization context** (`_active_worker_pool`,
+  `_gpu_zero_copy_demoted`) raced when two workers deserialized
+  concurrently. *(Fixed 0.4.18: moved to a thread-local `_call_state`;
+  the module globals are gone.)*
 - **Cross-Python-version pickle** for meshes/arbitrary objects between envs
   that may run different Python versions and native-lib builds.
-- **A health-check ping round-trip (with unconditional stderr prints) is
-  paid on every call**, and the per-call overhead figure in the docstrings
+- **A health-check ping round-trip was paid on every call** *(fixed
+  0.4.18: gated behind a 60 s idle window, so warm calls do zero health
+  round-trips)*. The per-call overhead figure in the docstrings
   ("~50-100ms") was folklore until 2026-08: a first real measurement (see
-  ADR-0001's spawn-vs-persistent table) puts the warm per-call floor at
-  ~30 ms *including* the per-call ping (a later isolated echo measurement:
-  2.4 ms) -- so the docstring was pessimistic,
-  but the floor is still ~8x pyisolate's measured 0.31 ms, and the ping
-  plus redundant tree-walks are the visible gap. A standing benchmark
-  harness is still missing.
+  ADR-0001's spawn-vs-persistent table) put the warm per-call floor at
+  ~30 ms *including* the then-present ping; a later isolated echo
+  measurement put the true floor at 2.4 ms -- still ~8x pyisolate's
+  measured 0.31 ms, the gap being redundant tree-walks. A standing
+  benchmark harness is still missing.
 
 ## Direction (v2 -- agreed by both reviewers)
 

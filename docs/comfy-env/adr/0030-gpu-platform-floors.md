@@ -35,14 +35,17 @@ lifetime protocol: imported pointers are never freed
 (`cudaMemPoolImportPointer` requires importer-frees-before-exporter);
 exporter-side pinning rides a bounded metadata cache whose eviction
 can free memory under a live parent alias; there is no cross-process
-sync beyond a full stream sync at export; the created pool has no
-release threshold; and the parent-side accounting patch uses the
-`find_module` API dead since Python 3.12 -- i.e. the flag's parent
-half silently does nothing on modern hosts. Decisions:
+sync beyond a full stream sync at export; and the created pool has no
+release threshold. (A separate defect -- the parent-side accounting
+patch using the `find_module` API dead since Python 3.12 -- was fixed
+in 0.4.18: the hook is now `find_spec`/`exec_module`. The demotion
+below stands on the lifetime hazards, not that fixed bug.) Decisions:
 
 - Pool IPC **stays default-off and is labeled experimental** wherever
-  it is surfaced (settings docs, enable-time log line naming this
-  ADR). No further plumbing investment in the current shape.
+  it is surfaced. The enable-time log lines shout EXPERIMENTAL and cite
+  ADR-0005/ADR-0010 today; the settings reference must be updated to
+  match (it still reads "implemented, untested"). No further plumbing
+  investment in the current shape.
 - Before any zero-copy GPU path defaults on, a written **cross-process
   ownership contract** must exist: who frees, in what order, with
   what sync primitive (CUDA event IPC is the intended one -- it works
@@ -57,10 +60,12 @@ half silently does nothing on modern hosts. Decisions:
 
 ### 3. Floors, probed not assumed
 
-- **Driver/runtime floor**: pool-handle support is probed per device
-  via `cudaDevAttrMemoryPoolSupportedHandleTypes` before any pool
-  path activates; a stated minimum driver goes in the docs the day
-  pool IPC leaves experimental. The ctypes structs pin their layout
+- **Driver/runtime floor**: pool-handle support **must be** probed per
+  device via `cudaDevAttrMemoryPoolSupportedHandleTypes` before pool IPC
+  leaves experimental -- this probe does **not** exist yet (the current
+  code calls `cudaMemPoolCreate` directly and relies on a try/except
+  around the handshake); a stated minimum driver goes in the docs the
+  same day. The ctypes structs pin their layout
   to the runtime version they were written against (the current
   `cudaMemPoolProps` works on 11.x by zeroed-trailing-bytes accident
   -- comment the invariant, verify on version bumps).

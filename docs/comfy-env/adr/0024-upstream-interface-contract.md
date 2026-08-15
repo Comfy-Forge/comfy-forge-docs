@@ -11,7 +11,12 @@ keeping it current is part of touching any listed surface.
 > here is a bug; an entry without an upstream ask is a debt with no
 > repayment plan.
 
-### The inventory (stamped against ComfyUI 0.30.x, comfy-env 0.4.17)
+### The inventory (stamped against ComfyUI 0.30.x, comfy-env 0.4.18)
+
+*Note: line numbers below are indicative, not exact -- the 0.4.18 IPC-auth
+insertion shifted several worker offsets. Grep the named symbol, not the
+line. Keeping these exact is the very discipline this ADR asks for, and is
+tracked as the widened truth-sweep in [ADR-0027](0027-testing-and-verification.md).*
 
 | # | Surface | Where | Upstream ask |
 |---|---------|-------|--------------|

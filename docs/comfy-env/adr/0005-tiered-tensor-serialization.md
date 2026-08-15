@@ -1,6 +1,7 @@
 # ADR-0005: Tiered tensor serialization
 
-**Status:** accepted (strategy 2 in progress)
+**Status:** accepted; strategy 2 (Pool IPC) demoted to **experimental**
+(see the 2026-08-14 amendment and [ADR-0030](0030-gpu-platform-floors.md))
 
 ## Decision
 
@@ -15,9 +16,10 @@ metadata only; bulk bytes travel through shared memory or GPU handles.
 
 1. **CUDA IPC** (`CudaIPC`): `reduce_tensor()` / `rebuild_cuda_tensor()`,
    zero-copy GPU. Linux only.
-2. **Pool IPC** (`PoolIPC`, in progress): shareable CUDA memory pool +
-   `cudaMemPoolExportPointer`, pool FD exchanged over the socket via
-   `SCM_RIGHTS`. Zero-copy GPU.
+2. **Pool IPC** (`PoolIPC`, **experimental, default-off**): shareable
+   CUDA memory pool + `cudaMemPoolExportPointer`, pool FD exchanged over
+   the socket via `SCM_RIGHTS`. Zero-copy GPU. Unsound as a lifetime
+   protocol (see amendment below); gated on an ownership contract.
 3. **Torch shared memory** (`TensorRef`): `file_system` sharing strategy
    (/dev/shm). Zero-copy CPU.
 4. **NumPy**: converted to a torch tensor, then strategy 3.
@@ -56,11 +58,13 @@ only (see [setup_env()](../setup-env.md)).
 
 *Amended 2026-08-14:* an external GPU review found the pool path
 **unsound as a lifetime protocol** (imported pointers never freed;
-exporter-side pinning rides cache eviction; no cross-process sync; the
-parent-side patch silently inert on Python 3.12+). Pool IPC is demoted
-to **experimental** and gated on a written ownership contract --
-decisions and the pinned-memory alternative for the majority platform
-in [ADR-0030](0030-gpu-platform-floors.md).
+exporter-side pinning rides cache eviction; no cross-process sync). Pool
+IPC is demoted to **experimental** and gated on a written ownership
+contract -- decisions and the pinned-memory alternative for the majority
+platform in [ADR-0030](0030-gpu-platform-floors.md). (The review also
+flagged the parent-side patch as inert on Python 3.12+; that specific
+bug was fixed in 0.4.18 -- `find_spec` -- and is not among the reasons
+for the demotion.)
 
 ### Runtime verification: the canary handshake
 

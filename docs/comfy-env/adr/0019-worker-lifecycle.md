@@ -24,9 +24,10 @@ The state machine, as shipped:
    canary handshake ([ADR-0005](0005-tiered-tensor-serialization.md))
    -- a worker whose CPU tier fails verification is refused, not used.
 2. **Ready -> serving**: calls are single-in-flight per worker
-   (ADR-0020). Every call currently begins with a health ping
-   (ADR-0010 defect list; scheduled for removal with the pending-map
-   work). Response frames for call N are pinned worker-side until the
+   (ADR-0020). A health ping runs only after a 60 s idle window (0.4.18;
+   it formerly ran on every call -- ADR-0010 defect list); the pending-map
+   work will retire it entirely. Response frames for call N are pinned
+   worker-side until the
    parent's `{"type": "consumed", "call_id": N}` ack; the 60 s TTL
    sweep is the crash fallback only (0.4.15 -- timer-based correctness
    is not to be reintroduced).

@@ -31,7 +31,7 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 | `COMFY_ENV_ISOLATE` | `isolate` | **on** | Run isolated nodes in subprocess workers. Off = everything imports in-process (isolation disabled, banner still prints). |
 | `COMFY_ENV_INSTALL_ISOLATED` | `install_isolated` | **on** | `install()` materializes pixi envs (the workspace half). Off = plugin half only. |
 | `COMFY_ENV_AUTO_INSTALL` | `auto_install` | **off** | Materialize a missing env at `register_nodes()` time. Off by default because installs take minutes and block startup. |
-| `COMFY_ENV_POOL_IPC` | `pool_ipc` | **off** | Pool-based zero-copy GPU tensor transfer (the `cudaMallocAsync`-safe path). Implemented, untested -- see ADR-0005. |
+| `COMFY_ENV_POOL_IPC` | `pool_ipc` | **off** | **Experimental, Linux-only, known-unsound** pool-based zero-copy GPU transfer. Enabling it prints a loud warning; do not use outside experiments -- see [ADR-0030](adr/0030-gpu-platform-floors.md) / [ADR-0005](adr/0005-tiered-tensor-serialization.md). |
 | `COMFY_ENV_WORKER_VRAM_BUDGET` | `worker_vram_budget` | `0` (auto) | Worker VRAM budget in GB for the budget-negotiation callback. |
 
 ## Patches (touch ComfyUI internals -- see ADR-0005/setup_env)

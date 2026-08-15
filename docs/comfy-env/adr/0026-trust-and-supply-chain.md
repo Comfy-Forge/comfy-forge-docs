@@ -25,19 +25,35 @@ Installing a comfy-env pack currently means trusting:
    pinned, sha256-verified against the release's own sums, refused on
    mismatch. **This is the template for item 2.**
 5. **The local IPC surface** -- was unauthenticated (any local process
-   could connect and feed pickles to the parent); the
-   authkey + peer-uid handshake is in flight on the `fixbugs` branch
-   and its absence should block any multi-user-server recommendation
-   until merged.
+   could connect and feed pickles to the parent). **Fixed in 0.4.18:**
+   a per-spawn authkey is verified as the worker's first frame, with an
+   `SO_PEERCRED` same-uid check on Linux AF_UNIX, and the address +
+   authkey travel via the worker's environment, never argv. Residual
+   gap to note for multi-user servers: on the Windows TCP-loopback
+   fallback there is no peer-uid check, so the authkey (which lives in
+   the child's environment block, readable by same-user processes) is
+   the only gate there.
 
 ## Decisions
 
-1. **Wheel integrity moves to now, not the rollout clock.** In order:
-   (a) `Requires-Dist` curation on the farm so wheels are
-   resolver-safe; (b) resolved wheel sha256 pinned into the generated
-   per-env manifest, verified at install -- the pixi-bootstrap pattern
-   applied to our own artifacts; (c) signing/attestation (sigstore) at
-   the rollout tripwire, not before.
+1. **Wheel integrity: curation now, hashing/signing at the rollout
+   clock (revised 2026-08-15).** The earlier ruling was "hash now"; on
+   reflection it is deferred, because pre-rollout the only attacker is
+   the maintainer's own compromised GitHub account -- the wheel
+   consumers are the maintainer's own packs, and sha256-pinning buys
+   tamper-defense against a threat the current era barely has while
+   imposing a permanent farm↔manifest hash-sync burden (a rebuilt
+   wheel whose hash was not re-synced fails a *correct* install).
+   Ordering:
+   (a) `Requires-Dist` curation on the farm -- **do now**, but on its
+   own merits (resolver-safe wheels, lockfile-visible inlining,
+   successor-usable artifacts per the bus-factor point), not as
+   security;
+   (b) resolved wheel sha256 pinned into the generated manifest --
+   **deferred to the rollout tripwire** with the rest of the trust
+   work, when strangers' machines make tamper-defense a real threat
+   model;
+   (c) signing/attestation (sigstore) -- rollout tripwire, after (b).
 2. **Release qualification for the farm**: a wheel reaches the index
    only after a per-combo smoke test (import + one kernel launch) in
    farm CI; a staging index precedes the stable one. Rollback = index

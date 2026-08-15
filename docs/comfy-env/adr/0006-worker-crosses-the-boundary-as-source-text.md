@@ -45,10 +45,11 @@ file) -- unreadable, unlintable, undiffable.
   shipping the worker as source text does NOT force duplicating the stack.
   `_ipc_shared.py` is copied beside the worker precisely so it can be
   imported (it is stdlib-only at module scope), and *2026-08 update:* the
-  worker's `_to_shm` now delegates to the shared walker. Residual forks:
-  `SocketTransport` (the worker's copy lacks the parent's
-  `MAX_MESSAGE_SIZE` check) and the side-specific `_from_shm` halves --
-  finishing this is v2 work item 3 in
+  worker's `_to_shm` now delegates to the shared walker, and (0.4.18) the
+  worker's `SocketTransport` gained the `MAX_MESSAGE_SIZE` check and
+  send/recv locks -- so the two transports are behavior-equivalent. The
+  only residual fork is the side-specific `_from_shm` halves --
+  finishing that dedup is v2 work item 3 in
   [ADR-0010](0010-wire-protocol-and-transport.md). The wire protocol
   (length-prefixed JSON + named strategies) is the contract; changes must
   land on both sides.
