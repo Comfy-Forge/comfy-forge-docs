@@ -431,30 +431,31 @@ for every file's responsibility.
 
 ## Build time: `install()`
 
+One straight sequence, top to bottom. First the main-env work (peer packs),
+then per isolated env the "already up to date? skip it" gate:
+
 ```mermaid
 flowchart TD
-    entry["plugin's install.py<br/>from comfy_env import install; install()"]
-    entry --> plugin
-    entry --> discover
-
-    subgraph plughalf["Plugin half -- install/plugin.py (main env)"]
-        plugin["Install [node_reqs] peers:<br/>git clone or Comfy Registry download"]
-        plugin --> reqs["Re-run plugin requirements.txt<br/>in the main env"]
-    end
-
-    subgraph wshalf["Workspace half -- install/workspace.py (isolated envs)"]
-        discover["Discover every comfy-env.toml<br/>under custom_nodes"]
-        discover --> torchpin["Resolve bootstrap torch pin from host<br/>(CPU-only build when no accelerator)"]
-        torchpin --> combo["Pick CUDA wheel combo<br/>packages/cuda_wheels.py"]
-        combo --> gen["Generate per-env pixi.toml<br/>packages/toml_generator.py"]
-        gen --> hash{"env config<br/>hash changed?"}
-        hash -->|"no"| skip["Skip -- env up to date"]
-        hash -->|"yes"| pinstall["pixi install --manifest-path<br/>envs/&lt;name&gt;/pixi.toml (per env)"]
-        pinstall --> stamp["write_env_stamp:<br/>Python ABI + comfy-env version + torch pin"]
-    end
-
+    entry["install()  --  from a pack's install.py"]
+    entry --> plugin["1. Install [node_reqs] peers<br/>git clone / Comfy Registry download<br/>(install/plugin.py, main env)"]
+    plugin --> reqs["2. Re-run the pack's requirements.txt<br/>in the main env"]
+    reqs --> warn["3. Warn on stale sibling comfy-env pins<br/>(last reinstall wins the shared env)"]
+    warn --> discover["4. Discover every comfy-env.toml under custom_nodes<br/>(install/workspace.py)"]
+    discover --> perenv["for each isolated env:"]
+    perenv --> torchpin["Resolve bootstrap torch pin from host<br/>(CPU-only build when no accelerator)"]
+    torchpin --> combo["Pick CUDA wheel combo<br/>packages/cuda_wheels.py"]
+    combo --> gen["Generate per-env pixi.toml<br/>packages/toml_generator.py"]
+    gen --> hash{"config hash + stamp<br/>unchanged?"}
+    hash -->|"yes -- already installed"| skip["Skip this env"]
+    hash -->|"no"| pinstall["pixi install --manifest-path<br/>envs/&lt;name&gt;/pixi.toml"]
+    pinstall --> stamp["write_env_stamp:<br/>Python ABI + comfy-env version + torch pin"]
     stamp --> done["Materialized env at<br/>envs/&lt;name&gt;/.pixi/envs/default/"]
 ```
+
+Steps 1-3 run once in the main env; step 4 loops the discover→…→install
+block once **per isolated env**. The hash/stamp gate is the "everything
+already installed? then do nothing" check -- a warm re-run of `install()`
+skips every env whose config is unchanged.
 
 Installs run **per env manifest** deliberately: a parse error in one env's
 `pixi.toml` cannot poison another env's scan or install
@@ -467,8 +468,7 @@ an identical torch
 
 The prestartup hook (`environment/setup.py`) is thin: enable `faulthandler`,
 print the workspace banner (`[OK]` / `[MISSING -- run install.py]` per env),
-dedupe macOS libomp copies, optionally register the shareable CUDA pool hook,
-and ensure ComfyUI's `base_directory` is set.
+dedupe macOS libomp copies, and ensure ComfyUI's `base_directory` is set.
 
 ## Runtime: `register_nodes()` and the process boundary
 
@@ -528,7 +528,7 @@ Results and inputs cross the boundary via the first applicable strategy
 | # | Strategy | Wire type | Mechanism | Copies | Constraints |
 |---|----------|-----------|-----------|--------|-------------|
 | 1 | CUDA IPC | `CudaIPC` | `reduce_tensor()` / `rebuild_cuda_tensor()` | zero-copy GPU | Linux only; broken under `cudaMallocAsync` |
-| 2 | Pool IPC | `PoolIPC` | `cudaMemPoolExportPointer` + FD passing | zero-copy GPU | in progress; the `cudaMallocAsync` fix |
+| 2 | Pool IPC | `PoolIPC` | `cudaMemPoolExportPointer` + FD passing | zero-copy GPU | **experimental, default-off, Linux only** ([ADR-0030](adr/0030-gpu-platform-floors.md)) |
 | 3 | Torch shared memory | `TensorRef` | `file_system` strategy (/dev/shm) | zero-copy CPU | |
 | 4 | NumPy | -- | converted to torch tensor, then #3 | zero-copy CPU | |
 | 5 | Pickle (last resort) | -- | pickled into a `SharedMemory` block | 1 copy | unregistered types (pack types belong in [`[types]` declarations](adr/0015-declared-wire-types.md)); unpicklable values raise a named error |
