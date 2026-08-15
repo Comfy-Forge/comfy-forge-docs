@@ -9,8 +9,8 @@ way a real user would:
 2. **Drives real workflows against it** -- queues your workflow JSON on the
    running server and checks it actually executes.
 3. **Produces a results gallery** -- an HTML report with per-platform
-   screenshots of each workflow running, so you see it working, not just a
-   green check.
+   screenshots and/or videos of each workflow running, so you see it working,
+   not just a green check.
 
 ## Intended uses
 
