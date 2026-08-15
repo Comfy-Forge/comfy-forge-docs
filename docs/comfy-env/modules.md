@@ -43,7 +43,7 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 | File | ~LoC | Responsibility |
 |------|-----:|----------------|
 | `environment/cache.py` | 604 | Workspace layout authority (v0.4 per-env manifests; no v0.3 back-compat). Env naming, workspace root resolution (Windows LocalAppData vs `~/.ce`, `COMFY_ENV_ROOT` override), env stamping/validation (ABI + version + torch pin), ComfyUI dir discovery incl. the Desktop app. |
-| `environment/setup.py` | 178 | The prestartup hook `setup_env()`: faulthandler, workspace banner, libomp dedupe, optional shareable-pool hook, `base_directory` patch. |
+| `environment/setup.py` | 88 | The prestartup hook `setup_env()`: faulthandler, workspace banner, libomp dedupe, `base_directory` patch. (The parent-side shareable-pool hook was removed in 0.4.22.) |
 | `environment/libomp.py` | 71 | macOS-only: symlinks redundant bundled `libomp.dylib` copies to torch's canonical one (multiple loaded copies corrupt OMP state and SIGSEGV). |
 
 ## `install/` -- build time

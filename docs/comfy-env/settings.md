@@ -34,12 +34,6 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 | `COMFY_ENV_POOL_IPC` | `pool_ipc` | **off** | **Experimental, Linux-only, known-unsound** pool-based zero-copy GPU transfer. Enabling it prints a loud warning; do not use outside experiments -- see [ADR-0030](adr/0030-gpu-platform-floors.md) / [ADR-0005](adr/0005-tiered-tensor-serialization.md). |
 | `COMFY_ENV_WORKER_VRAM_BUDGET` | `worker_vram_budget` | `0` (auto) | Worker VRAM budget in GB for the budget-negotiation callback. |
 
-## Patches (touch ComfyUI internals -- see ADR-0005/setup_env)
-
-| Env var | default | meaning |
-|---|---|---|
-| `COMFY_ENV_PATCH_SHAREABLE_POOL` | **off** | Parent-side half of Pool IPC: creates a shareable CUDA pool in the parent and patches `comfy.model_management` memory accounting + `torch.cuda.empty_cache`. |
-
 ## Transport
 
 | Env var | default | meaning |

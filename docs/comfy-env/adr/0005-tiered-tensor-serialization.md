@@ -50,21 +50,20 @@ defect, fixed:* the `_probe_cuda_ipc()` checks originally tested only
 both probes now exercise `reduce_tensor()` and fail closed (verified
 independently three times in the 2026-08 reviews). Pool-based IPC
 (worker-side shareable pools) is the zero-copy path under `cudaMallocAsync`
--- implemented end-to-end but untested and default-off; its parent-side
-half, behind `COMFY_ENV_PATCH_SHAREABLE_POOL`, DOES patch
-`comfy.model_management`'s memory accounting, so the original
-"no monkey-patching ComfyUI" scope applies to the worker->parent direction
-only (see [setup_env()](../setup-env.md)).
+-- implemented end-to-end but untested and default-off. Its parent-side
+half (`COMFY_ENV_PATCH_SHAREABLE_POOL`, which patched
+`comfy.model_management`'s memory accounting for parent->worker zero-copy)
+was **removed in 0.4.22**: experimental, default-off, unsound, and the
+cause of an `environment -> isolation` import cycle. Parent->worker CUDA
+tensors take the CUDA IPC / CPU shared-memory path.
 
 *Amended 2026-08-14:* an external GPU review found the pool path
 **unsound as a lifetime protocol** (imported pointers never freed;
 exporter-side pinning rides cache eviction; no cross-process sync). Pool
 IPC is demoted to **experimental** and gated on a written ownership
 contract -- decisions and the pinned-memory alternative for the majority
-platform in [ADR-0030](0030-gpu-platform-floors.md). (The review also
-flagged the parent-side patch as inert on Python 3.12+; that specific
-bug was fixed in 0.4.18 -- `find_spec` -- and is not among the reasons
-for the demotion.)
+platform in [ADR-0030](0030-gpu-platform-floors.md). (The parent-side
+half of this path was deleted entirely in 0.4.22, per the note above.)
 
 ### Runtime verification: the canary handshake
 

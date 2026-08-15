@@ -36,10 +36,10 @@ lifetime protocol: imported pointers are never freed
 exporter-side pinning rides a bounded metadata cache whose eviction
 can free memory under a live parent alias; there is no cross-process
 sync beyond a full stream sync at export; and the created pool has no
-release threshold. (A separate defect -- the parent-side accounting
-patch using the `find_module` API dead since Python 3.12 -- was fixed
-in 0.4.18: the hook is now `find_spec`/`exec_module`. The demotion
-below stands on the lifetime hazards, not that fixed bug.) Decisions:
+release threshold. (The parent-side accounting patch that these hazards
+also touched was **removed entirely in 0.4.22** -- it was experimental,
+default-off, and the cause of an `environment -> isolation` import cycle;
+the worker-side pool path below stands on its own.) Decisions:
 
 - Pool IPC **stays default-off and is labeled experimental** wherever
   it is surfaced. The enable-time log lines shout EXPERIMENTAL and cite
@@ -54,8 +54,9 @@ below stands on the lifetime hazards, not that fixed bug.) Decisions:
 - The intended future is the **pluggable-allocator design**
   ([ADR-0010](0010-wire-protocol-and-transport.md) v2 item 6): worker
   allocations natively in a shareable pool, no accounting lies, no
-  patch-chasing torch's allocator. The current parent-side meta-path
-  patch is a dead end and is not offered upstream
+  patch-chasing torch's allocator. The parent-side meta-path patch that
+  chased the allocator was a dead end and was **deleted in 0.4.22**
+  rather than carried or offered upstream
   ([ADR-0024](0024-upstream-interface-contract.md) entry 8).
 
 ### 3. Floors, probed not assumed

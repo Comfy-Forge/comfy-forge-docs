@@ -87,7 +87,7 @@ the node's position, then `install_workspace()` (`install/workspace.py`):
 
 1. **Discover** every `comfy-env.toml` under `custom_nodes` -- all packs,
    not just the calling one; the workspace is shared.
-2. **Resolve the torch pin** from the host env (CPU-only build when no GPU
+2. **Resolve the torch pin** from the host env (CPU-only build when no accelerator
    is present) and pick a CUDA wheel combo the
    [cuda-wheels index](../cuda-wheels/index.md) can satisfy -- exact host
    combo first, known-good fallback second. (No GPU? See the box below.)

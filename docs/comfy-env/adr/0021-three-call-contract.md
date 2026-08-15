@@ -30,8 +30,8 @@ NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS = register_nodes()
   ([ADR-0016](0016-node-pack-dependencies.md)), then workspace
   materialization ([ADR-0007](0007-machine-wide-workspace-with-per-env-manifests.md)).
 - `setup_env()` -- the prestartup half, running before ComfyUI's own
-  imports: faulthandler, env hygiene, the opt-in shareable-pool patch
-  hook.
+  imports: faulthandler, env hygiene, libomp dedupe, `base_directory`
+  fill-in.
 - `register_nodes()` -- the runtime half: config discovery, `[types]`
   validation and serializer loading
   ([ADR-0015](0015-declared-wire-types.md)), metadata scan + proxy

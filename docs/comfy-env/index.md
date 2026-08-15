@@ -400,14 +400,22 @@ flowchart TD
     packages --> config
     detection --> pixi
     packages --> pixi
-    environment -.->|"lazy: pool hook (experimental Pool IPC, ADR-0030)"| isolation
 ```
 
-Every solid edge points one way. `pixi.py` is a leaf (pinned pixi-binary
-provisioning): both `detection` (which runs `pixi info` to probe CUDA) and
-`packages` import it *downward* -- it was moved out of `packages/` in 0.4.21
-precisely to break the old `detection ↔ packages` cycle where `detection`
-reached up for the `PIXI` path.
+**The graph is fully acyclic at the module level -- no cycles, no
+exemptions for cycles.** Every edge points one way, and the only
+`import-linter` exemptions are legitimate public-facade re-exports (the
+root `comfy_env/__init__` and `isolation/__init__` re-export their
+subpackages' API), never a cycle.
+
+`pixi.py` is a leaf (pinned pixi-binary provisioning): both `detection`
+(which runs `pixi info` to probe CUDA) and `packages` import it *downward*
+-- it was moved out of `packages/` in 0.4.21 precisely to break the old
+`detection ↔ packages` cycle where `detection` reached up for the `PIXI`
+path. (0.4.22 removed the last cycle too: the parent-side shareable-pool
+hook, which made `environment` reach up into `isolation`, was deleted --
+it was an experimental, default-off, unsound optimization slated for
+removal, so the honest fix was to delete it, not exempt it.)
 
 Inside `isolation/` the order runs bottom → top: `_ipc_shared` / `subenv` /
 `tensor_utils` (leaves) → `_ipc_parent` → `workers/subprocess` → `pool` →
@@ -417,17 +425,6 @@ The whole graph is checked in CI by `lint-imports`
 ([import-linter](https://import-linter.readthedocs.io/) contracts in
 `.importlinter`); the build fails if any edge points the wrong way,
 including a cycle re-hidden in a function body.
-
-!!! warning "One known remaining cycle, exempted with a reason"
-    The dotted `environment -.-> isolation` edge is a real lazy-broken
-    cycle: `environment/setup.py`'s shareable-pool hook reaches *up* into
-    the isolation transport for the CUDA memory-pool helpers, while
-    `isolation` imports `environment`. It is **explicitly exempted** in the
-    import-linter config (not hidden) because that hook belongs to the
-    experimental, default-off Pool IPC ([ADR-0030](adr/0030-gpu-platform-floors.md)),
-    which is slated for redesign -- fixing the layering now would be
-    premature work on code being reworked. It is the honest exception, to
-    be closed with the pool redesign, not a "deliberate cycle."
 
 See the [module inventory](modules.md) and [code breakdown](code-breakdown.md)
 for every file's responsibility.
@@ -447,7 +444,7 @@ flowchart TD
 
     subgraph wshalf["Workspace half -- install/workspace.py (isolated envs)"]
         discover["Discover every comfy-env.toml<br/>under custom_nodes"]
-        discover --> torchpin["Resolve bootstrap torch pin from host<br/>(CPU-only build when no GPU)"]
+        discover --> torchpin["Resolve bootstrap torch pin from host<br/>(CPU-only build when no accelerator)"]
         torchpin --> combo["Pick CUDA wheel combo<br/>packages/cuda_wheels.py"]
         combo --> gen["Generate per-env pixi.toml<br/>packages/toml_generator.py"]
         gen --> hash{"env config<br/>hash changed?"}

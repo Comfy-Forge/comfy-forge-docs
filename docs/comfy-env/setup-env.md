@@ -41,19 +41,7 @@ caller's directory via `inspect.stack()`, same trick as the other two calls.
    copies corrupt OpenMP runtime state and segfault inside native filters
    ([ADR-0009](adr/0009-platform-strategy.md)). No-op elsewhere.
 
-5. **Optionally register the shareable-CUDA-pool hook**
-   (`COMFY_ENV_PATCH_SHAREABLE_POOL`, default **off**). This is the
-   parent-side half of Pool IPC
-   ([ADR-0005](adr/0005-tiered-tensor-serialization.md)): a `sys.meta_path`
-   import hook that fires exactly when ComfyUI imports
-   `comfy.model_management`, then creates a shareable CUDA memory pool and
-   patches `get_free_memory` / `get_total_memory` /
-   `torch.cuda.empty_cache` to account for it. The import-hook shape exists
-   because at prestartup time `comfy.model_management` does not exist yet --
-   this is the only way to patch it at birth without monkey-patching
-   ComfyUI's source.
-
-6. **Ensure `args.base_directory` is set** -- some nodes resolve relative
+5. **Ensure `args.base_directory` is set** -- some nodes resolve relative
    paths through ComfyUI's `--base-directory`; if the user did not pass it,
    it is filled in from `folder_paths.base_path`.
 
