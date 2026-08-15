@@ -1,8 +1,8 @@
 # comfy-test
 
 [comfy-test](https://github.com/PozzettiAndrea/comfy-test) is **installation
-testing infrastructure for ComfyUI custom nodes**. It does two things, the way
-a real user would:
+testing infrastructure for ComfyUI custom nodes**. It does three things, the
+way a real user would:
 
 1. **Installs the node pack** -- fresh venv, git-cloned ComfyUI, real server
    (or the portable bundle / Desktop app, depending on the lane).
@@ -12,7 +12,34 @@ a real user would:
    screenshots of each workflow running, so you see it working, not just a
    green check.
 
-...across the platform matrix ComfyUI users actually have:
+## Intended uses
+
+There is **one engine -- the `comfy-test` package -- pointed at a node four
+ways.** The accelerator (CPU / CUDA / ...) is orthogonal; what actually
+separates these is **who drives the run, where the results land, and who
+they're for**:
+
+| Intent | Who it's for | Who drives | Results land |
+|---|---|---|---|
+| **Local / offline** | a developer with **one node** | you, by hand (`comfy-test run`) | your machine -- or `--publish` to your repo |
+| **Self-serve CI** | a developer with **one node** | your repo's GitHub Actions | your repo's gh-pages |
+| **Central dispatcher ([comfy-ci](https://github.com/PozzettiAndrea/comfy-ci))** | a developer with **several nodes** who wants runners centralised in one repo -- without opening a GitHub org | a dashboard / manual dispatch (central repo with write access to the node repos) | pushed back to **each node's own repo** |
+| **Registry gate (comfy-forge)** | the **comfy-forge** registry (a personal project) | the registry, on ingest | kept by the registry as a **verdict / badge** |
+
+The first two are the same single-node developer -- offline vs in CI. The third
+is that developer once they have more than one node and want a shared GPU fleet
+in one place. The fourth is a different thing entirely: the registry gating
+what it accepts.
+
+A note on trust: local results are **self-attested**, comfy-ci results are
+**fleet-attested**, registry results are **registry-attested** -- the results
+record where they ran so a reader knows which they're trusting. So a developer
+with a CUDA box but no self-hosted runner can still `--publish` real GPU
+results to their repo; they're just self-attested, not fleet-attested.
+
+## Platform capability matrix
+
+Whichever intent you pick, these are the lanes comfy-test can run on:
 
 | Install method | Linux | macOS | Windows |
 |---|---|---|---|
