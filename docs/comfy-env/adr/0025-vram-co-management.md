@@ -1,7 +1,32 @@
 # ADR-0025: VRAM co-management across processes
 
-**Status:** accepted (2026-08-14) -- records the shipped protocol; the
-WDDM position and the `device` field are decisions made here.
+**Status:** accepted (2026-08-14); **substantially corrected 2026-08-15**
+after a four-reviewer audit measured the WDDM behaviour this record had
+called merely "advisory". Two claims below were wrong as written and are
+struck in place rather than quietly edited: the protocol was **inert**,
+not best-effort, on the majority platform, and the "one decision-maker"
+line overstated what the code does. The repairs are recorded in
+[ADR-0034](0034-admission-by-arithmetic.md) and
+[ADR-0035](0035-duck-typed-model-proxy.md).
+
+!!! danger "Correction: the budget protocol did not work on Windows"
+
+    `torch.cuda.mem_get_info` -- the source of `get_free_memory`'s
+    device term -- reports the **calling process's** budget on WDDM, not
+    device-wide free. Measured (RTX 4060 Ti 16 GB, driver 581.57): a
+    sibling process allocated 13.0 GiB; `nvidia-smi` free fell 13,443 MB
+    while the parent's `mem_get_info` free fell **75 MB**; at 4 GiB the
+    parent's delta was **0 MB**.
+
+    ComfyUI evicts only when `memory_required - get_free_memory(device)`
+    is positive (`model_management.py:883,889`). With that free value
+    stuck near full-card, the difference was negative and
+    `free_memory()` **evicted nothing** in response to a worker's
+    request. The worker, reading the same blind number, then *over*-loaded.
+    Both sides overcommitted, and the driver's sysmem fallback -- named
+    below as the "mitigation" -- was in fact the only thing keeping the
+    system alive, at ~10x slower. Fixed in
+    [ADR-0034](0034-admission-by-arithmetic.md).
 
 ## Decision
 
@@ -11,6 +36,17 @@ WDDM position and the `device` field are decisions made here.
 > get evicted by ComfyUI's normal pressure logic, and the worker asks
 > the parent for room before loading. Two allocator populations, one
 > decision-maker.
+
+!!! warning "Correction: 'one decision-maker' is an aspiration, not a description"
+
+    The worker runs its own ComfyUI with its own `current_loaded_models`
+    and its own `free_memory`, and only `load_models_gpu` is shimmed.
+    The parent additionally reaches into the worker's ledger to pop
+    entries by hand. There are **two ledgers**; the parent's authority
+    is real for admission and eviction, but the claim as written
+    overstated it. The honest version: *the parent decides admission and
+    when to evict; the worker still manages its own residency in
+    between.*
 
 The protocol, as shipped:
 
@@ -65,13 +101,26 @@ sysmem-fallback policy (on since R510), overcommit does not fail: it
 silently demotes allocations to system memory and runs ~10x slower;
 a user who has set "prefer no sysmem fallback" gets a real OOM instead,
 so the softer failure mode is the common case, not a guarantee.
-Recorded position: the budget protocol is **best-effort on
+~~Recorded position: the budget protocol is **best-effort on
 WDDM** -- the 1.1 headroom plus ComfyUI's own conservative accounting
 is the mitigation, the common failure mode is a slowdown rather than a
 crash (better than the Linux failure mode), and no additional
 WDDM-specific machinery (HAGS detection, residency queries) is built
-until a profiled case shows the slowdown biting in practice. What we
-owe users now is the documentation sentence, which this ADR is.
+until a profiled case shows the slowdown biting in practice.~~
+
+**Struck 2026-08-15.** This was wrong in kind, not degree. "Advisory"
+implied an approximate number; the number was *unrelated* to the
+device. The 1.1 headroom was not a mitigation, it was ceremony -- it
+multiplied a target that a negative comparison then discarded entirely.
+And the slowdown was not an acceptable failure mode we had chosen; it
+was the symptom of the protocol not running. The profiled case the
+paragraph waited for is the measurement in the correction box above.
+
+Current position: admission is decided by **arithmetic comfy-env owns**,
+never by `mem_get_info` -- see
+[ADR-0034](0034-admission-by-arithmetic.md). The WDDM sysmem-fallback
+description remains accurate and still explains why the failure was
+survivable rather than loud.
 
 ## Context
 

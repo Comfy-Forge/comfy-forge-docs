@@ -49,3 +49,5 @@ human endorsement.
 | [0031](0031-frontend-javascript-isolation.md) | Frontend JavaScript isolation (deferred) | Pack JS shares one browser origin -- backend isolation buys zero here; deferred like 0011, with a comfy-test collision gate as the one build-now item. |
 | [0032](0032-shm-lifetime-consumed-ack.md) | Shared-memory lifetime: consumed-ack | The reader frees blocks by acking `call_id`, not by a timer; the TTL is a crash fallback; materialize-on-receipt is the sibling rule. |
 | [0033](0033-local-ipc-authentication.md) | Local IPC authentication | Per-spawn authkey as the worker's first frame + `SO_PEERCRED` on Linux; addr/key via env not argv; the honest Windows same-user gap and the not-a-sandbox line. |
+| [0034](0034-admission-by-arithmetic.md) | Admission by arithmetic, never `mem_get_info` | `mem_get_info` is per-process on WDDM (measured: 13 GiB invisible); admission is decided from NVML/own-ledger numbers and a pre-compensated eviction target. |
+| [0035](0035-duck-typed-model-proxy.md) | The model proxy is a duck-type | 18 declared members instead of ~120 inherited; unknown access raises naming the attribute; a canary fails when ComfyUI drifts. |

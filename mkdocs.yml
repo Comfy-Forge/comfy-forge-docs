@@ -74,6 +74,8 @@ nav:
           - "0020: Concurrency and env granularity": comfy-env/adr/0020-concurrency-and-env-granularity.md
           - "0032: Shared-memory lifetime (consumed-ack)": comfy-env/adr/0032-shm-lifetime-consumed-ack.md
           - "0033: Local IPC authentication": comfy-env/adr/0033-local-ipc-authentication.md
+          - "0034: Admission by arithmetic": comfy-env/adr/0034-admission-by-arithmetic.md
+          - "0035: Duck-typed model proxy": comfy-env/adr/0035-duck-typed-model-proxy.md
           - "0023: Metadata scan and proxy synthesis": comfy-env/adr/0023-metadata-scan-and-proxy-synthesis.md
           - "0025: VRAM co-management across processes": comfy-env/adr/0025-vram-co-management.md
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md
