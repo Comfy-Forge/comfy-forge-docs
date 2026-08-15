@@ -227,6 +227,28 @@ Irreducible on Windows (do not chase): the per-process Python heap
 (~250 MB/worker beyond shared pages) and the per-process CUDA context
 (~125 MB host + ~150 MB VRAM) -- no OS primitive shares either.
 
+### Left open by the 2026-08 VRAM repair
+
+[ADR-0034](comfy-env/adr/0034-admission-by-arithmetic.md) and
+[ADR-0035](comfy-env/adr/0035-duck-typed-model-proxy.md) fixed admission
+and the proxy's honesty. What they deliberately did not fix:
+
+- **Offload latency is now the visible cost.** With eviction actually
+  running, a worker's partial unload is a synchronous IPC round trip plus
+  a `torch.cuda.empty_cache()`. Nobody has profiled how much that adds to
+  a pressured graph. Measure before optimising.
+- **The ledger's blind spot survives.** When NVML and `nvidia-smi` are
+  both unavailable, the offset comes from comfy-env's hook-based
+  accounting, which cannot see allocations that bypass
+  `nn.Module.to()`/`.cuda()`. Admission stays optimistic there. Logged
+  per request with its source so the degraded mode is at least visible.
+- **Multi-GPU is still single-device by assumption.** The `device` field
+  reserved in ADR-0025 is still not on the wire.
+- **Verified by construction and unit test, not by a workload.** The
+  measurement that motivated the fix was a synthetic sibling-allocation
+  probe. A real before/after on a pressured multi-env graph has not been
+  run.
+
 ## Upstream watch items
 
 - **pixi PR [#5464](https://github.com/prefix-dev/pixi/pull/5464)**
