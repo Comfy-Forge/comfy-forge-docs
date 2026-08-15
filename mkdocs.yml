@@ -106,6 +106,29 @@ nav:
           - "0027: Testing and verification strategy": comfy-env/adr/0027-testing-and-verification.md
   - comfy-test:
       - Overview: comfy-test/index.md
+      - Adopter reference:
+          - Test levels: comfy-test/levels.md
+          - Platforms and lanes: comfy-test/lanes.md
+          - "comfy-test.toml reference": comfy-test/config.md
+      - Operations:
+          - Reproducibility: comfy-test/reproducibility.md
+      - Decision records:
+          - Index: comfy-test/adr/index.md
+          - "0001: Real installs are the unit of test": comfy-test/adr/0001-real-installs-are-the-unit-of-test.md
+          - "0002: Levels are an ordered pipeline": comfy-test/adr/0002-levels-are-an-ordered-pipeline.md
+          - "0003: Two install paths: attach and fresh": comfy-test/adr/0003-two-install-paths-attach-and-fresh.md
+          - "0004: Mocking is earned by probing": comfy-test/adr/0004-mocking-is-earned-by-probing.md
+          - "0005: Pinned torch, random Python": comfy-test/adr/0005-pinned-torch-random-python.md
+          - "0006: Config is a hard-fail allowlist": comfy-test/adr/0006-config-is-a-hard-fail-allowlist.md
+          - "0007: The platform registry is the source of truth": comfy-test/adr/0007-platform-registry-is-the-source-of-truth.md
+          - "0008: Platforms are an opt-in allowlist": comfy-test/adr/0008-platforms-are-opt-in.md
+          - "0009: A helper pack is injected into every env": comfy-test/adr/0009-a-helper-pack-is-injected.md
+          - "0010: Capture drives a real browser": comfy-test/adr/0010-capture-drives-a-real-browser.md
+          - "0011: execution_light is a level": comfy-test/adr/0011-execution-light-is-a-level.md
+          - "0012: --level swaps terminal levels": comfy-test/adr/0012-level-flag-swaps-terminals.md
+          - "0013: Desktop is driven over CDP": comfy-test/adr/0013-desktop-is-driven-over-cdp.md
+          - "0014: Frontend isolation is enforced statically": comfy-test/adr/0014-javascript-isolation-is-static.md
+          - "0015: Publish is a separate job": comfy-test/adr/0015-publish-is-a-separate-job.md
   - cuda-wheels:
       - Overview: cuda-wheels/index.md
       - Decision records:

@@ -179,13 +179,24 @@ Real packs cover the whole spectrum of these hooks:
 
 One shared environment for every pack breaks in predictable ways:
 
-- **Conflicting Python deps** -- node A needs torch 2.4, node B needs
-  torch 2.8; whichever installs last wins, the other breaks.
-- **Conflicting native libraries** -- two packages bundle their own libomp,
-  CUDA runtimes, or cv2; loading both into one process corrupts state or
-  segfaults.
+- **Conflicting Python deps** -- node A pins `numpy<2` (it has an
+  extension compiled against the numpy 1.x ABI), node B needs `numpy>=2`;
+  pip installs into one shared env, so whichever lands last wins and the
+  other crashes on import. Same story for `transformers`/`diffusers`
+  version pins, `pydantic` 1 vs 2, or the three `opencv-python*` variants
+  that all install the same `cv2` and clobber each other.
+- **Conflicting native libraries** -- the classic is the **duplicate
+  OpenMP runtime**: torch bundles one (`libiomp5`), another package
+  bundles another (`libomp`/`libgomp`), and loading both into one process
+  aborts with `OMP: Error #15` or silently corrupts numerics. (comfy-env
+  papers over this today with `KMP_DUPLICATE_LIB_OK=TRUE`; see
+  [ADR-0002](adr/0002-pixi-as-environment-manager.md).) Duplicate CUDA
+  runtimes and multiple `cv2` builds fail the same way.
 - **Wrong interpreter entirely** -- a node needs a different Python version
-  than ComfyUI runs (Blender's `bpy` wants 3.11, pymesh2 wants 3.9).
+  than ComfyUI runs. Blender's official `bpy` wheel is built for one
+  specific Python (e.g. 3.11) and refuses to install on any other; a pack
+  wrapping an older library such as PyMesh may in turn need 3.9. ComfyUI
+  has exactly one interpreter, so at most one of them can even be installed.
 
 comfy-env's answer is **process isolation**: any subdirectory that declares a
 `comfy-env.toml` gets its own pixi-managed environment -- separate
@@ -233,7 +244,7 @@ Every such wheel is compiled for one exact combination of:
 - torch version (2.4 ... 2.11)
 - CUDA version (12.x / 13.0)
 - OS (Windows / Linux)
-- GPU architecture (SM 8.0+)
+- GPU architecture(s) (SM 8.0+)
 
 Upstream projects publish only a fraction of that matrix, and building from
 source needs a CUDA toolkit plus a C++ compiler -- something end users do not
@@ -325,20 +336,42 @@ ComfyUI installs that declare the same node reuse one materialized env
 
 ## Module layering
 
-The import graph is layered and acyclic at package level, with a handful of
-deliberate module-level cycles that are **lazy-broken**: two modules need
-each other, and one direction's `import` is moved from the top of the file
-into the body of the function that uses it (a *lazy import*). At load time
-neither module imports the other -- Python never sees a circular import --
-and the dependency only materializes at call time, when both modules exist.
-Arrows read "depends on"; dotted arrows are these lazy imports.
+The import graph is layered and **acyclic at the module level**, enforced in
+CI by [import-linter](https://import-linter.readthedocs.io/) (`lint-imports`,
+contracts in `.importlinter`). The core invariant: **nothing under
+`isolation/` imports the top orchestrator `wrap.py`** except the public
+facade, and the transport leaf `_ipc_shared.py` imports nothing from
+`comfy_env` at all. Arrows read "depends on" and point one way.
+
+!!! note "History (fixed in 0.4.20)"
+    Earlier versions had three module-level *cycles* broken by lazy imports
+    (an `import` moved into a function body so the module loader never trips
+    on it). A four-reviewer layering review found they were not deliberate
+    -- they were three misplaced definitions, each an *upward* lazy import
+    hiding a layering violation. All three were fixed by moving code **down**
+    the graph so every arrow points one way, and every former function-body
+    cross-module import became an ordinary top-level import:
+
+    - `build_isolation_env` (a stdlib-only leaf) moved out of `wrap.py` into
+      `isolation/subenv.py`; `subprocess.py`/`metadata.py` now import it
+      downward.
+    - the CUDA-IPC forwarding cache moved into `_ipc_shared.py` (the one
+      `comfy_env`-import-free leaf, next to the eviction policy that bounds
+      it); `tensor_utils.py` imports it downward instead of reaching *up*
+      into the worker driver.
+    - the worker pool moved out of `wrap.py` into `isolation/pool.py`;
+      `metadata.py` imports it downward, closing the `wrap`↔`metadata` cycle.
+
+    The only lazy imports that remain are legitimate: deferring optional or
+    heavy dependencies (`torch`, `comfy.*`, `aiohttp`) so the CPU metadata
+    scan runs on machines without them -- those point *down*, never up.
 
 ```mermaid
 flowchart TD
     cli["cli.py<br/>comfy-env CLI + settings/debug TUIs"]
     facade["__init__.py<br/>public facade: install / setup_env / register_nodes"]
     install["install/<br/>build-time orchestration<br/>(plugin.py, workspace.py, helpers.py)"]
-    isolation["isolation/<br/>runtime: wrap.py, metadata.py,<br/>model_patcher.py, workers/"]
+    isolation["isolation/<br/>runtime: wrap.py (register_nodes), metadata.py,<br/>pool.py, subenv.py, model_patcher.py, workers/"]
     environment["environment/<br/>workspace layout (cache.py),<br/>prestartup (setup.py), libomp.py"]
     packages["packages/<br/>pixi.py, cuda_wheels.py,<br/>toml_generator.py, node_dependencies.py"]
     detection["detection/<br/>backend.py, cuda.py, gpu.py"]
@@ -367,17 +400,16 @@ flowchart TD
     detection -.->|"lazy: cuda.py uses pixi info"| packages
 ```
 
-The lazy-broken cycles inside `isolation/` (the `detection -> packages` edge
-in the diagram is the same pattern at package level):
+The one remaining lazy edge in the diagram (`detection -.-> packages`,
+`cuda.py` calling `pixi info`) is a deferred *optional* dependency, not a
+cycle. Inside `isolation/` the order now runs bottom → top:
+`_ipc_shared` / `subenv` / `tensor_utils` (leaves) → `_ipc_parent` →
+`workers/subprocess` → `pool` → `metadata` → `wrap` (register_nodes). The
+`lint-imports` CI step fails the build if any edge points the other way --
+including a cycle re-hidden in a function body.
 
-- `wrap.py` <-> `metadata.py` (proxy building needs the worker pool; metadata
-  fetch needs env resolution from wrap)
-- `wrap.py` <-> `workers/subprocess.py` (`subprocess.py:334` lazily imports
-  `build_isolation_env`)
-- `tensor_utils.py` -> `workers/subprocess.py` (`tensor_utils.py:63`, for the
-  CUDA IPC metadata cache)
-
-See the [module inventory](modules.md) for every file's responsibility.
+See the [module inventory](modules.md) and [code breakdown](code-breakdown.md)
+for every file's responsibility.
 
 ## Build time: `install()`
 
