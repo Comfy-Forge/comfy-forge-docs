@@ -373,8 +373,9 @@ flowchart TD
     install["install/<br/>build-time orchestration<br/>(plugin.py, workspace.py, helpers.py)"]
     isolation["isolation/<br/>runtime: wrap.py (register_nodes), metadata.py,<br/>pool.py, subenv.py, model_patcher.py, workers/"]
     environment["environment/<br/>workspace layout (cache.py),<br/>prestartup (setup.py), libomp.py"]
-    packages["packages/<br/>pixi.py, cuda_wheels.py,<br/>toml_generator.py, node_dependencies.py"]
+    packages["packages/<br/>cuda_wheels.py,<br/>toml_generator.py, node_dependencies.py"]
     detection["detection/<br/>backend.py, cuda.py, gpu.py"]
+    pixi["pixi.py<br/>pinned pixi-binary provisioning (leaf)"]
     config["config/<br/>comfy-env.toml parsing"]
     settings["settings.py<br/>feature flags"]
     debug["debug.py<br/>debug categories"]
@@ -397,16 +398,36 @@ flowchart TD
     environment --> settings
     packages --> detection
     packages --> config
-    detection -.->|"lazy: cuda.py uses pixi info"| packages
+    detection --> pixi
+    packages --> pixi
+    environment -.->|"lazy: pool hook (experimental Pool IPC, ADR-0030)"| isolation
 ```
 
-The one remaining lazy edge in the diagram (`detection -.-> packages`,
-`cuda.py` calling `pixi info`) is a deferred *optional* dependency, not a
-cycle. Inside `isolation/` the order now runs bottom → top:
-`_ipc_shared` / `subenv` / `tensor_utils` (leaves) → `_ipc_parent` →
-`workers/subprocess` → `pool` → `metadata` → `wrap` (register_nodes). The
-`lint-imports` CI step fails the build if any edge points the other way --
+Every solid edge points one way. `pixi.py` is a leaf (pinned pixi-binary
+provisioning): both `detection` (which runs `pixi info` to probe CUDA) and
+`packages` import it *downward* -- it was moved out of `packages/` in 0.4.21
+precisely to break the old `detection ↔ packages` cycle where `detection`
+reached up for the `PIXI` path.
+
+Inside `isolation/` the order runs bottom → top: `_ipc_shared` / `subenv` /
+`tensor_utils` (leaves) → `_ipc_parent` → `workers/subprocess` → `pool` →
+`metadata` → `wrap` (register_nodes).
+
+The whole graph is checked in CI by `lint-imports`
+([import-linter](https://import-linter.readthedocs.io/) contracts in
+`.importlinter`); the build fails if any edge points the wrong way,
 including a cycle re-hidden in a function body.
+
+!!! warning "One known remaining cycle, exempted with a reason"
+    The dotted `environment -.-> isolation` edge is a real lazy-broken
+    cycle: `environment/setup.py`'s shareable-pool hook reaches *up* into
+    the isolation transport for the CUDA memory-pool helpers, while
+    `isolation` imports `environment`. It is **explicitly exempted** in the
+    import-linter config (not hidden) because that hook belongs to the
+    experimental, default-off Pool IPC ([ADR-0030](adr/0030-gpu-platform-floors.md)),
+    which is slated for redesign -- fixing the layering now would be
+    premature work on code being reworked. It is the honest exception, to
+    be closed with the pool redesign, not a "deliberate cycle."
 
 See the [module inventory](modules.md) and [code breakdown](code-breakdown.md)
 for every file's responsibility.

@@ -61,7 +61,7 @@ and `_from_shm` halves are the residual fork
 | `packages/node_dependencies.py` | 188 | `[node_reqs]` peer-pack install ([ADR-0016](adr/0016-node-pack-dependencies.md)). |
 | `install/helpers.py` | 164 | Install-time helpers. |
 | `install/plugin.py` | 145 | Plugin half + the sibling-pin warning ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md)). |
-| `packages/pixi.py` | 111 | Pinned, sha256-verified pixi bootstrap. |
+| `pixi.py` | 111 | Pinned, sha256-verified pixi-binary provisioning. A top-level **leaf** (0.4.21) -- moved out of `packages/` so `detection` can import the `PIXI` path without a cycle. |
 | `install/__init__.py` | 101 | `install()` entry. |
 | `environment/libomp.py` | 71 | macOS libomp dedupe. |
 | `packages/__init__.py` / `environment/__init__.py` / `install/verify.py` | 36 / 30 / 18 | Small. |
