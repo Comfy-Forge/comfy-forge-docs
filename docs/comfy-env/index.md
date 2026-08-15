@@ -33,7 +33,7 @@ bundled with ComfyUI -- at least the Desktop version):
 - then runs its `install.py`, if present
 
 At startup time there is also a per-pack hook: ComfyUI itself executes each
-pack's `prestartup_script.py` before the server boots.
+pack's `prestartup_script.py`, if present, before the server boots.
 
 ### Anatomy of a node pack
 
@@ -46,7 +46,7 @@ ComfyUI/custom_nodes/
     +-- __init__.py             <- THE contract: exports NODE_CLASS_MAPPINGS,
     |                              NODE_DISPLAY_NAME_MAPPINGS, WEB_DIRECTORY
     +-- requirements.txt        <- PyPI deps, pip-installed into the ONE shared env
-    +-- pyproject.toml          <- Comfy Registry metadata (name, version, publisher)
+    +-- pyproject.toml          <- Comfy Registry metadata (name, version, publisher, ...)
     +-- nodes/                  <- the node classes, grouped by topic
     |   +-- nodes.py               (constants, scheduling, utils ...)
     |   +-- image_nodes.py         (ColorMatch, ImageResizeKJ, ...)
@@ -56,7 +56,8 @@ ComfyUI/custom_nodes/
     +-- fonts/, docs/, example_workflows/, kjweb_async/   <- assets
 ```
 
-At startup ComfyUI imports each pack's `__init__.py` and reads two dicts:
+At startup ComfyUI `import`s each pack's `__init__.py` and takes several
+distinct things from it:
 
 ```python
 # __init__.py (KJNodes, condensed)
@@ -68,6 +69,48 @@ NODE_DISPLAY_NAME_MAPPINGS = {"INTConstant": "INT Constant", ...}
 WEB_DIRECTORY = "./web"                                   # optional JS for the UI
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 ```
+
+Exactly what ComfyUI takes from the imported module (verified against
+core `nodes.py` `load_custom_node`):
+
+1. **The nodes** -- one of two ways:
+    - **V1 (the common one):** the `NODE_CLASS_MAPPINGS` dict (`id -> class`,
+      **required** -- no dict, no nodes) plus the optional
+      `NODE_DISPLAY_NAME_MAPPINGS` (`id -> pretty name`).
+    - **V3 (newer):** a `comfy_entrypoint()` function returning a
+      `ComfyExtension`, whose `get_node_list()` + each class's
+      `GET_SCHEMA()` produce the same node registry. (comfy-env's metadata
+      scan only reads the V1 dict today -- [roadmap](../roadmap.md) item.)
+2. **The frontend JS directory** -- `WEB_DIRECTORY` (or `[tool.comfy].web`
+   in `pyproject.toml`). **ComfyUI does NOT import this into Python.** It
+   just *registers the directory* and serves the files statically; the
+   **browser** then auto-imports every `.js` under it when the UI loads.
+   Python-side registration, browser-side execution -- two different
+   processes. (This split is why frontend JS **cannot currently be
+   isolated** the way the Python can be -- there is no per-pack browser
+   boundary to isolate at, only one shared origin; deferred with the
+   reasoning in [ADR-0031](adr/0031-frontend-javascript-isolation.md).)
+3. **Whatever the import *did*** -- running `__init__.py` fires every
+   side effect it contains. The most common one: **API route
+   registration**, where the pack hangs its own HTTP endpoints off
+   ComfyUI's shared server --
+
+    ```python
+    from server import PromptServer
+
+    @PromptServer.instance.routes.post("/geompack/upload")
+    async def upload_mesh(request):
+        ...   # now GET/POST http://127.0.0.1:8188/geompack/upload hits this
+    ```
+
+    -- plus any monkeypatching or global setup the pack does at import
+    time. ComfyUI reads no named attribute for any of this; it just runs
+    the module, and the side effects happen.
+
+Plus two things that are *not* part of the `__init__.py` import at all,
+covered in the lifecycle table below: `prestartup_script.py` (run **before**
+import) and the install-time `requirements.txt` + `install.py` (run by
+Manager, earlier still).
 
 Each node is a plain class with a well-known shape -- this is the whole
 interface ComfyUI needs (real node, verbatim from `nodes/nodes.py`):
