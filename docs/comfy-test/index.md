@@ -7,12 +7,25 @@ a real user would:
 1. **Installs the node pack** -- fresh venv, git-cloned ComfyUI, real server
    (or the portable bundle / Desktop app, depending on the lane).
 2. **Drives real workflows against it** -- queues your workflow JSON on the
-   running server and checks it actually executes. No pytest code needed.
+   running server and checks it actually executes.
+3. **Produces a results gallery** -- an HTML report with per-platform
+   screenshots of each workflow running, so you see it working, not just a
+   green check.
 
-...across the platform matrix ComfyUI users actually have. From the README:
-"Test your nodes install and work correctly across Linux, macOS, macOS Desktop,
-Windows, Windows Portable, and Windows Desktop -- on CPU and CUDA. No pytest
-code needed."
+...across the platform matrix ComfyUI users actually have:
+
+| Install method | Linux | macOS | Windows |
+|---|---|---|---|
+| **Server** (git-cloned ComfyUI) | CPU · CUDA | CPU (MPS) | CPU · CUDA |
+| **Portable** (embedded Python bundle) | -- | -- | CPU · CUDA |
+| **Desktop** (Electron app) | -- | CPU | CPU · CUDA |
+
+Ten lanes in all. `--` marks a combination that isn't a real way to run
+ComfyUI: no Linux Portable or Desktop, and no macOS CUDA (Apple Silicon has
+none -- the server lane uses MPS instead). Accelerators are named concretely:
+**CPU** and **CUDA** today, with **ROCm** and other accelerators reserved in
+the registry for when runners are wired. See
+[Platforms and lanes](lanes.md) for the full per-lane breakdown.
 
 Adoption is three files in the node repo:
 
