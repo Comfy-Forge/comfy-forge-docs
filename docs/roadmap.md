@@ -92,6 +92,43 @@ stay listed (struck) so the list doubles as a change record.
 8. ~~Canary transport handshake~~ -- done
    ([ADR-0005](comfy-env/adr/0005-tiered-tensor-serialization.md)).
 
+### Open items from the 2026-08-15 four-reviewer scan
+
+9. **Resolve the by-reference object cache -- decide, then fix.** The
+   worker keeps non-tensor custom objects resident and returns
+   `{"__comfy_ref__": ...}` handles (`_persistent_worker.py` `_cache_object`
+   / `_serialize_result`); `_object_cache` is **never evicted** -- an
+   unbounded leak for the worker's life. It also **contradicts**
+   [ADR-0029](comfy-env/adr/0029-parent-as-switchboard.md), which says
+   by-reference was "killed twice on census evidence." Decide whether the
+   path is live (then cap/TTL it and correct 0029 to scope its claim to the
+   cross-pack plane) or dead (then delete it). Do not fix the leak before
+   deciding, or you entrench a design 0029 says was rejected.
+10. **Three-hook upstream RFC to Comfy-Org** -- the executable form of the
+    [ADR-0024](comfy-env/adr/0024-upstream-interface-contract.md) loan book:
+    propose (as a ComfyUI issue/discussion) three official seams that retire
+    most of the patch surface -- a node-registration seam, a VRAM
+    lease/eviction API, and progress/interrupt forwarding. Strategic, not
+    code; leverage (working system + 50-pack deployment + measurements)
+    depreciates as Comfy-Org builds its own isolation. Optional, but the
+    only item with a shrinking clock.
+11. **Barrages vs suite-monorepo** -- decide before the
+    [ADR-0017](comfy-env/adr/0017-pre-1-0-no-backward-compatibility.md)
+    rollout tripwire whether the ~24 `[node_reqs]`-linked packs consolidate
+    into one suite repo (atomic barrage = one commit) or stay hand-run. Trivial
+    now, near-impossible after external packs pin independently.
+12. **Widen the docs truth-sweep to defect-claims + branch names.** The
+    [ADR-0027](comfy-env/adr/0027-testing-and-verification.md) doc-claims
+    sweep greps config keys/env vars against the tree; extend it to flag any
+    ADR line saying "in flight / on the `<x>` branch / still present /
+    currently breaks", since a merge silently turns those into fiction (the
+    0.4.18 batch left six such lines across five ADRs -- swept 2026-08-15).
+13. **Reclaim orphaned `/dev/shm` on a double-crash.** If both parent and
+    worker are SIGKILLed, a reply's shm blocks leak until reboot -- no ack,
+    no TTL sweep. Extend the startup sweep (`wrap.py`, which already reaps
+    stale sockets/temp dirs) to orphaned shm blocks
+    ([ADR-0032](comfy-env/adr/0032-shm-lifetime-consumed-ack.md)).
+
 ## comfy-test
 
 1. **Consume ACCELERATOR declarations** -- CPU lanes skip tagged nodes
