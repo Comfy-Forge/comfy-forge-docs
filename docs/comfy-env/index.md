@@ -477,45 +477,80 @@ dedupe macOS libomp copies, and ensure ComfyUI's `base_directory` is set.
 
 ## Runtime: `register_nodes()` and the process boundary
 
+Three separate concerns, one diagram each: how the boundary is *set up*,
+what *one execution* looks like, and how resident models obey ComfyUI's
+VRAM manager.
+
+### 1. The boundary -- who holds what
+
 ```mermaid
 flowchart TD
     subgraph parent["ComfyUI main process (host env)"]
         reg["register_nodes()<br/>isolation/wrap.py"]
         meta["Metadata scan<br/>isolation/metadata.py<br/>(short-lived subprocess in the env)"]
-        proxy["Synthesized proxy node classes<br/>(parent never imports node code)"]
-        sw["SubprocessWorker<br/>workers/subprocess.py<br/>(persistent, one per env, auto-restart)"]
-        ipcp["workers/_ipc_parent.py<br/>sockets + serialization"]
-        mp["SubprocessModelPatcher<br/>isolation/model_patcher.py"]
-        mm["comfy.model_management<br/>(ComfyUI VRAM manager)"]
-        reg --> meta --> proxy
-        proxy -->|"node execution"| sw
-        sw --> ipcp
-        mm -->|"eviction: unpatch_model()"| mp
-        mp -->|"move model to CPU via IPC"| sw
+        proxy["Proxy node classes<br/>(synthesized in the parent)"]
+        reg -->|"1. scan the env"| meta
+        meta -->|"2. build proxies"| proxy
     end
 
-    subgraph wp["Worker subprocess (isolated pixi env)"]
-        pw["workers/_persistent_worker.py<br/>main loop, watchdog,<br/>serialization via copied _ipc_shared.py"]
-        node["Actual node code"]
-        pw --> node
+    subgraph worker["Persistent worker (isolated pixi env)"]
+        node["Real node code + resident models"]
     end
 
-    shared["workers/_ipc_shared.py<br/>stdlib-only; copied (not imported)<br/>to the worker's temp dir"]
-
-    ipcp ==>|"AF_UNIX socket (TCP on Windows)<br/>length-prefixed JSON + shared-memory tensors"| pw
-    pw -.->|"callbacks: progress, VRAM budget"| sw
-    ipcp --- shared
-    pw --- shared
+    proxy -. "each proxy forwards its FUNCTION over the socket" .-> node
 ```
 
-Key facts the diagram encodes:
+The parent holds **only proxies** -- it never imports node code. Proxies
+are built once at `register_nodes()` by the short-lived metadata scan;
+the persistent worker is a separate, long-lived process (one per env,
+auto-restarted on crash).
+
+### 2. One node execution
+
+A call travels parent → worker and back; progress and VRAM-budget
+callbacks flow the other way *during* the call.
+
+```mermaid
+sequenceDiagram
+    participant P as Proxy (parent)
+    participant W as SubprocessWorker (parent)
+    participant K as persistent_worker (env)
+    participant N as Real node
+    P->>W: FUNCTION(kwargs)
+    W->>K: call over AF_UNIX socket (JSON meta + shm tensors)
+    K->>N: run the node
+    N-->>K: outputs
+    K-->>W: callback: report_progress / request_vram_budget
+    W-->>K: response
+    N-->>K: return value
+    K-->>W: outputs (shm tensors)
+    W-->>P: return value
+```
+
+### 3. VRAM co-management
+
+When ComfyUI needs VRAM back, it evicts a worker's resident model the
+same way it evicts its own -- through a proxy patcher.
+
+```mermaid
+flowchart TD
+    mm["comfy.model_management<br/>(ComfyUI VRAM manager)"]
+    mp["SubprocessModelPatcher<br/>isolation/model_patcher.py"]
+    sw["SubprocessWorker"]
+    node["Resident model (in the worker)"]
+    mm -->|"eviction: unpatch_model()"| mp
+    mp -->|"move model to CPU via IPC"| sw
+    sw --> node
+```
+
+Key facts these diagrams encode:
 
 - **The parent never imports node code.** `metadata.py` spawns a short-lived
   subprocess inside the isolation env to pickle out `INPUT_TYPES` /
   `RETURN_TYPES` etc., then synthesizes proxy classes in the parent
   ([ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md)).
 - **`_persistent_worker.py` is never imported by the parent.** It crosses the
-  process boundary as *source text*: read at `subprocess.py:106-109` and
+  process boundary as *source text*: read at `subprocess.py:96` and
   materialized into a temp dir for the isolated interpreter
   ([ADR-0006](adr/0006-worker-crosses-the-boundary-as-source-text.md)).
 - **`_ipc_shared.py` exists on both sides.** It is deliberately stdlib-only
