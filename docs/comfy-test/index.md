@@ -40,8 +40,10 @@ flowchart LR
     rest --> results
 ```
 
-Tests are **levels**, each depending on the previous (default set: 1, 3-7,
-9; `levels = "all"` runs everything):
+Tests are **levels**, each depending on the previous. The default set is
+1, 3-4, 6-8, 10; levels 2, 5 and 11 are opt-in. Full detail, including
+what each level can and cannot catch, is in
+[Test levels](levels.md).
 
 | # | Level | What it checks |
 |---|-------|----------------|
@@ -49,18 +51,31 @@ Tests are **levels**, each depending on the previous (default set: 1, 3-7,
 | 2 | `coverage` (opt-in) | Every registered node is used by at least one bundled workflow (static) |
 | 3 | `install` | The full uv-venv + ComfyUI + node install above |
 | 4 | `registration` | Server starts; no import errors; nodes appear in `/object_info` |
-| 5 | `instantiation` | Each node's constructor runs |
-| 6 | `static_capture` | Workflows screenshot without executing |
-| 7 | `validation` | Schema, graph, introspection, and partial (non-CUDA) execution |
-| 8 | `execution_light` (opt-in) | Full workflow execution, screenshots, no per-frame video |
-| 9 | `execution` | Full workflow execution + outputs + per-frame video |
-| 10 | `custom` | Node-supplied hook (`[test] custom = "tests/my_check.py"`) against the live server |
+| 5 | `javascript` (opt-in) | Frontend JS touches nothing it does not own ([ADR-0014](adr/0014-javascript-isolation-is-static.md)) |
+| 6 | `instantiation` | Each node's constructor runs |
+| 7 | `static_capture` | Workflows screenshot without executing |
+| 8 | `validation` | Three tiers: schema, graph, introspection |
+| 9 | `execution_light` | Full workflow execution, one screenshot each, no per-frame video |
+| 10 | `execution` | Full workflow execution + outputs + per-frame video |
+| 11 | `custom` (opt-in) | Node-supplied hook (`[test] custom = "tests/my_check.py"`) against the live server |
 
 Results land as `results.json` (per-workflow status, durations, RAM/VRAM
-peaks, hardware, a deep-link back to the GHA run) plus session/server logs,
+peaks, hardware, a deep-link back to the GHA run, and a **provenance** block
+recording what actually produced the run) plus session/server logs,
 screenshots, and videos. `comfy-test publish` pushes them to the node repo's
 `gh-pages` as a **dashboard**: branch switcher -> platform tabs ->
-per-workflow cards with media and logs.
+per-workflow cards with media and logs
+([ADR-0015](adr/0015-publish-is-a-separate-job.md)).
+
+!!! warning "A green cell does not always mean 'installs cleanly'"
+
+    Hosted CPU lanes **attach** to an environment the CI workflow prebuilt
+    and cached; on those lanes the `install` level is effectively a no-op.
+    CUDA lanes, local runs and Desktop lanes build fresh. Each run records
+    which path it took in `provenance.install_mode` -- see
+    [ADR-0003](adr/0003-two-install-paths-attach-and-fresh.md) and
+    [Reproducibility](reproducibility.md), which also covers the randomly
+    sampled Python version and the unpinned ComfyUI clone.
 
 ## The platform matrix
 
