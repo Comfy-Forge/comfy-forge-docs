@@ -2,13 +2,20 @@
 
 [comfy-env](https://github.com/PozzettiAndrea/comfy-env) is environment
 management and automatic CUDA wheel resolution for ComfyUI custom nodes
-(~12,000 lines of Python under `src/comfy_env/`).
+([~13,000 lines of Python](code-breakdown.md) under `src/comfy_env/`).
 
-comfy-env solves two problems: **environment isolation** (nodes with
-conflicting dependencies each get their own Python environment,
-transparently) and **CUDA / prebuilt wheels / conda packages** (dependencies
-pip alone cannot deliver, resolved for the user's exact machine -- no
-compiler, no CUDA toolkit). Both are expanded
+comfy-env solves two problems:
+
+1. **Environment isolation** -- nodes with conflicting dependencies each
+   get their own Python environment, transparently. (Vanilla ComfyUI
+   loads every pack into one shared environment, so two packs that need
+   incompatible versions of the same library cannot coexist.)
+2. **CUDA / prebuilt wheels / conda packages** -- dependencies pip alone
+   cannot deliver (compiled CUDA extensions, conda-only native libraries),
+   resolved for the user's exact machine with no compiler and no CUDA
+   toolkit installed.
+
+Both are expanded
 [below](#the-two-problems-environment-isolation-and-cudaconda-packages),
 after a short ComfyUI primer.
 

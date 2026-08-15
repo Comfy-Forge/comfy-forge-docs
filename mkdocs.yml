@@ -63,6 +63,7 @@ nav:
       - Internals:
           - The two-system problem: comfy-env/two-system-problem.md
           - Module inventory: comfy-env/modules.md
+          - Code breakdown: comfy-env/code-breakdown.md
       - Decision records:
           - Index: comfy-env/adr/index.md
           # Process model
