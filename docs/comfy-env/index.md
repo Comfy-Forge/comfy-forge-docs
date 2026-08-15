@@ -441,21 +441,26 @@ flowchart TD
     plugin --> reqs["2. Re-run the pack's requirements.txt<br/>in the main env"]
     reqs --> warn["3. Warn on stale sibling comfy-env pins<br/>(last reinstall wins the shared env)"]
     warn --> discover["4. Discover every comfy-env.toml under custom_nodes<br/>(install/workspace.py)"]
-    discover --> perenv["for each isolated env:"]
-    perenv --> torchpin["Resolve bootstrap torch pin from host<br/>(CPU-only build when no accelerator)"]
-    torchpin --> combo["Pick CUDA wheel combo<br/>packages/cuda_wheels.py"]
-    combo --> gen["Generate per-env pixi.toml<br/>packages/toml_generator.py"]
-    gen --> hash{"config hash + stamp<br/>unchanged?"}
-    hash -->|"yes -- already installed"| skip["Skip this env"]
-    hash -->|"no"| pinstall["pixi install --manifest-path<br/>envs/&lt;name&gt;/pixi.toml"]
+    discover --> allstamps{"all envs' stamps<br/>valid + unchanged?"}
+    allstamps -->|"yes"| skipall["Done -- nothing to build<br/>(short-circuits before torch resolution)"]
+    allstamps -->|"no"| torchpin["Resolve bootstrap torch pin from host  --  ONCE<br/>(CPU-only build when no accelerator)"]
+    torchpin --> combo["Pick CUDA wheel combo  --  ONCE<br/>(union of all envs' cuda_packages, packages/cuda_wheels.py)"]
+    combo --> perenv["then, for each isolated env:"]
+    perenv --> gen["Generate per-env pixi.toml<br/>(host torch pin replicated in verbatim)<br/>packages/toml_generator.py"]
+    gen --> hash{"this env's config<br/>hash changed?"}
+    hash -->|"no"| skip["Skip this env"]
+    hash -->|"yes"| pinstall["pixi install --manifest-path<br/>envs/&lt;name&gt;/pixi.toml"]
     pinstall --> stamp["write_env_stamp:<br/>Python ABI + comfy-env version + torch pin"]
     stamp --> done["Materialized env at<br/>envs/&lt;name&gt;/.pixi/envs/default/"]
 ```
 
-Steps 1-3 run once in the main env; step 4 loops the discover→…→install
-block once **per isolated env**. The hash/stamp gate is the "everything
-already installed? then do nothing" check -- a warm re-run of `install()`
-skips every env whose config is unchanged.
+Steps 1-3 run once in the main env. Then: the workspace checks **all** env
+stamps first and stops entirely if everything is up to date (the cheap
+warm-run path -- it never even resolves torch). Otherwise the host torch
+pin and CUDA combo are resolved **once** for the whole workspace (not
+per env -- that is what makes parent and every worker share an identical
+torch, [ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)),
+and only the `generate → hash-check → install` block loops per env.
 
 Installs run **per env manifest** deliberately: a parse error in one env's
 `pixi.toml` cannot poison another env's scan or install
