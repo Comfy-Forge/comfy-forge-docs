@@ -302,7 +302,7 @@ documentation page:
 ## System context
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph host["ComfyUI main process (host Python env)"]
         comfyui["ComfyUI core"]
         pack["Node pack<br/>install.py / prestartup_script.py / __init__.py"]
@@ -473,7 +473,7 @@ and ensure ComfyUI's `base_directory` is set.
 ## Runtime: `register_nodes()` and the process boundary
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph parent["ComfyUI main process (host env)"]
         reg["register_nodes()<br/>isolation/wrap.py"]
         meta["Metadata scan<br/>isolation/metadata.py<br/>(short-lived subprocess in the env)"]
