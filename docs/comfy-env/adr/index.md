@@ -46,3 +46,4 @@ human endorsement.
 | [0028](0028-workspace-disk-lifecycle.md) | Workspace disk lifecycle | Envs are caches evicted with consent: gc categories, a banner nudge, and the refcount design content-addressing is blocked on. |
 | [0029](0029-parent-as-switchboard.md) | Parent as switchboard | All inter-worker data flows through the parent, which owns what it holds; alternatives rejected at 1-2%; revisit trigger named. |
 | [0030](0030-gpu-platform-floors.md) | GPU platform floors | Pinned-memory D2H is the next GPU investment; pool IPC demoted to experimental pending an ownership contract; floors probed, never assumed. |
+| [0031](0031-frontend-javascript-isolation.md) | Frontend JavaScript isolation (deferred) | Pack JS shares one browser origin -- backend isolation buys zero here; deferred like 0011, with a comfy-test collision gate as the one build-now item. |

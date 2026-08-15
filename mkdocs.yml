@@ -96,6 +96,7 @@ nav:
           - "0030: GPU platform floors": comfy-env/adr/0030-gpu-platform-floors.md
           # Project policy
           - "0011: Isolation before sandboxing": comfy-env/adr/0011-isolation-before-sandboxing.md
+          - "0031: Frontend JavaScript isolation (deferred)": comfy-env/adr/0031-frontend-javascript-isolation.md
           - "0017: Pre-1.0, no backward compatibility": comfy-env/adr/0017-pre-1-0-no-backward-compatibility.md
           - "0024: The upstream interface contract": comfy-env/adr/0024-upstream-interface-contract.md
           - "0026: Trust and supply chain": comfy-env/adr/0026-trust-and-supply-chain.md
