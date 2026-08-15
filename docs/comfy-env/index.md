@@ -438,7 +438,7 @@ then per isolated env the "already up to date? skip it" gate:
 flowchart TD
     entry["install()  --  from a pack's install.py"]
     entry --> plugin["1. Install [node_reqs] peers<br/>git clone / Comfy Registry download<br/>(install/plugin.py, main env)"]
-    plugin --> reqs["2. Re-run the pack's requirements.txt<br/>in the main env"]
+    plugin --> reqs["2. Re-run the pack's requirements.txt (just comfy-env)<br/>in the main env -- reasserts our pin if a peer downgraded it"]
     reqs --> warn["3. Warn on stale sibling comfy-env pins<br/>(last reinstall wins the shared env)"]
     warn --> discover["4. Discover every comfy-env.toml under custom_nodes<br/>(install/workspace.py)"]
     discover --> allstamps{"all envs' stamps<br/>valid + unchanged?"}

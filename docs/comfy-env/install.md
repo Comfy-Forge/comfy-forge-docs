@@ -46,8 +46,12 @@ Only runs if the config declares `[node_reqs]`:
   this one depends on, cloned from GitHub (git, zip fallback) or downloaded
   from the Comfy Registry into `custom_nodes/`, then their
   `requirements.txt` and `install.py` are run.
-- **Re-run this pack's own `requirements.txt`** in the main env --
-  installing a peer pack may have downgraded or clobbered shared deps.
+- **Re-run this pack's own `requirements.txt`** in the main env -- for a
+  comfy-env pack that is *just* `comfy-env` (the host-env principle: nothing
+  else goes in the host). A peer pack's `requirements.txt` pins its **own**
+  comfy-env version and may have downgraded ours; the reinstall reasserts
+  this pack's pin ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md),
+  the sibling-pin hazard).
 
 !!! note "This is ComfyUI-convention mechanics, not comfy-env installing to the host"
     The requirements.txt reinstalls above follow ComfyUI's standard install
