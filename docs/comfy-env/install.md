@@ -104,9 +104,15 @@ the node's position, then `install_workspace()` (`install/workspace.py`):
 6. **Stamp the env** (Python ABI + comfy-env version + torch pin) so later
    launches can detect staleness, then dedupe macOS libomp copies.
 
-The pixi binary itself is bootstrapped to `~/.pixi/bin/` on first use --
-`pip install comfy-env` is the only prerequisite
-([ADR-0002](adr/0002-pixi-as-environment-manager.md)).
+The pixi binary itself is bootstrapped to a comfy-env-owned, pinned,
+sha256-verified path (`~/.comfy-env/pixi/<version>/`, deliberately *not*
+`~/.pixi`, so a pixi you installed yourself is never touched or upgraded)
+on first use -- `pip install comfy-env` is the only prerequisite
+([ADR-0002](adr/0002-pixi-as-environment-manager.md)). On Windows this step
+also patches a compatibility bug in uv's own cached Python
+(`_patch_uv_platform_py`) -- see
+[System footprint](system-footprint.md) for the full list of what
+comfy-env leaves on disk and why.
 
 !!! note "CPU-only torch / no GPU: what happens to `[cuda]` packages?"
     Wheel-combo resolution runs only when the machine can actually use the

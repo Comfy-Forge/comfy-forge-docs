@@ -590,3 +590,5 @@ Results and inputs cross the boundary via the first applicable strategy
 
 - [Module inventory](modules.md) -- what every file under `src/comfy_env/` does
 - [Decision records](adr/index.md) -- the "why" behind each of these choices
+- [System footprint](system-footprint.md) -- exactly what comfy-env writes
+  outside the ComfyUI folder, why, and how to remove it
