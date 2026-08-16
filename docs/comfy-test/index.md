@@ -4,68 +4,78 @@
 testing infrastructure for ComfyUI custom nodes**. It does three things, the
 way a real user would:
 
-1. **Installs the node pack** -- fresh venv, git-cloned ComfyUI, real server
-   (or the portable bundle / Desktop app, depending on the lane).
+1. **Installs the node pack** in one of three ways, depending on the lane:
+     - **git-cloned ComfyUI** -- a fresh venv with a real server (`main.py`),
+     - the **portable bundle** -- the official embedded-Python Windows build, or
+     - the **Desktop app** -- the Electron app, driven over CDP.
 2. **Drives real workflows against it** -- queues your workflow JSON on the
    running server and checks it actually executes.
-3. **Produces a results gallery** -- an HTML report with per-platform
-   screenshots and/or videos of each workflow running, plus logs of
-   VRAM / RAM / CPU / CUDA usage, so you see it working, not just a green check.
+3. **Produces a results gallery** -- an HTML report with a per-platform video
+   of each workflow running, plus memory and performance logs (RAM, VRAM, CPU,
+   CUDA) -- so you see it working, not just a green check.
 
 ## Intended uses
 
-There is **one engine -- the `comfy-test` package -- pointed at a node four
-ways.** The accelerator (CPU / CUDA / ...) is orthogonal; what actually
-separates these is **who drives the run, where the results land, and who
-they're for**:
+The package has been created to help ComfyUI node creators, who can point it at
+their node in **four different ways**. The accelerator (CPU / CUDA / ...) is
+orthogonal; what actually separates the four is **who drives the run, where the
+results land, and who they're for**:
 
 | Intent | Who it's for | Who drives | Results land |
 |---|---|---|---|
-| **Local / offline** | a developer with **one node** | you, by hand (`comfy-test run`) | your machine -- or `--publish` to your repo |
-| **Self-serve CI** | a developer with **one node** | your repo's GitHub Actions | your repo's gh-pages |
-| **Central dispatcher ([comfy-ci](https://github.com/PozzettiAndrea/comfy-ci))** | a developer with **several nodes** who wants runners centralised in one repo -- without opening a GitHub org | a dashboard / manual dispatch (central repo with write access to the node repos) | pushed back to **each node's own repo** |
-| **Registry gate (comfy-forge)** | the **comfy-forge** registry (a personal project) | the registry, on ingest | kept by the registry as a **verdict / badge** |
+| **Local / offline** | a developer with **one node** | `comfy-test run <NODEPACK>` in a terminal | on the machine -- with a `--publish` workflow to share them to your GitHub repo |
+| **Self-serve CI** | a developer with **one node** | automated GitHub Actions on a repo | your repo's gh-pages |
+| **Central dispatcher ([comfy-ci](https://github.com/PozzettiAndrea/comfy-ci))** | a developer with **several nodes** who has local GitHub runners and doesn't want to open a GitHub org (GitHub won't let you register the same GPU machine to multiple repos) | automated GitHub Actions on a central repo with write access to the node repos | pushed back to **each node's own repo** |
+| **Registry gate (comfy-forge)** | the **comfy-forge** registry | the registry, on ingest | kept by the registry as a **verdict / badge** |
 
-The first two are the same single-node developer -- offline vs in CI. The third
-is that developer once they have more than one node and want a shared GPU fleet
-in one place. The fourth is a different thing entirely: the registry gating
-what it accepts.
-
-A note on trust: local results are **self-attested**, comfy-ci results are
-**fleet-attested**, registry results are **registry-attested** -- the results
-record where they ran so a reader knows which they're trusting. So a developer
-with a CUDA box but no self-hosted runner can still `--publish` real GPU
-results to their repo; they're just self-attested, not fleet-attested.
+- The **first two** are the same single-node developer -- offline vs in CI.
+- The **third** is that developer once they have more than one node and want a
+  shared GPU fleet in one place.
+- The **fourth** is a different thing entirely: the registry gating what it
+  accepts.
 
 ## Platform capability matrix
 
-Whichever intent you pick, these are the lanes comfy-test can run on:
+comfy-test aims to cover all the OSes ComfyUI users run, each of which has
+different ways to install ComfyUI:
 
 | Install method | Linux | macOS | Windows |
 |---|---|---|---|
 | **Server** (git-cloned ComfyUI) | CPU · CUDA | CPU (MPS) | CPU · CUDA |
-| **Portable** (embedded Python bundle) | -- | -- | CPU · CUDA |
-| **Desktop** (Electron app) | -- | CPU | CPU · CUDA |
+| **Portable** (embedded Python bundle) | X | X | CPU · CUDA |
+| **Desktop** (Electron app) | X | CPU | CPU · CUDA |
 
-Ten lanes in all. `--` marks a combination that isn't a real way to run
+Ten lanes in all. **X** marks a combination that isn't a real way to run
 ComfyUI: no Linux Portable or Desktop, and no macOS CUDA (Apple Silicon has
 none -- the server lane uses MPS instead). Accelerators are named concretely:
 **CPU** and **CUDA** today, with **ROCm** and other accelerators reserved in
 the registry for when runners are wired. See
 [Platforms and lanes](lanes.md) for the full per-lane breakdown.
 
-Adoption is three files in the node repo:
+## Using comfy-test
 
-1. `comfy-test.toml` -- config
-2. `.github/workflows/test-install.yml` -- one `uses:
-   PozzettiAndrea/comfy-test/.github/workflows/test-matrix.yml@main` line
-3. `workflows/test.json` -- a minimal ComfyUI workflow using the nodes,
-   exported from ComfyUI
+The **only** file you need to adopt comfy-test is **`comfy-test.toml`** -- the
+config (which platforms and levels to test). With just that, `comfy-test run`
+works. Everything else is optional and depends on how you use it:
+
+- **`comfy-test.toml`** *(required)* -- the config.
+- `workflows/test.json` *(optional -- only to test execution)* -- a minimal
+  ComfyUI workflow using your nodes, exported from ComfyUI. Skip it if you only
+  test install / registration.
+- `.github/workflows/test-install.yml` *(optional -- only for the CI paths)* --
+  a one-line `uses:
+  PozzettiAndrea/comfy-test/.github/workflows/test-matrix.yml@main` that wires
+  the run into GitHub Actions. Not needed to run locally.
 
 ## What a run does
 
+`comfy-test run <owner/repo>` (a GitHub link) on a Linux **server** lane does
+what a real user does, from scratch -- build a clean environment, install a real
+ComfyUI and your node into it, boot the real server, drive your workflows
+against it, and report:
+
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph setup["Install"]
         venv["uv venv<br/>(random Python 3.10-3.13)"]
         torch["pinned torch/vision/audio<br/>(cpu index or CUDA backend index)"]

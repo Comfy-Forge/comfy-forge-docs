@@ -48,9 +48,9 @@ level can always be filled without a required flag.
   fetch that branch, so the honest default is the branch actually checked out.
 - `publish`, the dashboard, and `cds show` can assume `{run}/{branch}/{platform}`
   unconditionally.
-- The run-id stamp stays `HHMM` -- the established convention across existing
-  runs and the `cds` tooling. Same-minute / cross-day run-id collisions are a
-  known, accepted limitation, deliberately **out of scope** here: this ADR is
-  about the *shape*, not the timestamp. (An earlier draft changed the stamp to a
-  full date-time to kill collisions; reverted as an unrequested break of the
-  naming convention.)
+- The run-id stamp is `{node}-{YYYYMMDD-HHMM}` -- a date plus hour:minute, **no
+  seconds** (by request: readable, not a wall of digits). The date kills the
+  cross-day collision (a plain `HHMM` reused a previous day's folder, leaving a
+  stale mtime that `cds`, sorting by recency, silently skipped). Same-*minute*
+  collisions remain possible but are accepted as rare -- adding seconds was
+  explicitly declined.
