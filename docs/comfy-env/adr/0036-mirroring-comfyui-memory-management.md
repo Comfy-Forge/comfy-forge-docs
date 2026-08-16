@@ -36,7 +36,13 @@ the manager can ask:
 | How much is not? | `model_offloaded_memory()` (`:773`) | `model_size() - loaded_size()` |
 | Where does it live / go? | `load_device`, `offload_device` | offload target is normally CPU RAM |
 | Is it in use this moment? | `currently_used` | set `True` on load, cleared for every eviction candidate (`:876`) |
-| Is it still referenced? | `sys.getrefcount(model)` | a tiebreak in victim ordering |
+
+Not stored, but read off a model during eviction: **`sys.getrefcount(model)`**
+— a plain builtin evaluated at `:875` while building the candidate list, used
+as the second sort key (§1.5). Fewer live references sorts earlier, i.e. a
+model nothing else is holding is evicted sooner. Note this counts references
+to the *patcher*, so for an object type that is only ever held by the ledger
+it is a constant and contributes nothing to the ordering.
 
 Two structural details that matter later:
 
