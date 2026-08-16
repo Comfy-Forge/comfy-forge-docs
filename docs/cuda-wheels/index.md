@@ -31,27 +31,49 @@ Design decisions live in the [ADR series](adr/index.md).
 
 Because **a CUDA wheel is not one artifact -- it is hundreds.**
 
-A CUDA extension is not portable across Python versions, torch versions, CUDA
-versions, operating systems or GPU architectures. It has to be compiled against
-the exact `(python, torch, cuda, os)` the user is running, with the right
-architectures baked in.
+Take [flash-attention](https://github.com/Dao-AILab/flash-attention). Its
+kernels are **CUDA C++** -- `.cu` files, a C++ dialect with device-side
+extensions, compiled by NVIDIA's `nvcc`. Release v2.8.3 ships **582 of them**.
+None of it is Python, so there is nothing to interpret and nothing useful to
+ship as source: every install either finds a **matching prebuilt binary** or
+**compiles the entire tree**.
 
-That last one bites quietly. Miss an architecture and the wheel **installs
-fine, then fails at runtime** on that GPU. A real example from this farm: the
-`diso` package compiles for every modern GPU but not Maxwell, because
-`atomicAdd(double*, double)` does not exist below sm_60. Nothing warns you --
-it just does not build, and if the arch list were wrong instead of absent, it
-would not warn you either.
+Compiling it is not self-contained either. The extension `#include`s PyTorch's
+own C++ headers and links against libtorch, so the build needs a **matching
+torch install and a CUDA toolkit already present**. `nvcc` then splits the
+work -- host code to the platform C++ compiler (gcc or MSVC), device code to
+**SASS**, machine code emitted separately for *each* GPU architecture, plus
+optional **PTX** that the driver can JIT for newer cards.
 
-Multiply it out and you get a combinatorial explosion nobody can manage by
-hand. Upstream projects therefore publish either nothing at all or one lucky
-combination, and everyone else compiles from source: twenty minutes to several
-hours, a working CUDA toolkit, and on Windows a Visual Studio install.
+What comes out is one `.so` / `.pyd` welded to all of it at once:
 
-That is the **single largest cause of "this node pack won't install."** It is
-why the farm exists: [comfy-env](../comfy-env/index.md) builds an isolated
-environment per node pack, and those environments must be fillable **without a
-compiler on the user's machine**.
+| Bound to | Because |
+|---|---|
+| **Python version** (`cp312`) | CPython's C ABI |
+| **torch version** | PyTorch ships no stable C++ ABI across releases |
+| **CUDA version** | the CUDA runtime it linked against |
+| **OS** | gcc vs MSVC, `.so` vs `.pyd` |
+| **GPU architectures** | the `sm_XX` SASS baked into its fatbinary |
+
+Change any one and it is a different binary. That is why flash-attention fills
+**close to 180 wheels** here, each around 240 MB, from a single source release.
+
+The architecture row bites most quietly, because it fails *after* a successful
+install. `diso` in this farm cannot build for Maxwell at all --
+`atomicAdd(double*, double)` does not exist below sm_60 -- and had its arch
+list merely been *wrong* rather than impossible, the wheel would have installed
+happily and died on first use.
+
+So upstream projects publish either nothing or one lucky combination, and
+everyone else compiles from source: twenty minutes to several hours, a working
+CUDA toolkit, and on Windows a Visual Studio install.
+
+## Why does comfy-env need it?
+
+Because that is the **single largest cause of "this node pack won't install."**
+[comfy-env](../comfy-env/index.md) builds an isolated environment per node
+pack, and those environments must be fillable **without a compiler on the
+user's machine**.
 
 So a pack declares what it needs:
 
