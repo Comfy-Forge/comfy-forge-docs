@@ -13,7 +13,7 @@ combination PyTorch ships, and serves them as an ordinary pip index.
 
 | I want to... | Go to |
 |---|---|
-| understand **why prebuilt wheels are needed** | [Why can't I just pip install it?](#why-cant-i-just-pip-install-it) |
+| understand **why prebuilt wheels are needed** | [Why can't I just pip install flash-attention?](#why-cant-i-just-pip-install-flash-attention) |
 | **add a new package** to the farm | [How do I add a package?](#how-do-i-add-a-package) |
 | find out **why my combination wasn't built** | [How does a package become build jobs?](#how-does-a-package-become-build-jobs) |
 | **fix a failed build** | [A build failed. What do I check?](#a-build-failed-what-do-i-check) |
@@ -27,16 +27,26 @@ combination PyTorch ships, and serves them as an ordinary pip index.
 
 Design decisions live in the [ADR series](adr/index.md).
 
-## Why can't I just pip install it?
+## Why can't I just pip install flash-attention?
 
 Because **a CUDA wheel is not one artifact -- it is hundreds.**
 
-Take [flash-attention](https://github.com/Dao-AILab/flash-attention). Its
-kernels are **CUDA C++** -- `.cu` files, a C++ dialect with device-side
-extensions, compiled by NVIDIA's `nvcc`. Release v2.8.3 ships **582 of them**.
-None of it is Python, so there is nothing to interpret and nothing useful to
-ship as source: every install either finds a **matching prebuilt binary** or
-**compiles the entire tree**.
+[flash-attention](https://github.com/Dao-AILab/flash-attention) is one of the
+most widely used CUDA packages in machine learning -- the attention kernels
+much of the modern transformer stack runs on -- and a clean example of why a
+plain `pip install` cannot work.
+
+Worth stating plainly, because it is easy to forget: **Python is interpreted,
+C++ and CUDA are not.** A pure-Python package ships `.py` files that any
+machine can run as they are. Compiled code has to be turned into machine code
+**ahead of time, for one specific target**, and it only runs where the
+assumptions it was built under still hold.
+
+flash-attention's kernels are **CUDA C++** -- `.cu` files, a C++ dialect with
+device-side extensions, compiled by NVIDIA's `nvcc`. Release v2.8.3 ships
+**582 of them**. Nothing to interpret, nothing useful to ship as source: every
+install either finds a **matching prebuilt binary** or **compiles the whole
+tree**.
 
 Compiling it is not self-contained either. The extension `#include`s PyTorch's
 own C++ headers and links against libtorch, so the build needs a **matching
@@ -58,15 +68,9 @@ What comes out is one `.so` / `.pyd` welded to all of it at once:
 Change any one and it is a different binary. That is why flash-attention fills
 **close to 180 wheels** here, each around 240 MB, from a single source release.
 
-The architecture row bites most quietly, because it fails *after* a successful
-install. `diso` in this farm cannot build for Maxwell at all --
-`atomicAdd(double*, double)` does not exist below sm_60 -- and had its arch
-list merely been *wrong* rather than impossible, the wheel would have installed
-happily and died on first use.
-
-So upstream projects publish either nothing or one lucky combination, and
-everyone else compiles from source: twenty minutes to several hours, a working
-CUDA toolkit, and on Windows a Visual Studio install.
+Upstream projects therefore publish either nothing or one lucky combination,
+and everyone else compiles from source: twenty minutes to several hours, a
+working CUDA toolkit, and on Windows a Visual Studio install.
 
 ## Why does comfy-env need it?
 
@@ -232,7 +236,13 @@ platforms: ["linux", "windows"]
 ## Where do arch lists come from?
 
 `TORCH_CUDA_ARCH_LIST` decides which GPU architectures are compiled in, and
-getting it wrong is **silent** -- so it is not guessed.
+getting it wrong is **silent** -- it fails *after* a successful install. A real
+case from this farm: `diso` cannot build for Maxwell at all, because
+`atomicAdd(double*, double)` does not exist below sm_60. Had its arch list
+merely been *wrong* rather than impossible, the wheel would have installed
+happily and died on first use.
+
+So the list is not guessed.
 `fetch_pytorch_arch_lists.py` pulls PyTorch's own `.ci/manywheel/build_cuda.sh`
 at each release tag, evaluates the relevant `case ${CUDA_VERSION}` block in
 bash, and reads the result. That is the authoritative answer for what a
@@ -324,7 +334,7 @@ gsplat-1.5.3+cu124torch2.4-cp310-cp310-manylinux_2_34_x86_64....whl
 If a failure is clustered by CUDA version rather than scattered, suspect the
 **arch list** -- the cu124 and cu126 default lists start at sm_50, and older
 GPU architectures lack primitives newer code assumes (see the `diso` /
-`atomicAdd` case [above](#why-cant-i-just-pip-install-it)).
+`atomicAdd` case [above](#where-do-arch-lists-come-from)).
 
 ### What if a compile takes longer than 6 hours?
 
