@@ -445,36 +445,25 @@ sufficient; a real single-flight or ordered-lock discipline is still owed.
 
 ---
 
-## Upstream reading
+## Where to go next
 
-There is no official document describing ComfyUI's memory model. The
-repository has no `docs/` directory, and `docs.comfy.org` covers flags rather
-than mechanism. What exists, ranked by usefulness:
+This page is the plain-language version. The precise ones:
 
-- [Dynamic VRAM in ComfyUI](https://blog.comfy.org/p/dynamic-vram-in-comfyui-saving-local)
-  — the best first-party writing on the subject. Covers the just-in-time
-  weight loader and the uncommitted file-backed mappings that replaced
-  unload-to-RAM. Its OS distinction is about **host RAM**, not VRAM:
-  *"Windows users will often observe high RAM usage — because we keep what we
-  can, but as soon as Windows needs RAM for anything it's able to just take it
-  back"*, against Linux not counting uncommitted RAM as usage at all.
-- [NVFP4, async offload and pinned memory](https://blog.comfy.org/p/new-comfyui-optimizations-for-nvidia)
-  — why pinned memory is on by default.
-- [Startup flags](https://docs.comfy.org/development/comfyui-server/startup-flags)
-  — reference for `--lowvram`, `--disable-smart-memory`,
-  `--disable-pinned-memory`, `--cache-ram`, `--fast-disk`.
-- [DeepWiki: Memory and Device Management](https://deepwiki.com/Comfy-Org/ComfyUI/2.6-memory-and-device-management)
-  — machine-generated from source. Fine for orientation, no measurements.
+- [**ComfyUI's memory manager**](comfyui-memory-management.md) — a reference
+  description of upstream: what it tracks, how eviction and loading work,
+  how free memory is measured per device and per OS, the RAM and pinned-memory
+  budgets, and the flags that change all of it. Also carries the upstream
+  reading list, since ComfyUI ships no memory documentation of its own.
+- [**ADR-0036**](adr/0036-mirroring-comfyui-memory-management.md) — the
+  decision: what comfy-env takes over, what it leaves to upstream, what it
+  deliberately does not mirror, and in what order it lands.
 
-**Nothing upstream documents the WDDM VRAM behaviour in Part 3.** The closest
-is [PR #11845](https://github.com/Comfy-Org/ComfyUI/pull/11845), whose
-description proposes reading WDDM's target VRAM figure *"rather than using the
-pytorch/Cuda stack reported numbers"* — the same diagnosis this page reaches.
-Treat its status as unconfirmed: no DXGI or WDDM call exists anywhere in a
-2026-08-12 checkout (`b323a34`), so whatever landed, it is not what we build
-against today. **If upstream ever makes `get_free_memory` WDDM-aware, the
-substitution in Part 4 becomes a double correction and must be removed.** That
-is the single upstream change most likely to break this design.
+One thing from those worth repeating here. **If upstream ever makes
+`get_free_memory` WDDM-aware** — which
+[PR #11845](https://github.com/Comfy-Org/ComfyUI/pull/11845) proposes — the
+substitution in Part 4 becomes a *double* correction and has to be removed.
+That is the single upstream change most likely to break this design, and it is
+what the drift canary exists to catch.
 
 ## Related records
 
