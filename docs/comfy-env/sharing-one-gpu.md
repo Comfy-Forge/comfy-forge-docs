@@ -447,16 +447,13 @@ sufficient; a real single-flight or ordered-lock discipline is still owed.
 
 ## Where to go next
 
-This page is the plain-language version. The precise ones:
-
-- [**ComfyUI's memory manager**](comfyui-memory-management.md) — a reference
-  description of upstream: what it tracks, how eviction and loading work,
-  how free memory is measured per device and per OS, the RAM and pinned-memory
-  budgets, and the flags that change all of it. Also carries the upstream
-  reading list, since ComfyUI ships no memory documentation of its own.
-- [**ADR-0036**](adr/0036-mirroring-comfyui-memory-management.md) — the
-  decision: what comfy-env takes over, what it leaves to upstream, what it
-  deliberately does not mirror, and in what order it lands.
+This page is the plain-language version.
+[**ADR-0036**](adr/0036-mirroring-comfyui-memory-management.md) is the precise
+one, and it is self-contained: Part 1 describes upstream's memory manager in
+full — what it tracks, how eviction and loading work, how free memory is
+measured per device and per OS, the RAM and pinned-memory budgets, the flags,
+and the upstream reading list — Part 2 covers what the process boundary
+breaks, and Part 3 is the decision.
 
 One thing from those worth repeating here. **If upstream ever makes
 `get_free_memory` WDDM-aware** — which
