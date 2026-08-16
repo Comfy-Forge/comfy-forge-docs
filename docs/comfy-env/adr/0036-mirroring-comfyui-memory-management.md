@@ -44,16 +44,71 @@ model nothing else is holding is evicted sooner. Note this counts references
 to the *patcher*, so for an object type that is only ever held by the ledger
 it is a constant and contributes nothing to the ordering.
 
-Two structural details that matter later:
-
-- **`LoadedModel._model` is a weakref** (`:750`), exposed through a `.model`
-  property (`:762-764`). `__eq__` is `self.model is other.model`
-  (`:820-821`) — identity on the *patcher*, not on the `LoadedModel`.
-- **Residency is fractional.** A model can be 30% resident. That is what
-  "lowvram" means: keep some weights on the card, stream the rest per layer.
+**Residency is fractional.** A model can be 30% resident. That is what
+"lowvram" means: keep some weights on the card, stream the rest per layer.
 
 There is no allocator here, no arena, no ownership graph. A list, some sizes,
 and two globals re-read on demand.
+
+### The ledger holds weak references
+
+Python frees an object when the last reference to it disappears. A **weak
+reference** points at an object *without counting* — it lets you observe
+something without keeping it alive. Call it like a function to get the object
+back, and once the object has been freed you get `None` instead.
+
+`current_loaded_models` is a module-level global that lives for the process.
+If it held ordinary (strong) references, **every model ever loaded would stay
+in memory forever**, because the list alone would be enough to keep it alive.
+So the ledger holds weak ones:
+
+```python
+self._model = weakref.ref(model)      # :751 — the ModelPatcher
+...
+@property
+def model(self):
+    return self._model()              # :762-764 — deref; None once collected
+```
+
+The ledger is therefore an *observer*, not an owner. What actually keeps a
+model alive is whatever is using it — the workflow, a node's cached output.
+When the last of those goes away, the model is freed even though it is still
+listed.
+
+**Finalizers do the cleanup.** `weakref.finalize(obj, fn)` registers `fn` to
+run at the moment `obj` is freed. There are two:
+
+- `weakref.finalize(model, self._switch_parent)` (`:754`) — if a patcher dies
+  but has a parent, the entry re-points at the parent rather than going dead.
+- `weakref.finalize(real_model, cleanup_models)` (`:796`) — when the actual
+  `nn.Module` is freed, the ledger prunes itself.
+
+**`is_dead()` detects the leak case** (`:827-828`):
+
+```python
+return self.real_model() is not None and self.model is None
+```
+
+The inner model is still alive but its patcher was collected — meaning
+something outside ComfyUI is holding weights it can no longer manage.
+`cleanup_models_gc()` scans for this, forces a `gc.collect()` and a cache
+flush, and logs *"WARNING, memory leak with model …"* if the entry survives.
+Dead entries are also excluded from eviction candidates (`:874`).
+
+**What this entails.** Three consequences that shape everything downstream:
+
+1. **The ledger cannot cause a leak, but it can go stale.** Entries vanish on
+   their own schedule — including *during* an eviction walk, since freeing a
+   model runs `cleanup_models` synchronously, which mutates the very list
+   being iterated.
+2. **Two dead entries compare equal.** `__eq__` is
+   `self.model is other.model` (`:820-821`) — identity on the *patcher*, and
+   both sides deref. Once collected, both are `None`, and `None is None` is
+   `True`. Any code using `in` or `not in` against a list of `LoadedModel`s —
+   `keep_loaded` at `:874`, for instance — will match a collected entry
+   against an unrelated one.
+3. **Anything standing in for a model must be weakref-able**, which rules out
+   `__slots__`-free tricks and objects that override `__eq__` carelessly.
 
 ## 1.2 The VRAM state machine
 
