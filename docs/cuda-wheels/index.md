@@ -38,9 +38,10 @@ plain `pip install` cannot work.
 
 Worth stating plainly, because it is easy to forget: **Python is interpreted,
 C++ and CUDA are not.** A pure-Python package ships `.py` files that any
-machine can run as they are. Compiled code has to be turned into machine code
-**ahead of time, for one specific target**, and it only runs where the
-assumptions it was built under still hold.
+machine can run as they are. C++ code, on the other hand, **has to be
+compiled** -- turned into machine code **ahead of time, for one specific
+target** -- and it then only runs where the assumptions it was built under
+still hold.
 
 flash-attention's kernels are **CUDA C++** -- `.cu` files, a C++ dialect with
 device-side extensions, compiled by NVIDIA's `nvcc`. Release v2.8.3 ships
