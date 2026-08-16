@@ -35,4 +35,4 @@ in this directory.
 | [0013](0013-desktop-is-driven-over-cdp.md) | Desktop is driven over CDP, installed by git clone | The Electron app is tested as an app; Manager could not install the packs. |
 | [0014](0014-javascript-isolation-is-static.md) | Frontend isolation is enforced statically | AST facts are errors, heuristics are warnings, `.mjs` is exempt by construction. |
 | [0015](0015-publish-is-a-separate-job.md) | Publish is a separate job | Results are an artifact; the dashboard is the consumer's own gh-pages. |
-| [0016](0016-run-output-is-namespaced-run-branch-platform.md) | Run output is `run / branch / platform`, always | The branch level never vanishes; it defaults to git branch, and the run id is a full sortable timestamp. |
+| [0016](0016-run-output-is-namespaced-run-branch-platform.md) | The branch level is never dropped | Output is always `run/branch/platform`; an omitted `--branch` defaults to the detected git branch, not a missing level. |

@@ -153,10 +153,21 @@ swapped by the OS, so an unbounded pin pool starves the whole machine.
 
 comfy-env's proxy answers `is_dynamic() → False`, which deliberately excludes
 it from every pin and RAM-eviction path. That is the right call today — those
-paths assume a real patcher holding real weights — but it means worker models
-offload into the *worker's* RAM, unbudgeted and invisible to ComfyUI's host
-accounting, exactly as their VRAM is. Unlike the VRAM half, nothing in this
-document addresses it.
+paths assume a real patcher holding real weights.
+
+**The RAM half degrades more gracefully than the VRAM half, and for an
+instructive reason.** `ensure_pin_budget` measures against
+`psutil.virtual_memory().available`, which is *system-wide*: it already
+counts memory our workers hold. So when workers consume host RAM, ComfyUI's
+pin budget shrinks on its own and it pins less. The honest, shared
+measurement does the coordination for free — precisely what `mem_get_info`
+fails to do for VRAM on Windows.
+
+What remains is narrower: ComfyUI cannot tell that some of that consumed RAM
+is worker model weights which *could* be released, so it can never ask for
+them back — it can only back off itself. Failing toward under-pinning is the
+safe direction, so this is a limitation rather than a bug, and nothing in
+this document addresses it.
 
 ---
 
@@ -420,10 +431,12 @@ measured ratios, but the measurement needs a completed load to exist.
 `get_torch_device()`. This work adds one more device-0 assumption to unwind
 later.
 
-**Host RAM is not addressed at all.** Worker models offload into the worker's
-own RAM, outside ComfyUI's `ram_required` / pinned-memory accounting. Nothing
-here changes that, and on a machine with more VRAM pressure than RAM headroom
-it is the next thing to bite.
+**Host RAM is not addressed.** Worker models offload into the worker's own
+RAM, outside ComfyUI's `ram_required` / pinned-memory accounting. This is
+less dangerous than the VRAM equivalent — the pin budget measures against a
+system-wide `psutil` figure that already sees worker RAM, so it backs off on
+its own — but ComfyUI can never ask a worker to release host memory, only
+decline to pin more itself.
 
 **Cross-worker eviction still has a lock-ordering hazard.** Phase one does
 targeted IPC to sibling workers from inside a budget callback. Snapshotting
@@ -431,6 +444,37 @@ the patcher dict and staying clear of the pool lock are necessary but not
 sufficient; a real single-flight or ordered-lock discipline is still owed.
 
 ---
+
+## Upstream reading
+
+There is no official document describing ComfyUI's memory model. The
+repository has no `docs/` directory, and `docs.comfy.org` covers flags rather
+than mechanism. What exists, ranked by usefulness:
+
+- [Dynamic VRAM in ComfyUI](https://blog.comfy.org/p/dynamic-vram-in-comfyui-saving-local)
+  — the best first-party writing on the subject. Covers the just-in-time
+  weight loader and the uncommitted file-backed mappings that replaced
+  unload-to-RAM. Its OS distinction is about **host RAM**, not VRAM:
+  *"Windows users will often observe high RAM usage — because we keep what we
+  can, but as soon as Windows needs RAM for anything it's able to just take it
+  back"*, against Linux not counting uncommitted RAM as usage at all.
+- [NVFP4, async offload and pinned memory](https://blog.comfy.org/p/new-comfyui-optimizations-for-nvidia)
+  — why pinned memory is on by default.
+- [Startup flags](https://docs.comfy.org/development/comfyui-server/startup-flags)
+  — reference for `--lowvram`, `--disable-smart-memory`,
+  `--disable-pinned-memory`, `--cache-ram`, `--fast-disk`.
+- [DeepWiki: Memory and Device Management](https://deepwiki.com/Comfy-Org/ComfyUI/2.6-memory-and-device-management)
+  — machine-generated from source. Fine for orientation, no measurements.
+
+**Nothing upstream documents the WDDM VRAM behaviour in Part 3.** The closest
+is [PR #11845](https://github.com/Comfy-Org/ComfyUI/pull/11845), whose
+description proposes reading WDDM's target VRAM figure *"rather than using the
+pytorch/Cuda stack reported numbers"* — the same diagnosis this page reaches.
+Treat its status as unconfirmed: no DXGI or WDDM call exists anywhere in a
+2026-08-12 checkout (`b323a34`), so whatever landed, it is not what we build
+against today. **If upstream ever makes `get_free_memory` WDDM-aware, the
+substitution in Part 4 becomes a double correction and must be removed.** That
+is the single upstream change most likely to break this design.
 
 ## Related records
 
