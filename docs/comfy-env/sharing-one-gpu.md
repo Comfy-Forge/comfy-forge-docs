@@ -115,15 +115,48 @@ which performs the real unload.
 The intent is that worker models become ordinary citizens of ComfyUI's
 eviction logic. The reality is two blind spots.
 
-**Blind spot one: the progress meter doesn't move.** When ComfyUI evicts a
-worker model, real VRAM is genuinely freed — in the worker's process. The
-parent's `get_free_memory` does not move, because that memory was never in
-the parent's books. The loop's feedback signal is severed for exactly the
-models comfy-env added. It evicts one, sees no progress, evicts the next,
-sees no progress, and keeps going.
+**Blind spot one: the progress meter doesn't move — on Windows.** When
+ComfyUI evicts a worker model, real VRAM is genuinely freed, in the worker's
+process. Whether the parent notices depends on the platform, because its
+free number has two independent parts:
 
-**Blind spot two: on Windows the meter cannot see the worker at all.** This
-is the deeper one, and it needs its own section.
+```python
+mem_free_total = mem_free_cuda + (mem_reserved - mem_active)   # :1776-1778
+```
+
+The right-hand term is the *parent's own* allocator cache. A worker freeing
+memory never moves it, on any platform. The left-hand term comes from
+`mem_get_info` — and on Linux that is device-wide free, so a worker's frees
+**do** show up there. On Windows they do not (Part 3).
+
+So on Linux the feedback loop works and the loop terminates correctly. On
+Windows the signal is severed for exactly the models comfy-env added: it
+evicts one, sees no progress, evicts the next, sees no progress, and keeps
+going until the candidate list is empty.
+
+**Blind spot two: on Windows the meter cannot see the worker at all**, even
+before any eviction. This is the deeper one, and it needs its own section.
+
+### What about RAM?
+
+ComfyUI manages host memory too, and comfy-env does not mirror that half at
+all.
+
+Eviction does not delete a model — it moves it to `offload_device`, i.e. CPU
+RAM. VRAM pressure therefore converts into RAM pressure, which is why
+`free_memory` takes `ram_required` and `pins_required` alongside
+`memory_required` (`:863`), why `get_free_memory` on a CPU device returns
+`psutil.virtual_memory().available` (`:1745`), and why there is a separate
+pinned-memory budget (`ensure_pin_budget`, `free_pins`) with Windows-specific
+swap-pressure logic (`:701-711`). Pinned memory is page-locked and cannot be
+swapped by the OS, so an unbounded pin pool starves the whole machine.
+
+comfy-env's proxy answers `is_dynamic() → False`, which deliberately excludes
+it from every pin and RAM-eviction path. That is the right call today — those
+paths assume a real patcher holding real weights — but it means worker models
+offload into the *worker's* RAM, unbudgeted and invisible to ComfyUI's host
+accounting, exactly as their VRAM is. Unlike the VRAM half, nothing in this
+document addresses it.
 
 ---
 
@@ -386,6 +419,11 @@ measured ratios, but the measurement needs a completed load to exist.
 **Multi-GPU is untouched.** Everything routes through the singular
 `get_torch_device()`. This work adds one more device-0 assumption to unwind
 later.
+
+**Host RAM is not addressed at all.** Worker models offload into the worker's
+own RAM, outside ComfyUI's `ram_required` / pinned-memory accounting. Nothing
+here changes that, and on a machine with more VRAM pressure than RAM headroom
+it is the next thing to bite.
 
 **Cross-worker eviction still has a lock-ordering hazard.** Phase one does
 targeted IPC to sibling workers from inside a budget callback. Snapshotting

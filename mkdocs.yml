@@ -132,6 +132,7 @@ nav:
           - "0013: Desktop is driven over CDP": comfy-test/adr/0013-desktop-is-driven-over-cdp.md
           - "0014: Frontend isolation is enforced statically": comfy-test/adr/0014-javascript-isolation-is-static.md
           - "0015: Publish is a separate job": comfy-test/adr/0015-publish-is-a-separate-job.md
+          - "0016: Run output is run/branch/platform": comfy-test/adr/0016-run-output-is-namespaced-run-branch-platform.md
   - cuda-wheels:
       - Overview: cuda-wheels/index.md
       - Decision records:
