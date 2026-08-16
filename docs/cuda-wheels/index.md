@@ -49,14 +49,43 @@ device-side extensions, compiled by NVIDIA's `nvcc`. Release v2.8.3 ships
 install either finds a **matching prebuilt binary** or **compiles the whole
 tree**.
 
-Compiling it is not self-contained either. The extension `#include`s PyTorch's
-own C++ headers and links against libtorch, so the build needs a **matching
-torch install and a CUDA toolkit already present**. `nvcc` then splits the
-work -- host code to the platform C++ compiler (gcc or MSVC), device code to
-**SASS**, machine code emitted separately for *each* GPU architecture, plus
-optional **PTX** that the driver can JIT for newer cards.
+Upstream projects therefore publish either nothing or one lucky combination,
+and everyone else compiles from source: twenty minutes to several hours, a
+working CUDA toolkit, and on Windows a Visual Studio install.
 
-What comes out is one `.so` / `.pyd` welded to all of it at once:
+## What is it compiled against?
+
+**1. CUDA, through NVIDIA's own compiler.** `.cu` files do not go through gcc
+or MSVC but through **`nvcc`**, NVIDIA's proprietary compiler, shipped as part
+of the versioned CUDA Toolkit -- and it only does half the job. **Host** (CPU)
+code is handed off to the platform C++ compiler; `nvcc` keeps the **device**
+code, emitting **SASS** machine code separately for *each* GPU architecture,
+plus optionally **PTX**, a portable intermediate the driver can JIT for cards
+newer than the toolkit knew about. Each toolkit version accepts only certain
+host compilers and requires a minimum **driver** version -- so "built for CUDA
+12.8" constrains the machine that *runs* the wheel, not just the one that
+built it.
+
+**2. Python, because the kernels are wrapped.** CUDA code is not callable from
+Python on its own; what ships is a **Python extension module wrapping the
+kernels**, and that binding layer is C++ compiled against **one specific
+CPython**. Its C ABI changes between minor versions -- exactly what the `cp312`
+in the filename records. A 3.12 build will not load in 3.11.
+
+**3. torch, for most ML packages.** Very few CUDA packages here are standalone;
+they are **PyTorch extensions** that `#include` torch's C++ headers and link
+`libtorch`. A matching torch must be installed *at build time*, and the result
+inherits torch's ABI. PyTorch publishes **no stable C++ ABI** across releases,
+so an extension built against torch 2.8 generally will not load against 2.9.
+
+!!! note "torch or PyTorch?"
+    Both, for different things. **PyTorch** is the project. **`torch`** is the
+    package you `pip install` and `import`. **`libtorch`** is the C++ library
+    the extension actually links against. The short import name is inherited
+    from **Torch**, the Lua framework PyTorch grew out of -- the "Py" was added
+    to the project name, never to the module.
+
+What comes out is one `.so` / `.pyd` bound to all of it at once:
 
 | Bound to | Because |
 |---|---|
@@ -69,18 +98,20 @@ What comes out is one `.so` / `.pyd` welded to all of it at once:
 Change any one and it is a different binary. That is why flash-attention fills
 **close to 180 wheels** here, each around 240 MB, from a single source release.
 
-Upstream projects therefore publish either nothing or one lucky combination,
-and everyone else compiles from source: twenty minutes to several hours, a
-working CUDA toolkit, and on Windows a Visual Studio install.
-
 ## Why does comfy-env need it?
 
-Because that is the **single largest cause of "this node pack won't install."**
-[comfy-env](../comfy-env/index.md) builds an isolated environment per node
-pack, and those environments must be fillable **without a compiler on the
-user's machine**.
+Because compiling is the **single largest cause of "this node pack won't
+install."**
 
-So a pack declares what it needs:
+The promise [comfy-env](../comfy-env/index.md) makes is that you click install
+on a node pack in **ComfyUI Manager and it just runs** -- no build tools, no
+CUDA toolkit, no hunting for the one torch version that satisfies everything,
+**no PhD in dependency management**. It keeps that promise by giving each pack
+its own isolated environment, and an environment can only be filled that
+quickly if every piece of it is **downloadable rather than buildable**.
+
+That is this repo's job. A node pack that makes use of CUDA packages can
+declare them in its `comfy-env.toml` config:
 
 ```toml
 # nodes/comfy-env.toml
@@ -89,7 +120,8 @@ packages = ["nvdiffrast", "pytorch3d", "flash_attn", "spconv"]
 ```
 
 and comfy-env resolves those names against this index for the user's exact
-combination. No `nvcc`, no Visual Studio, no waiting.
+`(python, torch, cuda, os)` **and installs them**. No `nvcc`, no Visual Studio,
+no waiting.
 
 ## What is in the farm right now?
 
