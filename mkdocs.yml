@@ -62,6 +62,7 @@ nav:
           - Custom wire types: comfy-env/serializers.md
       - Internals:
           - The two-system problem: comfy-env/two-system-problem.md
+          - Sharing one GPU: comfy-env/sharing-one-gpu.md
           - Module inventory: comfy-env/modules.md
           - Code breakdown: comfy-env/code-breakdown.md
       - Decision records:
