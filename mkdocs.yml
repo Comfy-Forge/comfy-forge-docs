@@ -3,6 +3,7 @@ site_description: Architecture docs and decision records for comfy-env, comfy-te
 site_url: https://pozzettiandrea.github.io/comfy-forge-docs/
 repo_url: https://github.com/PozzettiAndrea/comfy-forge-docs
 repo_name: PozzettiAndrea/comfy-forge-docs
+edit_uri: edit/main/docs/
 dev_addr: 0.0.0.0:8001
 
 theme:
@@ -147,3 +148,4 @@ nav:
           - "0006: Fitting CUDA compiles into hosted CI": cuda-wheels/adr/0006-fitting-cuda-compiles-into-hosted-ci.md
           - "0007: Phantom combos denylist": cuda-wheels/adr/0007-phantom-combos-denylist.md
           - "0008: Upstream torch watcher (proposed)": cuda-wheels/adr/0008-upstream-torch-watcher.md
+          - "0009: auditwheel exclusions": cuda-wheels/adr/0009-auditwheel-exclusions.md
