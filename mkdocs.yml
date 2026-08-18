@@ -151,3 +151,4 @@ nav:
           - "0008: Upstream torch watcher (proposed)": cuda-wheels/adr/0008-upstream-torch-watcher.md
           - "0009: auditwheel exclusions": cuda-wheels/adr/0009-auditwheel-exclusions.md
           - "0010: No free-threaded builds": cuda-wheels/adr/0010-no-free-threaded-builds.md
+          - "0011: Torch-independent packages": cuda-wheels/adr/0011-torch-independent-packages.md

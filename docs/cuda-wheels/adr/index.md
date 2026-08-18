@@ -19,3 +19,4 @@ rather than hidden.
 | [0008](0008-upstream-torch-watcher.md) | Upstream torch watcher | **Proposed.** A daily job that detects new upstream (cuda, torch) combos and builds them automatically. |
 | [0009](0009-auditwheel-exclusions.md) | auditwheel exclusions: match sonames, assert the rest | Exclude only what torch already loads; every exclude is a potential ImportError, so detect the rest instead of pre-empting it. |
 | [0010](0010-no-free-threaded-builds.md) | No free-threaded builds | `cp3XXt` is a separate ABI; supporting it doubles the Python axis for a population that does not exist yet. Revisit triggers named. |
+| [0011](0011-torch-independent-packages.md) | Torch-independent packages lose the torch axis | A package that never links libtorch is built once per (cuda, python, platform); identified by DT_NEEDED, not by Requires-Dist. |
