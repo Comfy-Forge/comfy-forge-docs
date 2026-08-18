@@ -152,3 +152,5 @@ nav:
           - "0009: auditwheel exclusions": cuda-wheels/adr/0009-auditwheel-exclusions.md
           - "0010: No free-threaded builds": cuda-wheels/adr/0010-no-free-threaded-builds.md
           - "0011: Torch-independent packages": cuda-wheels/adr/0011-torch-independent-packages.md
+          - "0012: Arch-list policy": cuda-wheels/adr/0012-arch-list-policy.md
+          - "0013: Arch verification": cuda-wheels/adr/0013-arch-verification.md

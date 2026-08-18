@@ -1,6 +1,6 @@
 # CW-ADR-0005: The shared (cuda x torch) grid and arch-list policy
 
-**Status:** accepted
+**Status:** accepted; arch-list half superseded by [CW-ADR-0012](0012-arch-list-policy.md) (proposed) — the grid half stands
 
 ## Decision
 

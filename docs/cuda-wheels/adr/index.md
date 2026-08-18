@@ -20,3 +20,5 @@ rather than hidden.
 | [0009](0009-auditwheel-exclusions.md) | auditwheel exclusions: match sonames, assert the rest | Exclude only what torch already loads; every exclude is a potential ImportError, so detect the rest instead of pre-empting it. |
 | [0010](0010-no-free-threaded-builds.md) | No free-threaded builds | `cp3XXt` is a separate ABI; supporting it doubles the Python axis for a population that does not exist yet. Revisit triggers named. |
 | [0011](0011-torch-independent-packages.md) | Torch-independent packages lose the torch axis | A package that never links libtorch is built once per (cuda, python, platform); identified by DT_NEEDED, not by Requires-Dist. |
+| [0012](0012-arch-list-policy.md) | Arch lists: per-CUDA policy, clamped by torch runnability | **Proposed.** Five owned rows ∩ toolkit ∩ torch bounds; +PTX per major family; supersedes 0005's mirror-PyTorch rule. |
+| [0013](0013-arch-verification.md) | The arch list is asserted, not assumed | **Proposed.** cuobjdump post-build assertion, FP8/arch-gate lint, per-wheel provenance and build_epoch. |
