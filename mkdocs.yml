@@ -138,6 +138,7 @@ nav:
           - "0016: The branch level is never dropped": comfy-test/adr/0016-run-output-is-namespaced-run-branch-platform.md
   - cuda-wheels:
       - Overview: cuda-wheels/index.md
+      - Upstream quirks: cuda-wheels/upstream-quirks.md
       - Decision records:
           - Index: cuda-wheels/adr/index.md
           - "0001: Declarative package configs": cuda-wheels/adr/0001-declarative-package-configs.md

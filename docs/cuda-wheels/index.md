@@ -1,82 +1,191 @@
 # cuda-wheels
 
-[cuda-wheels](https://github.com/PozzettiAndrea/cuda-wheels) compiles the
-CUDA packages that are painful to build from source, across every version
-combination PyTorch ships, and serves them as an ordinary pip index.
+[cuda-wheels](https://github.com/PozzettiAndrea/cuda-wheels) is a repo which makes use of free GitHub workers to compile popular CUDA packages like flash-attention or pytorch3d across every version combination that PyTorch itself ships, and serves them as an ordinary pip index.
 
 !!! abstract "The aim"
-    Build every package that is painful to compile from source, **for every
+    Build popular packages that are painful to compile from source, **for every
     version combination PyTorch ships for CUDA**, cheaply and on repeat -- so
     that installing them is a download instead of a compile.
-
-## Start here
-
-| I want to... | Go to |
-|---|---|
-| understand **why prebuilt wheels are needed** | [Why can't I just pip install flash-attention?](#why-cant-i-just-pip-install-flash-attention) |
-| **add a new package** to the farm | [How do I add a package?](#how-do-i-add-a-package) |
-| find out **why my combination wasn't built** | [How does a package become build jobs?](#how-does-a-package-become-build-jobs) |
-| **fix a failed build** | [A build failed. What do I check?](#a-build-failed-what-do-i-check) |
-| decode a **wheel filename** | [What do the wheel names mean?](#what-do-the-wheel-names-mean) |
-| see what **actually exists right now** | [Dashboard](https://pozzettiandrea.github.io/cuda-wheels/dashboard/) |
 
 **Live pages:** [Package Index v2](https://pozzettiandrea.github.io/cuda-wheels/v2/) ·
 [Dashboard](https://pozzettiandrea.github.io/cuda-wheels/dashboard/) ·
 [Install Helper](https://pozzettiandrea.github.io/cuda-wheels/dashboard/install.html) ·
 [Full Build Matrix](https://pozzettiandrea.github.io/cuda-wheels/matrix/)
 
-Design decisions live in the [ADR series](adr/index.md).
+Design decisions live in the [ADR series](adr/index.md); the ways upstream
+surprised us are collected in [Upstream quirks](upstream-quirks.md).
 
 ## Why can't I just pip install flash-attention?
 
-Because **a CUDA wheel is not one artifact -- it is hundreds.**
+Worth stating plainly, because it is easy to forget: **C++ and CUDA, unlike
+Python, have to be compiled.** A pure-Python package ships `.py` files that
+any machine can run as they are.
 
-[flash-attention](https://github.com/Dao-AILab/flash-attention) is one of the
-most widely used CUDA packages in machine learning -- the attention kernels
-much of the modern transformer stack runs on -- and a clean example of why a
-plain `pip install` cannot work.
+C++ must first be turned into machine code
+**ahead of time, for one specific target** -- and it then only runs where the
+assumptions it was built under still hold.
 
-Worth stating plainly, because it is easy to forget: **Python is interpreted,
-C++ and CUDA are not.** A pure-Python package ships `.py` files that any
-machine can run as they are. C++ code, on the other hand, **has to be
-compiled** -- turned into machine code **ahead of time, for one specific
-target** -- and it then only runs where the assumptions it was built under
-still hold.
+## What assumptions are made when the binary is compiled?
+
+A compiled binary is a **set of promises about the machine it will land on**.
+Source code asks for nothing, but a binary says *"I assume a GPU of this
+generation, a driver at least this new, this exact Python, and this exact version of my dependencies (often torch)"*
+
+Ship it somewhere one promise does not hold and it fails -- sometimes at
+install, sometimes at import, sometimes only when the node finally runs.
+
+There are six, and **each broken promise has its own famous error message**.
 
 flash-attention's kernels are **CUDA C++** -- `.cu` files, a C++ dialect with
-device-side extensions, compiled by NVIDIA's `nvcc`. Release v2.8.3 ships
-**582 of them**. Nothing to interpret, nothing useful to ship as source: every
-install either finds a **matching prebuilt binary** or **compiles the whole
-tree**.
+device-side extensions. They do not go through gcc or MSVC but through
+**`nvcc`**, NVIDIA's proprietary compiler, shipped as part of the versioned
+CUDA Toolkit -- and it only does half the job: **host** (CPU) code is handed
+off to the platform C++ compiler, while `nvcc` keeps the **device** code.
 
-Upstream projects therefore publish either nothing or one lucky combination,
-and everyone else compiles from source: twenty minutes to several hours, a
-working CUDA toolkit, and on Windows a Visual Studio install.
+### 1. "Your GPU speaks my instruction set"
 
-## What is it compiled against?
+GPUs have instruction sets like CPUs do, except NVIDIA changes theirs *every
+generation*: Turing is `sm_75`, Ampere `sm_80`/`sm_86`, Ada `sm_89`, Hopper
+`sm_90`, Blackwell `sm_100`/`sm_120`.
 
-**1. CUDA, through NVIDIA's own compiler.** `.cu` files do not go through gcc
-or MSVC but through **`nvcc`**, NVIDIA's proprietary compiler, shipped as part
-of the versioned CUDA Toolkit -- and it only does half the job. **Host** (CPU)
-code is handed off to the platform C++ compiler; `nvcc` keeps the **device**
-code, emitting **SASS** machine code separately for *each* GPU architecture,
-plus optionally **PTX**, a portable intermediate the driver can JIT for cards
-newer than the toolkit knew about. Each toolkit version accepts only certain
-host compilers and requires a minimum **driver** version -- so "built for CUDA
-12.8" constrains the machine that *runs* the wheel, not just the one that
-built it.
+`nvcc` emits **SASS** -- real machine code -- separately for *each*
+architecture it is asked for, and stuffs them all into one file (a
+**fatbinary**). That is why these wheels are so large: the same kernels,
+compiled half a dozen times over.
 
-**2. Python, because the kernels are wrapped.** CUDA code is not callable from
-Python on its own; what ships is a **Python extension module wrapping the
-kernels**, and that binding layer is C++ compiled against **one specific
-CPython**. Its C ABI changes between minor versions -- exactly what the `cp312`
-in the filename records. A 3.12 build will not load in 3.11.
+There is an escape hatch. `nvcc` can also emit **PTX**, a portable
+intermediate -- think bytecode for GPUs. If a card is newer than anything
+baked in, the **driver** JIT-compiles the PTX at runtime: slow first launch,
+cached afterwards. That is what a trailing `+PTX` in an arch list buys --
+forward compatibility with cards that did not exist when the wheel was built.
 
-**3. torch, for most ML packages.** Very few CUDA packages here are standalone;
-they are **PyTorch extensions** that `#include` torch's C++ headers and link
-`libtorch`. A matching torch must be installed *at build time*, and the result
-inherits torch's ABI. PyTorch publishes **no stable C++ ABI** across releases,
-so an extension built against torch 2.8 generally will not load against 2.9.
+!!! failure "`no kernel image is available for execution on the device`"
+    "I carry machine code for six GPUs, yours is not one of them, and there
+    was no PTX to fall back on."
+
+### 2. "Your driver is new enough"
+
+**"CUDA" is two different products wearing one name**, and the difference is
+the most confused point in this whole area.
+
+- **The driver** ships with your GPU driver (`libcuda.so`, `nvcuda.dll`). It
+  is the layer that lets the CPU boss the GPU around: allocate VRAM, upload
+  data, launch kernels, wait for results. Nothing reaches the GPU without
+  going through it, and it is what `nvidia-smi` reports.
+- **The CUDA Toolkit** is a developer SDK: `nvcc`, cuBLAS, cuDNN, and the
+  *runtime* library `libcudart`. This is what code is **built against**.
+
+The consequence surprises people: **you do not need the CUDA Toolkit installed
+to run torch.** Pip-installed torch bundles its own runtime
+(`nvidia-cuda-runtime-cu12` and friends), so the toolkit is a *build-time*
+dependency only. That is the entire premise of this repo -- it compiles here
+so that nobody downstream installs `nvcc`.
+
+So the only thing constraining the machine that *runs* a wheel is the driver,
+and since CUDA 11 the rule is **minor version compatibility**: anything built
+against any 12.x runs on any driver supporting 12.0. Real floors exist only at
+major versions.
+
+| Built against | Driver required |
+|---|---|
+| CUDA 12.x | R525 or newer |
+| CUDA 13.x | R580 or newer |
+
+A `cu128` wheel therefore runs perfectly well on an R535 driver.
+
+!!! question "Then why does anyone update CUDA?"
+    Four real reasons, none of them "a wheel demanded it":
+
+    1. **A new GPU does not work on an old driver at all** -- Blackwell needs
+       a driver that has heard of Blackwell.
+    2. **Crossing a major version** -- 12.x to 13.x is a genuine driver floor.
+    3. **Targeting new architectures at build time** -- `nvcc` 12.4 cannot
+       emit `sm_100` however nicely you ask; that needs 12.8 or newer.
+    4. **Speed** -- newer cuBLAS/cuDNN kernels make the same silicon faster.
+
+!!! failure "`CUDA driver version is insufficient for CUDA runtime version`"
+    The driver is older than the runtime the binary was built against.
+
+### 3. "You are running exactly this Python"
+
+CUDA is not callable from Python on its own. What ships is a **C++ shim** that
+Python can import and that forwards into the kernels -- and that shim is
+compiled against **one specific CPython's** internals: struct layouts,
+function tables, reference-counting macros.
+
+CPython changes those between *minor* versions, which makes 3.11 and 3.12 as
+incompatible as two different operating systems. The `cp312` in the filename
+is not a preference but a hard filter: pip will not even offer that wheel to
+a 3.11.
+
+!!! failure "`undefined symbol: PyUnicode_...`"
+    More often you never get that far -- pip just reports **no matching
+    distribution**, which is the same problem caught earlier.
+
+### 4. "You have exactly this torch"
+
+Very few CUDA packages here are standalone; nearly all are **PyTorch
+extensions** that `#include` torch's C++ headers and link `libtorch`, compiled
+against torch's actual C++ classes.
+
+C++ has no stable ABI, and PyTorch publishes **no stable C++ ABI** across
+releases: class layouts shift, inlined code changes, mangled symbol names
+change. An extension built against 2.8 is calling into a `libtorch` that no
+longer exists in 2.9. It also compounds -- torch itself is built per CUDA
+version, so the extension inherits **torch's version and torch's CUDA version
+at once**.
+
+!!! failure "`undefined symbol: _ZN3c104impl...`"
+    That mangled name is the tell. It means a torch ABI mismatch specifically,
+    not a Python one.
+
+### 5. "Your CPU speaks my instruction set"
+
+Remember that `nvcc` only did half the job. The **host** half -- the C++ that
+allocates memory, checks arguments and launches the kernels -- is ordinary CPU
+machine code, and it is compiled for one instruction set.
+
+x86-64 and arm64 are different machine languages, as mutually unintelligible
+as `sm_75` and `sm_90`. An x86-64 build does not execute on an ARM chip at
+all -- there is no PTX-style JIT to save you here.
+
+That is not a hypothetical for CUDA: **Jetson, Grace Hopper and GB200 are
+aarch64 machines with NVIDIA GPUs attached.** A wheel can be perfectly correct
+about the GPU and still be unloadable because the CPU is the wrong kind.
+
+!!! failure "`... is not a supported wheel on this platform.`"
+    pip comparing the filename's tag against your interpreter's own and
+    refusing before anything is unpacked.
+
+### 6. "Your OS is the one I was built for"
+
+Same host code, second assumption. `.so` versus `.pyd`. The Itanium C++ ABI
+that gcc and clang follow versus MSVC's, which mangle names and pass arguments
+differently. Different system libraries entirely. **A Linux build cannot load
+on Windows on byte-identical hardware.**
+
+On Linux there is a floor as well as a name: a binary linked against glibc
+2.35 will not start on a distro shipping 2.31. `auditwheel` bundles what it
+safely can and stamps whatever floor it could not avoid -- often as a dual
+tag, e.g. `manylinux_2_34_x86_64.manylinux_2_35_x86_64`.
+
+Both promises land in the same field of the filename:
+
+```text
+...-cp312-cp312-win_amd64.whl                 Windows          + x86-64
+...-cp312-cp312-manylinux_2_35_x86_64.whl     Linux glibc 2.35 + x86-64
+```
+
+!!! failure "`libc.so.6: version 'GLIBC_2.35' not found`"
+    The tag matched well enough for pip to install it, and the loader
+    disagreed. The glibc floor is the one part of this promise that pip cannot
+    fully check up front.
+
+!!! info "What this farm covers"
+    Every wheel here is **x86-64**, built on `ubuntu-22.04` and
+    `windows-2022`. There are no aarch64 builds, so ARM CUDA hosts (Jetson,
+    Grace Hopper) are out of scope today -- and macOS never appears at all,
+    since Apple Silicon has no CUDA.
 
 !!! note "torch or PyTorch?"
     Both, for different things. **PyTorch** is the project. **`torch`** is the
@@ -89,14 +198,44 @@ What comes out is one `.so` / `.pyd` bound to all of it at once:
 
 | Bound to | Because |
 |---|---|
+| **GPU architectures** | the `sm_XX` SASS baked into its fatbinary |
+| **CUDA version** | the CUDA runtime it linked against |
 | **Python version** (`cp312`) | CPython's C ABI |
 | **torch version** | PyTorch ships no stable C++ ABI across releases |
-| **CUDA version** | the CUDA runtime it linked against |
-| **OS** | gcc vs MSVC, `.so` vs `.pyd` |
-| **GPU architectures** | the `sm_XX` SASS baked into its fatbinary |
+| **CPU architecture** | x86-64 and arm64 are different machine languages |
+| **OS** | gcc vs MSVC, `.so` vs `.pyd`, and a glibc floor on Linux |
 
-Change any one and it is a different binary. That is why flash-attention fills
-**close to 180 wheels** here, each around 240 MB, from a single source release.
+Change any one and it is a different binary -- and the axes **multiply**, they
+do not add:
+
+```text
+GPU arch  x  CUDA  x  Python  x  torch  x  CPU  x  OS
+```
+
+Six axes, not six builds. That is how one flash-attention source release
+becomes **127 wheels** here, each around 240 MB.
+
+Almost nobody upstream publishes that, and it is not laziness. Every cell in
+that grid is a **full CUDA compile** -- twenty minutes to several hours of a
+machine's life, needing a CUDA toolkit and, on Windows, a Visual Studio
+install. Covering the grid means owning a build matrix, runners and hundreds
+of gigabytes of release storage, then doing the whole thing again on the next
+torch release. That is an infrastructure job, and it has nothing to do with
+why anyone wrote the kernels in the first place. So upstream ships nothing, or
+one lucky combination, and everyone else compiles from source.
+
+!!! tip "The saving grace: PyTorch already narrowed the grid"
+    The space is not actually open-ended. **PyTorch itself only publishes
+    builds for a specific set of CUDA, Python and OS combinations**, and an
+    extension is only useful if it matches a torch that really exists -- you
+    cannot link against a torch nobody can install.
+
+    ComfyUI runs on torch, so this farm never has to guess: it reads what
+    PyTorch **actually shipped** and matches it. That turns an explosion into
+    a finite, enumerable list -- today **21 `(cuda, torch)` pairings**, which
+    is large but knowable in advance and re-derivable whenever upstream moves.
+    [How that becomes build jobs](#how-does-a-package-become-build-jobs)
+    walks the arithmetic.
 
 ## Why does comfy-env need it?
 
@@ -104,11 +243,25 @@ Because compiling is the **single largest cause of "this node pack won't
 install."**
 
 The promise [comfy-env](../comfy-env/index.md) makes is that you click install
-on a node pack in **ComfyUI Manager and it just runs** -- no build tools, no
-CUDA toolkit, no hunting for the one torch version that satisfies everything,
-**no PhD in dependency management**. It keeps that promise by giving each pack
-its own isolated environment, and an environment can only be filled that
-quickly if every piece of it is **downloadable rather than buildable**.
+on a node pack in **ComfyUI Manager and it just runs** -- no build tools to
+set up, no CUDA toolkit to install, no hunting for the one torch version that
+satisfies everything, **no PhD in dependency management**. It keeps that
+promise by giving each pack its own isolated environment.
+
+Worth being precise about what that rules out, because it is narrower than
+"everything must be a download". Compiling on the user's machine is **not**
+forbidden: plenty of small C++ extensions build from source in seconds and pip
+handles them perfectly well, an isolated env can deliver its own compiler
+toolchain through conda and use it like any other dependency, and a few
+packages here **JIT their kernels at runtime by design** -- gsplat's `ninja`
+dependency is a genuine runtime requirement for exactly that reason.
+
+What is forbidden is the **user** doing toolchain setup, anything touching the
+host environment, and above all **CUDA kernel builds**. The nvcc x
+architecture matrix is the one compile that cannot be delivered quietly -- it
+is slow, it needs a toolkit the user does not have, and it fails in the ways
+the six promises above describe. That burden is centralised here instead
+([the aim](../aims.md), principle 1).
 
 That is this repo's job. A node pack that makes use of CUDA packages can
 declare them in its `comfy-env.toml` config:
@@ -138,7 +291,7 @@ no waiting.
 | package configs | 43 (plus `_defaults.yml`) |
 | packages published | 40 |
 | wheels published | ~6,800 |
-| combinations per package | 179 |
+| combinations per package | ~179 |
 | coverage | CUDA 12.4-13.0 x torch 2.4-2.11 x Python 3.10-3.14 x {Linux, Windows} |
 
 ## Where do the files live?
@@ -147,16 +300,21 @@ no waiting.
 cuda-wheels/
 ├── packages/            WHAT to build -- one YAML per package
 │   ├── _defaults.yml       the shared grid + arch-list policy
-│   ├── nvdiffrast.yml      source repo, tag, build knobs
+│   ├── flash_attn.yml      per-package config: source repo, tag, build knobs
+│   ├── nvdiffrast.yml      ...
+│   ├── ...
 │   └── README.md           authoritative "how to add a package" reference
 │
-├── patches/             HOW to fix it -- one Python script per package
-│   └── flash_attn.py       runs on the checked-out source before building
+├── patches/             HOW to fix it -- edits to the upstream source so it
+│                        compiles here; one Python script per package
+│   ├── flash_attn.py       runs on the checked-out source before building
+│   ├── pytorch3d.py        ...
+│   └── ...
 │
 ├── scripts/             the machinery
 │   ├── generate_matrix.py           configs  -> CI job matrix
-│   ├── fetch_torch_matrix.py        what torch actually ships (upstream truth)
-│   ├── fetch_pytorch_arch_lists.py  authoritative TORCH_CUDA_ARCH_LIST
+│   ├── fetch_torch_matrix.py        WHICH (cuda, torch, py, os) combos exist
+│   ├── fetch_pytorch_arch_lists.py  WHICH sm_XX arches torch built inside one
 │   ├── generate_index.py            releases -> PEP 503 index
 │   ├── generate_dashboard.py        releases -> dashboard page
 │   ├── patch_wheel_version.py       align wheel METADATA with its filename
@@ -167,7 +325,7 @@ cuda-wheels/
 ├── .github/
 │   ├── workflows/
 │   │   ├── build.yml                the build entry point (workflow_dispatch)
-│   │   ├── _chain_link*.yml         resume a compile that hit the 6h cap
+│   │   ├── _chain_link*.yml         resume a 6h-capped compile (prototype)
 │   │   ├── update-index.yml         regenerate + deploy the index on push
 │   │   └── get-sources.yml          publish patched sources for inspection
 │   └── actions/
@@ -299,9 +457,9 @@ Resolution order, highest priority first
 ```mermaid
 flowchart LR
     subgraph declare["1. Declare"]
-        yml["packages/&lt;name&gt;.yml<br/>source repo+tag, patches,<br/>deps, arch lists, sharding"]
+        yml["packages/<name>.yml<br/>source repo+tag, patches,<br/>deps, arch lists, sharding"]
         defaults["packages/_defaults.yml<br/>shared cuda x torch x python grid,<br/>arch-list policy"]
-        patch["patches/&lt;name&gt;.py<br/>pre-build source patches"]
+        patch["patches/<name>.py<br/>pre-build source patches"]
     end
     subgraph plan["2. Plan"]
         gen["scripts/generate_matrix.py<br/>expand configs into job matrices"]
@@ -309,7 +467,7 @@ flowchart LR
     end
     subgraph build["3. Build"]
         gha["build.yml on GHA<br/>ubuntu-22.04 / windows-2022<br/>(or self-hosted homelab runners)"]
-        rel["one rolling GitHub Release per pkg:<br/>&lt;pkg&gt;-latest holds every wheel"]
+        rel["one rolling GitHub Release per pkg:<br/><pkg>-latest holds every wheel"]
     end
     subgraph publish["4. Publish"]
         idx["scripts/generate_index.py<br/>PEP 503 static index (v2 + v1 shim)<br/>+ dashboard"]
@@ -379,9 +537,18 @@ homelab machines. Long CUDA compiles get three escape hatches
    up front.
 2. **Sharding** (`sharding: N`) -- N jobs each compile a subset of `.cu` files
    and upload object tarballs; a link-only job assembles the wheel.
-3. **Sequential checkpointing** (`sequential_checkpoint: <seconds>`) -- the
-   compile runs under `timeout`; on expiry the whole `build/` tree is uploaded
-   as an artifact and a chained job (`_chain_link.yml`) resumes it.
+3. **Sequential checkpointing** (`sequential_checkpoint: <seconds>`) --
+   **a prototype today.** The compile runs under `timeout`; on expiry the
+   entire `source/` tree is tarred as an artifact -- sources *and* `build/`
+   together, in PAX format so nanosecond mtimes survive and ninja's restat
+   check still works -- and a chained job (`_chain_link.yml`) resumes it.
+
+    !!! warning "Two links, so one resume"
+        Only `link-0` and `link-1` are wired per platform
+        (`build.yml`), so checkpointing currently buys **a single**
+        continuation, not an open-ended ladder. The `link-0..9` "10-job
+        ladder" described in the workflow comments does not exist yet; a
+        compile needing more than two slots still will not finish.
 
 ## How does comfy-env consume this?
 
