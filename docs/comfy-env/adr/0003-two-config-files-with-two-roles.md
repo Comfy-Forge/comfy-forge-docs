@@ -64,9 +64,11 @@ exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
 
 - The lightest integration (root file only) adds node-dependency management
   and per-pack settings with zero isolation machinery -- never package
-  installation into the host env. (A root-file `[cuda]` section has no
-  consumer in v0.4 and would violate the principle above; it is
-  reserved-to-delete, not reserved-to-implement.)
+  installation into the host env. (A root-file `[cuda]` or `[dependencies]`
+  section would violate the principle above, so it is not merely
+  unconsumed -- the closed root schema **rejects it at load time**. It was
+  reserved-to-delete, not reserved-to-implement, and the deletion has
+  landed.)
 - Presence of `comfy-env.toml` *is* the isolation switch -- no separate flag
   to keep in sync.
 - One pack can mix modes: `nodes/main/` imported in-process, `nodes/cgal/`

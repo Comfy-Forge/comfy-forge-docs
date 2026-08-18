@@ -1,0 +1,32 @@
+# Editable serve mode -- IN-BROWSER EDITING, LOCAL ONLY.
+#
+#   ./serve --edit          (or: mkdocs serve -f mkdocs.edit.yml)
+#
+# Inherits everything from mkdocs.yml and adds the live-edit plugin, which
+# serves a write endpoint that saves straight back to the .md files on disk.
+#
+# This file is DELIBERATELY not used by .github/workflows/deploy.yml, which
+# builds mkdocs.yml. A published static site has no backend to save to, and a
+# public write endpoint would be a hole -- so the editor exists only while you
+# are serving locally, and cannot ship.
+
+INHERIT: mkdocs.yml
+
+# Adds one <head> script that repoints the live-edit websocket when the docs are
+# reached over HTTPS through a proxy/tunnel. See live-edit-overrides/main.html.
+# Merges into the inherited theme block, so palette and features are untouched.
+theme:
+  custom_dir: live-edit-overrides
+
+# NOTE: MkDocs defaults `plugins` to ['search'] only while the key is absent.
+# Declaring it here REPLACES that default, so `search` must be listed
+# explicitly or site search silently disappears in edit mode.
+plugins:
+  - search
+  - live-edit:
+      # The editor needs a second port for its websocket (it cannot share the
+      # docs port). 8002 is chosen because the tunnel already maps
+      # andrej-p8002 -> localhost:8002, so no new Access application is needed
+      # -- the default 8484 would require provisioning and a separate login.
+      # live-edit-overrides/main.html derives the wss host from this port.
+      websockets_port: 8002

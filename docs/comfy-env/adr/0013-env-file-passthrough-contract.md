@@ -2,7 +2,9 @@
 
 **Status:** accepted 2026-08, **implemented 2026-08**. Amends
 [ADR-0003](0003-two-config-files-with-two-roles.md): resolves its
-"allowlist-not-passthrough" defect.
+"allowlist-not-passthrough" defect. One accompanying change, the
+`schema = 1` version key, was **reverted 2026-08** (see below) --
+the passthrough contract itself is unaffected.
 
 ## Context
 
@@ -78,9 +80,21 @@ pixi's language.
   (`[cuda]`, `[options]`, `[settings]`, `[serializers]`): a typo'd
   `pakages` currently vanishes without a trace; owned sections are the one
   place pixi cannot validate for us.
-- **`schema = 1` version key** (absent means 1): one line now; the day
+- ~~**`schema = 1` version key** (absent means 1): one line now; the day
   the format's semantics change again, old and new files can coexist and
-  the parser can dispatch migrations.
+  the parser can dispatch migrations.~~ **Reverted 2026-08.** The key was
+  never written by any config in the wild, and its real job was *forward*
+  compatibility -- letting an old comfy-env refuse a future v2 file with
+  "upgrade comfy-env" instead of misreading it. Under
+  [ADR-0017](0017-pre-1-0-no-backward-compatibility.md) two schema
+  versions are never live at once (comfy-env and its packs ship as one
+  barrage), so there is nothing for the check to protect against yet, and
+  a versioning hook with no consumer reads as dead code. It was also
+  quietly broken: the closed root schema rejected `schema` as an
+  "unsupported section", so `comfy-env-root.toml` -- the file whose
+  semantics had *already* changed once -- could not carry the marker.
+  Reintroduce it deliberately at the slow-rollout tripwire, when packs
+  stop shipping in lockstep and the compat clock actually starts.
 - **Provenance header** in generated manifests
   (`# generated from <config path> by comfy-env <version>`): when pixi
   rejects a forwarded-but-invalid key, its error names the generated file

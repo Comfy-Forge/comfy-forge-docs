@@ -40,18 +40,50 @@ pinning one torch per CUDA in a `build_matrix` block written for that purpose.
 
 A workaround repeated in three files, explained in prose, is a schema gap.
 
-**Identifying them requires linkage, not metadata.** The obvious test -- does
-the wheel declare `torch` in `Requires-Dist` -- is wrong in both directions. Of
-27 published packages, 14 do not declare torch, and most of those
-(`pytorch3d`, `torch-scatter`, `torch-sparse`, `nvdiffrast`, `sageattention`)
-are unambiguously torch extensions that simply assume torch is present. The
-sound test is a `DT_NEEDED` entry for `libtorch` on the compiled extension.
+**Identifying them requires the build system, not metadata.** The obvious test
+-- does the wheel declare `torch` in `Requires-Dist` -- is wrong in both
+directions. Of 27 published packages, 14 do not declare torch, and most of
+those (`pytorch3d`, `torch-scatter`, `torch-sparse`, `nvdiffrast`,
+`sageattention`) are unambiguously torch extensions that simply assume torch is
+present.
 
-By that test, two packages currently built across the full grid are
-torch-independent: **`spconv`** (`core_cc*.so` needs only `libcudart`) and
-**`cumm`** (`libcudart` + `libnvrtc`). Both are pccm/pybind11 code generators
-rather than torch extensions. With the three declared ones that is 5 of 50
-known today; the remaining 45 have not been checked by linkage.
+Two sound tests exist. `DT_NEEDED` for `libtorch` on the compiled extension
+answers definitively but requires a built wheel. Reading upstream's own build
+files at the pinned tag -- `setup.py`, `CMakeLists.txt`, `pyproject.toml` --
+answers the same question for a few KB per package, *before* any build, and is
+what the full survey used.
+
+All 50 packages have now been surveyed this way. **46 link torch; 4 do not.**
+
+| Package | Why it is torch-free |
+|---|---|
+| `cumm` | `pccm` / `PCCMExtension` build; `setup.py` deps are `["pccm"]`. |
+| `spconv` | Same `pccm` build; deps are `["cumm"]`. Torch is imported by the Python layer only -- `core_cc*.so` never links it. |
+| `llama_cpp_python` | scikit-build-core over GGML's CMake. No torch in build or link. |
+| `flashinfer` | `flashinfer/jit/cpp_ext.py` forks torch's `cpp_extension`, but its ldflags are `-lcudart -lcuda` and nothing more. |
+
+Of the 46, 44 were established by `CUDAExtension` / `BuildExtension` /
+`cpp_extension` in upstream's `setup.py`, `pyg_lib` by `find_package(Torch)` in
+its CMake, and `nvdiffrec_render` because upstream ships *no* `setup.py` -- it
+is a research repo, and this farm's own patch script synthesises the
+`CUDAExtension`. That last one is torch-linked by our doing, not upstream's.
+
+**`vllm` is not torch-independent.** An earlier draft of this ADR listed it
+alongside the other three because it carries the same hand-written
+`build_matrix`. It carries it for the opposite reason: `setup.py` uses
+`cpp_extension` and `CMakeLists.txt` calls `find_package(Torch)`, and vLLM
+hard-pins exactly one torch per release. It is maximally torch-*dependent*,
+merely narrow. A narrow `build_matrix` is therefore not evidence of
+independence, and `links_torch` must not be inferred from one.
+
+**`flashinfer` is a qualified yes.** It does not link libtorch, but it reads
+`torch._C._GLIBCXX_USE_CXX11_ABI` and bakes the result into its *compile*
+flags. PyTorch flipped that default during the manylinux_2_28 migration in the
+2.x line. So a flashinfer wheel is torch-agnostic at link time while still
+carrying one torch's C++ ABI setting, and wheels built either side of that flip
+are not interchangeable. The exact torch version of the flip has not been
+pinned down; it must be before flashinfer wheels are published under every
+torch directory.
 
 ## Alternatives rejected
 
@@ -79,9 +111,14 @@ order.
 - `spconv` and `cumm` stop building roughly four redundant wheels per CUDA
   line. On today's grid that is the difference between ~180 wheels each and
   ~40.
-- The three hand-written `build_matrix` blocks in `flashinfer`,
-  `llama_cpp_python` and `vllm` become a single field, and stop being a pattern
-  the next contributor copies without understanding.
+- The two hand-written `build_matrix` blocks that exist for this reason
+  (`flashinfer`, `llama_cpp_python`) become a single field, and stop being a
+  pattern the next contributor copies without understanding. `vllm` keeps its
+  block, which encodes a genuine upstream torch pin.
+- **The saving is smaller than the package count suggests.** `flashinfer` and
+  `llama_cpp_python` already pin one torch per CUDA by hand, so they are
+  already narrow. The redundant builds are entirely `spconv` (145 wheels) and
+  `cumm` (180 wheels), which drop to roughly 90 combined.
 - **The declaration is unverified.** Nothing checks that a package claiming
   `links_torch: false` actually lacks the `DT_NEEDED`. It should: a post-repair
   assertion in the same place CW-ADR-0009 put the vendored-library check would
@@ -89,6 +126,6 @@ order.
   which would otherwise ship one wheel that works against exactly one torch and
   claims to work against all of them. That is a worse failure than the
   duplication this ADR removes, so the assertion is not optional.
-- 45 of 50 packages remain unclassified. They default to `links_torch: true`,
-  which is the safe direction: the cost of a wrong default is redundant builds,
-  not broken wheels.
+- No package remains unclassified. The 46 keep the default `links_torch: true`,
+  which is also the safe direction for anything added later: the cost of a wrong
+  default is redundant builds, not broken wheels.

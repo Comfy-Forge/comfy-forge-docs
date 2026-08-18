@@ -33,10 +33,14 @@ encouraged to adopt comfy-env. Crossing it starts two clocks at once:
 1. **The compat clock.** Old config keys keep parsing for N releases
    with deprecation warnings before removal; packs switch from exact
    pins to floors (`comfy-env>=X.Y`); a compat canary in CI installs
-   the newest comfy-env against the oldest-supported pack configs. The
-   `schema = 1` field already parsed by the config layer
-   ([ADR-0013](0013-env-file-passthrough-contract.md)) is the
-   pre-built hook for versioned migration windows.
+   the newest comfy-env against the oldest-supported pack configs. A
+   `schema` version key is the natural hook for versioned migration
+   windows; one was built in
+   [ADR-0013](0013-env-file-passthrough-contract.md) and **reverted
+   2026-08** as dead code, precisely because this clock has not started.
+   Reinstating it is part of crossing the tripwire, not a prerequisite:
+   "absent means 1" is the only rule that must survive, and it costs
+   nothing to re-declare later.
 2. **The security clock.** CUDA wheel hashes in generated manifests,
    the pickle rung flipped to opt-in per pack, and the sandbox
    timeline of [ADR-0011](0011-isolation-before-sandboxing.md) --

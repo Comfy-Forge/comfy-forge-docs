@@ -29,7 +29,7 @@ compiler-owned keys, which error loudly if you set them:
 (host-derived identity); torch-family pins are rewritten to the host
 family. Typos inside comfy-env's own sections (`[cuda]`, `[options]`,
 `[settings]`) produce warnings; invalid `[types]` values are parse
-errors. An optional `schema = 1` key versions the format.
+errors.
 
 ## `comfy-env-root.toml` (pack root)
 
@@ -67,10 +67,12 @@ TRIMESH    = "custom"
 SKELETON   = "builtin"
 INTRINSICS = "builtin"
 
-# NOTE: do NOT declare [dependencies] / [cuda] here. They are parsed but
-# have no consumer at ROOT scope in v0.4 -- and installing packages from
-# the root file would violate the host-environment principle above.
-# Anything installable belongs in a subdirectory comfy-env.toml.
+# NOTE: this file is a CLOSED schema. [node_reqs], [settings] and [types]
+# are the only sections accepted; anything else -- [dependencies], [cuda],
+# [env_vars], a legacy [apt], or a typo'd section name -- is a hard parse
+# error, not a silently-ignored no-op. Installing packages from the root
+# file would violate the host-environment principle above, so anything
+# installable belongs in a subdirectory comfy-env.toml.
 ```
 
 Notes:
@@ -84,8 +86,13 @@ Notes:
   the realization that everything they would deliver installs through
   pixi/conda-forge -- declare the equivalent conda package under a
   subdirectory's `[dependencies]` instead (e.g. `mesalib` replaces apt
-  `libgl1-mesa-glx`). Unknown tables are harmless: the manifest generator
-  only copies allowlisted keys.
+  `libgl1-mesa-glx`). A leftover `[apt]` or `[brew]` table in a root file
+  is now a **parse error**, not a silent no-op -- delete it.
+- The root file's schema is **closed**: `[node_reqs]`, `[settings]` and
+  `[types]` are the only accepted sections, and any other top-level table
+  raises at load time (`config/__init__.py`, `ROOT_ALLOWED_SECTIONS`).
+  This is deliberate -- a no-op `[env_vars]` shipped in the flagship pack
+  for months before the schema was closed.
 - The root file never creates an isolation env; workspace discovery looks
   only for `comfy-env.toml` files.
 
@@ -109,8 +116,9 @@ python = "3.11"
 [cuda]
 packages = ["cumesh", "faithc-aot"]
 
-# --- everything below is pixi passthrough (v0.4 caveat: only the
-# ---  allowlisted tables shown here actually reach pixi.toml; see intro) ---
+# --- everything below is pixi passthrough: forwarded verbatim into the
+# ---  generated pixi.toml, whether or not it appears in this example.
+# ---  Only the compiler-owned keys are refused; see the intro. ---
 
 # Conda packages (this is WHY pixi: these do not exist on PyPI)
 [dependencies]

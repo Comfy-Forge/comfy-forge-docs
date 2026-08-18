@@ -1,6 +1,6 @@
 # CW-ADR-0012: Arch lists are a per-CUDA policy, clamped by torch runnability
 
-**Status:** proposed (supersedes the arch-list half of [CW-ADR-0005](0005-shared-grid-and-arch-list-policy.md))
+**Status:** accepted (supersedes the arch-list half of [CW-ADR-0005](0005-shared-grid-and-arch-list-policy.md))
 
 ## Decision
 
@@ -84,18 +84,54 @@ Two consequences, both verified with ptxas during review:
    kernel launch (lazy loading defers it past import). Exclusions are
    therefore computed and printed (on the P.A.M page), never implied.
 
-## The policy rows
+## What PyTorch itself builds (the input)
 
-| CUDA | Policy | Notes |
-|---|---|---|
-| cu124, cu126 | `6.0;7.0;7.5;8.0;8.6;9.0+PTX` | drops 5.0 (Maxwell ≈ 0 users, no bf16); keeps 6.0 — GTX 10-series rides it same-major |
-| cu128, cu129 | `7.0;7.5;8.0;8.6;9.0+PTX;10.0;12.0+PTX` | clamp trims 7.0 exactly where the paired torch cannot execute on Volta |
-| cu130+ | `7.5;8.0;8.6;9.0+PTX;10.0;12.0+PTX` | 7.0 impossible — toolkit floor |
+Scraped from PyTorch's own build tables at every release tag it publishes
+per CUDA index (Linux; snapshot 2026-08, refreshed by the P.A.M workflow):
+
+| CUDA | PyTorch SASS (union over torch releases) | PTX | Varies across torch? |
+|---|---|---|---|
+| cu124 | 50,60,70,75,80,86,90 | none | no |
+| cu126 | 50,60,70,75,80,86,90 | none | no |
+| cu128 | 70,75,80,86,90,100,120 | 120 (2.7 only) | **sm_70 absent on torch 2.7 and 2.11** |
+| cu129 | 70,75,80,86,90,100,120 | 120 (≤ 2.11) | **sm_70 absent on torch 2.11+** |
+| cu130 | 75,80,86,90,100,120 | 120 (≤ 2.10) | no |
+| cu132 | 75,80,86,90,100,120 | none | no |
+
+(Windows differs once: cu126 adds 6.1 — a Pascal-consumer perf tune, covered
+by the 6.0 cubin same-major, so not imported.)
+
+Three facts this table settles:
+
+- **cu124/cu126 torch ships no PTX at all** — torch itself cannot run on
+  anything newer than sm_9x there. That is the clamp's ceiling, observed.
+- **The only arch that varies across torch versions anywhere is sm_70** on
+  cu128/cu129 — the entirety of PyTorch's per-torch "signal" is one Volta
+  support decision, which the clamp reproduces without hand-copying 21 rows.
+- **PyTorch has rotated PTX off its recent releases entirely** (cu129
+  torch 2.12, cu130 torch 2.11+, cu132: SASS-only). Our +PTX rule is now a
+  strict superset of upstream forward-compat, not a tweak to it.
+
+## The policy rows (the decision)
+
+Derivation rule, applied per CUDA: **start from PyTorch's union, drop
+arches with no meaningful population for this farm's audience, never add a
+SASS arch PyTorch's torch cannot execute on, and re-add PTX per major
+family.**
+
+| CUDA | PyTorch union | Our policy | Delta and why |
+|---|---|---|---|
+| cu124, cu126 | 50,60,70,75,80,86,90 | `6.0;7.0;7.5;8.0;8.6;9.0+PTX` | **−5.0** (Maxwell: below Steam's 0.1% cutoff, no bf16, 4 GB VRAM — decided, not open); **+PTX on 9.0** (upstream ships none; costs ~8 KB) |
+| cu128, cu129 | 70,75,80,86,90,100,120 | `7.0;7.5;8.0;8.6;9.0+PTX;10.0;12.0+PTX` | identical SASS set; the clamp trims 7.0 exactly where the paired torch lacks it (2.7, 2.11+), so we never ship a Volta cubin torch cannot host; **PTX per major** instead of 120-only |
+| cu130, cu132 | 75,80,86,90,100,120 | `7.5;8.0;8.6;9.0+PTX;10.0;12.0+PTX` | identical SASS set; PTX per major (upstream: none or 120-only) |
 
 Covered by same-major compat, hence deliberately absent as slots: 6.1, 8.7,
-8.8, **8.9**, 10.3, 12.1. Declared uncovered: **sm_110 (Thor)** everywhere,
-Maxwell after the 5.0 drop — embedded/automotive majors are out of scope for
-a desktop farm.
+8.8, **8.9**, 10.3, 12.1. Declared uncovered: **sm_110 (Thor)** everywhere
+and Maxwell — embedded/automotive majors and sub-0.1% desktop hardware are
+out of scope for a desktop farm.
+
+A new CUDA index gets its row by running the same derivation against the
+refreshed snapshot — a reviewed PR, not an automatic commit.
 
 **8.9 (Ada) stays opt-in.** The review compiled fp16/bf16 attention kernels
 for sm_86 and sm_89: byte-identical SASS. Absent FP8 there is nothing to
@@ -138,8 +174,8 @@ delivery mechanism.
   the live `build_cuda.sh` fetch/execute path is deleted.
 - The Volta flicker becomes rational: same policy everywhere, trimmed
   per-combo by a recorded bound rather than by transcription.
-- Dropping 5.0 is a **coverage regression** and ships as its own change,
-  revertible independently of the keying change.
+- Dropping 5.0 is a **coverage regression**, decided here; it ships as its
+  own commit so it stays revertible independently of the keying change.
 - One open check before trusting the cu124/126 row: flash_attn's sm_80
   cubin — a kernel requesting > 99 KB dynamic shared memory cannot launch
   on 8.6/8.9 despite same-major compat. Verify its smem caps.

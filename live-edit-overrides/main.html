@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{#
+  Edit-mode only. Wired up by mkdocs.edit.yml via theme.custom_dir, so it is
+  never part of the published site (deploy.yml builds mkdocs.yml).
+
+  Why this exists: mkdocs-live-edit-plugin's client hardcodes
+      new WebSocket(`ws://${window.location.hostname}:8484`)
+  which cannot work when the docs are reached through an HTTPS reverse proxy or
+  tunnel -- the browser blocks ws:// on an https page as mixed content, and the
+  extra port is not proxied anyway. MkDocs' own live reload is unaffected: it
+  long-polls rather than opening a socket.
+
+  The shim rewrites only that socket, and only when the page is https. It maps
+  the extra port onto a sibling per-port hostname, which is the convention used
+  by port-mapped tunnels (`<name>-p8001.example.com` -> localhost:8001, so
+  `<name>-p8484.example.com` -> localhost:8484), reached over TLS on 443.
+  Set LIVE_EDIT_WS_HOST below if your proxy exposes the socket somewhere else.
+#}
+{% block extrahead %}
+  {{ super() }}
+  <script>
+    (function () {
+      // Set to a full origin (e.g. "wss://docs-ws.example.com") to override the
+      // derived host. Leave null to use the -p<port> hostname convention.
+      var LIVE_EDIT_WS_HOST = null;
+
+      if (window.location.protocol !== "https:") return;  // ws:// is fine on http
+
+      var Native = window.WebSocket;
+      if (!Native) return;
+
+      function rewrite(url) {
+        var u = new URL(url, window.location.href);
+        // Only touch insecure sockets aimed at an explicit extra port on this host.
+        if (u.protocol !== "ws:" || !u.port || u.hostname !== window.location.hostname) {
+          return url;
+        }
+        if (LIVE_EDIT_WS_HOST) {
+          return LIVE_EDIT_WS_HOST.replace(/\/$/, "") + u.pathname + u.search;
+        }
+        // andrej-p8001.example.com  ->  andrej-p8484.example.com
+        var host = u.hostname.replace(/-p\d+\./, "-p" + u.port + ".");
+        if (host === u.hostname) return url;  // convention did not apply; leave alone
+        return "wss://" + host + u.pathname + u.search;
+      }
+
+      function Patched(url, protocols) {
+        var target = url;
+        try { target = rewrite(url); } catch (e) { /* fall back to the original */ }
+        return protocols === undefined ? new Native(target) : new Native(target, protocols);
+      }
+
+      Patched.prototype = Native.prototype;
+      Patched.CONNECTING = Native.CONNECTING;
+      Patched.OPEN = Native.OPEN;
+      Patched.CLOSING = Native.CLOSING;
+      Patched.CLOSED = Native.CLOSED;
+      window.WebSocket = Patched;
+    })();
+  </script>
+{% endblock %}
