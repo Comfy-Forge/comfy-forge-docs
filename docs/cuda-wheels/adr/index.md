@@ -18,3 +18,4 @@ rather than hidden.
 | [0007](0007-phantom-combos-denylist.md) | Phantom combos: a curated denylist of upstream gaps | Cells upstream never published are skipped instead of failing at torch-install time. |
 | [0008](0008-upstream-torch-watcher.md) | Upstream torch watcher | **Proposed.** A daily job that detects new upstream (cuda, torch) combos and builds them automatically. |
 | [0009](0009-auditwheel-exclusions.md) | auditwheel exclusions: match sonames, assert the rest | Exclude only what torch already loads; every exclude is a potential ImportError, so detect the rest instead of pre-empting it. |
+| [0010](0010-no-free-threaded-builds.md) | No free-threaded builds | `cp3XXt` is a separate ABI; supporting it doubles the Python axis for a population that does not exist yet. Revisit triggers named. |
