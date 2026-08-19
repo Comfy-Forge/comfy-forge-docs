@@ -36,6 +36,8 @@ extra_css:
 
 markdown_extensions:
   - admonition
+  - md_in_html
+  - attr_list
   - tables
   - toc:
       permalink: true
@@ -138,7 +140,11 @@ nav:
           - "0016: The branch level is never dropped": comfy-test/adr/0016-run-output-is-namespaced-run-branch-platform.md
   - cuda-wheels:
       - Overview: cuda-wheels/index.md
-      - Upstream quirks: cuda-wheels/upstream-quirks.md
+      - "Wheel my wheel run?": cuda-wheels/wheel-compatibility.md
+      - Coverage: cuda-wheels/coverage.md
+      - Repo breakdown: cuda-wheels/repo-breakdown.md
+      - The build process: cuda-wheels/build-process.md
+      - Upstream PyTorch quirks: cuda-wheels/upstream-quirks.md
       - Decision records:
           - Index: cuda-wheels/adr/index.md
           - "0001: Declarative package configs": cuda-wheels/adr/0001-declarative-package-configs.md
