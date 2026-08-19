@@ -46,6 +46,25 @@ upstream projects publish wheels for only a fraction of the matrix.
 - When no prebuilt wheel exists for a combination, install fails with an
   explicit report rather than a silent source build.
 
+## The boundary: what may still compile on a user's machine
+
+The promise this decision serves is **one-click**: install a node pack and it
+just runs -- no build tools, no CUDA toolkit, no PhD in dependency
+management. Worth being precise about what that rules out, because it is
+narrower than "everything must be a download". Compilation can still happen
+on the user's machine:
+
+- plenty of small C++ extensions build from source in seconds, and pip
+  handles them perfectly well
+- an isolated env can deliver its own compiler toolchain through conda and
+  use it like any other dependency
+- a few packages **JIT their CUDA kernels at runtime by design** (gsplat...)
+
+What is forbidden is the **user** doing toolchain setup, anything touching
+the host environment, and above all **CUDA kernel builds**.
+
+**One click installs.**
+
 ## The wheel farm's own decisions
 
 This ADR covers comfy-env's *consumer-side* choice. The farm itself has its

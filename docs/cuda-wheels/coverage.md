@@ -20,7 +20,7 @@ What is in the farm right now.
 
 The repository layout -- every directory, script and workflow, and the two
 rules that keep them tidy -- is broken down in
-[Repo breakdown](repo-breakdown.md).
+[The build process](build-process.md).
 
 ## What combos do we compile for?
 
@@ -52,7 +52,7 @@ references define the target:
     - **A package can override the policy**, because kernel floors belong to
       packages. Resolution order, highest first: per-combo `arch_list` in the
       package's own `build_matrix` &rarr; `arch_list_by_cuda[cuda]` &rarr;
-      `arch_list` &rarr; the policy row in `_defaults.yml`.
+      `arch_list` &rarr; the per-CUDA policy row in `_arch_policy.yml`.
 
 What we skip, on purpose: pre-release Pythons, free-threaded builds
 ([CW-ADR-0010](adr/0010-no-free-threaded-builds.md)), aarch64 (for now), and
@@ -61,7 +61,7 @@ the cells upstream never shipped
 
 The mechanism -- how the PCWM becomes grid rows, and how a package's config
 becomes CI jobs -- is walked through in
-[How does a package become build jobs?](repo-breakdown.md#how-does-a-package-become-build-jobs)
+[How does a package become build jobs?](build-process.md#how-does-a-package-become-build-jobs)
 -- along with how to add a package of your own.
 
 !!! info ""

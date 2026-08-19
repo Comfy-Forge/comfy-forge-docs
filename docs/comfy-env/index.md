@@ -4,7 +4,20 @@
 management and automatic CUDA wheel resolution for ComfyUI custom nodes
 ([~13,000 lines of Python](code-breakdown.md) under `src/comfy_env/`).
 
-comfy-env solves two problems:
+!!! abstract "The promise"
+    *You click install on a node pack in ComfyUI Manager, and it just runs.*
+
+    No build tools. No CUDA toolkit. No hunting for the one torch version that
+    satisfies everything. **No PhD in dependency management** -- on the machine
+    a non-developer actually has.
+
+    That is the whole point: **node packs should behave like real software**
+    ([the aim](../aims.md)). ComfyUI is the platform, node packs are
+    applications, and comfy-env is the runtime and compatibility layer between
+    them. Everything below follows from that one sentence.
+
+Two things stand between a node pack and that promise. comfy-env exists to
+remove both:
 
 1. **Environment isolation** -- nodes with conflicting dependencies each
    get their own Python environment, transparently. (Vanilla ComfyUI

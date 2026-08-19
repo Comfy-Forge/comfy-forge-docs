@@ -142,7 +142,6 @@ nav:
       - Overview: cuda-wheels/index.md
       - "Wheel my wheel run?": cuda-wheels/wheel-compatibility.md
       - Coverage: cuda-wheels/coverage.md
-      - Repo breakdown: cuda-wheels/repo-breakdown.md
       - The build process: cuda-wheels/build-process.md
       - Upstream PyTorch quirks: cuda-wheels/upstream-quirks.md
       - Decision records:

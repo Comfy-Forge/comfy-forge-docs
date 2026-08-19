@@ -264,6 +264,6 @@ one lucky combination, and everyone else compiles from source.
     PyTorch **actually shipped** and matches it. That turns an explosion into
     a finite, enumerable list -- today **27 `(cuda, torch)` pairings**, which
     is large but knowable in advance and re-derivable whenever upstream moves.
-    [How that becomes build jobs](repo-breakdown.md#how-does-a-package-become-build-jobs)
+    [How that becomes build jobs](build-process.md#how-does-a-package-become-build-jobs)
     walks the arithmetic.
 
