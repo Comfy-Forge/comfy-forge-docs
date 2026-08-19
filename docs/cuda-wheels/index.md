@@ -1,10 +1,10 @@
 # cuda-wheels
 
-[cuda-wheels](https://github.com/PozzettiAndrea/cuda-wheels) is a repo which makes use of free GitHub workers to compile popular CUDA packages like flash-attention or pytorch3d across every version combination that PyTorch itself ships, and serves them as an ordinary pip index.
+[cuda-wheels](https://github.com/PozzettiAndrea/cuda-wheels) is a repo which makes use of free GitHub workers to compile popular CUDA packages like flash-attention or pytorch3d across every version combination that PyTorch itself ships, and serves them.
 
 !!! abstract "The aim"
     Build popular packages that are painful to compile from source, **for every
-    version combination PyTorch ships for CUDA**, cheaply and on repeat -- so
+    version combination PyTorch ships for CUDA**, cheaply and on repeat, so
     that installing them is a download instead of a compile.
 
 **Live pages:** [Package Index v2](https://pozzettiandrea.github.io/cuda-wheels/v2/) ·
@@ -12,108 +12,107 @@
 [Install Helper](https://pozzettiandrea.github.io/cuda-wheels/dashboard/install.html) ·
 [Full Build Matrix](https://pozzettiandrea.github.io/cuda-wheels/matrix/)
 
-Design decisions live in the [ADR series](adr/index.md); the ways upstream
-surprised us are collected in [Upstream PyTorch quirks](upstream-quirks.md).
+Design decisions live in the [ADR series](adr/index.md)
 
 ## Why can't I just pip install flash-attention?
 
-Worth stating plainly, because it is easy to forget: **C++ and CUDA, unlike
-Python, have to be compiled.** A pure-Python package ships `.py` files that
-any machine can run as they are.
-
-C++ must first be turned into machine code
-**ahead of time, for one specific target** -- and it then only runs where the
+**C++ and CUDA, unlike Python, have to be compiled.**
+A pure-Python package ships `.py` files that
+any machine can run as they are, while C++ must first be turned into machine code
+**ahead of time, for one specific target**, and it then only runs where the
 assumptions it was built under still hold.
 
-## The seven promises a wheel makes
+## The seven demands a wheel makes
 
 A Python CUDA wheel is a compiled CUDA binary (`.so` / `.pyd`) plus some Python Code, zipped together.
-The Python half runs anywhere; every constraint comes from the compiled half, which is a **set of
-promises about the machine it will land on, the torch it will load into, and
-the CPython it will talk to**.
+The Python half runs anywhere; every constraint comes from the compiled binary, which makes a **set of
+demands on the machine it will land on, the torch it will load into, and the
+CPython it will talk to**.
 
-Break [one of these](wheel-compatibility.md) and it will fail:
+!!! info ""
+    *For more info: [Wheel my wheel run?](wheel-compatibility.md)*
 
-1. **"Your GPU speaks my instruction set"** -- machine code is compiled per GPU
-   generation (`sm_86`, `sm_120`, ...) &rarr; `no kernel image is available for
-   execution on the device`
-2. **"You have exactly this torch"** -- libtorch's C++ ABI changes every minor
-   release &rarr; `undefined symbol: _ZN3c104impl...`
-3. **"I match your torch's CUDA"** -- a cu126 torch means 12.6 runtime
-   libraries in the process &rarr; an import error, or worse, a late one
-4. **"You are running exactly this Python"** -- `cp312` is CPython 3.12's C ABI
-   &rarr; `no matching distribution found`
-5. **"Your CPU speaks my instruction set"** -- x86-64 is not arm64 &rarr;
-   `not a supported wheel on this platform`
-6. **"Your OS is the one I was built for"** -- a Linux wheel (`.so`, gcc)
-   cannot load on Windows (`.pyd`, MSVC), and vice versa &rarr;
-   `not a supported wheel on this platform`
-7. **"Your glibc is at least this new"** (Linux only) -- the floor the build
-   runner baked in &rarr; `libc.so.6: version 'GLIBC_2.35' not found`
+Break one of these and it will fail:
 
-The build matrix is these axes multiplied out (the glibc floor is a fixed
-stamp, not an axis -- the farm ships exactly one). The full story of each --
-what the promise really pins, why it exists, and what the error looks like
-when it breaks -- is a page of its own:
-**[Wheel my wheel run?](wheel-compatibility.md)**
+1. **"Your GPU speaks my instruction set"**
 
-## Why does this exist?
+    machine code is compiled per GPU generation (`sm_86`, `sm_120`, ...)
+    &rarr; `no kernel image is available for execution on the device`
+
+2. **"You have exactly this torch"**
+
+    libtorch's C++ ABI changes every minor release
+    &rarr; `undefined symbol: _ZN3c104impl...`
+
+3. **"I match your torch's CUDA"**
+
+    a cu126 torch means 12.6 runtime libraries in the process
+    &rarr; an import error, or worse, a late one
+
+4. **"You are running exactly this Python"**
+
+    `cp312` is CPython 3.12's C ABI
+    &rarr; `no matching distribution found`
+
+5. **"Your CPU speaks my instruction set"**
+
+    x86-64 is not arm64
+    &rarr; `not a supported wheel on this platform`
+
+6. **"Your OS is the one I was built for"**
+
+    a Linux wheel (`.so`, gcc) cannot load on Windows (`.pyd`, MSVC), and
+    vice versa
+    &rarr; `not a supported wheel on this platform`
+
+7. **"Your glibc is at least this new"** *(Linux only)*
+
+    the floor the build runner baked in
+    &rarr; `libc.so.6: version 'GLIBC_2.35' not found`
+
+In the cuda-wheels repo, we compile across all of these axes.
+
+!!! info ""
+    *What we cover right now: [Coverage](coverage.md)*
+
+## Why does this repo exist?
 
 Because **compiling these packages takes absurdly long and is genuinely
-complicated** -- a flash-attention build is hours of CPU time, needs the right
-CUDA toolkit, the right compiler, gigabytes of headroom, and one matching
-torch, and a single mismatch anywhere produces a wall of C++ template errors.
-Compiling is the single largest cause of *"this package won't install."*
+complicated**: a flash-attention build is hours of CPU time, needs the right
+CUDA toolkit, the right compiler, enough RAM, gigabytes of headroom, one matching
+torch... and a single mismatch anywhere produces a wall of C++ template errors.
+Compiling is the single largest cause of *"this package won't install."*, at least in the ComfyUI ecosystem.
 
-We wanted to hand Python users a way out -- **especially ComfyUI users**, who
-routinely install *many* of these at once: a modern workflow can pull in
-flash-attention, sageattention, nvdiffrast and pytorch3d before it renders a
-single frame. Multiply hours-per-compile by packages-per-workflow by every
-user separately, and the only sane answer is to compile each combination
-**once, here**, and let everyone download the result.
+We wanted to hand Python CUDA users a way out, **especially ComfyUI users**, who
+routinely have to install *many* Python CUDA packages.
 
-[comfy-env](../comfy-env/index.md)'s **one-click promise** -- install a node
-pack and it just runs, no build tools, no CUDA toolkit, no PhD in dependency
-management -- is built directly on this index.
-
-Worth being precise about what that rules out. Compilation can still happen
-on the user's machine:
-
-- plenty of small C++ extensions build from source in seconds, and pip
-  handles them perfectly well
-- an isolated env can deliver its own compiler toolchain through conda and
-  use it like any other dependency
-- a few packages here **JIT their CUDA kernels at runtime by design**
-  (gsplat...)
-
-What is forbidden is the **user** doing toolchain setup, anything touching
-the host environment, and above all **CUDA kernel builds**.
-
-**One click installs.**
+!!! info ""
+    *How the compiling happens here: [The build process](build-process.md)*
 
 ## How do I use it?
 
-The index is plain PEP 503 -- anything that can install from a URL can use
-it, with **no coupling to any particular isolation layer or launcher**. Pick
-the wheel matching your environment's (python, torch, CUDA, OS) and pin it:
+The index is plain PEP 503: anything that can install from a URL can use
+it, with **no coupling to any particular isolation layer or launcher**.
+
+**Put your (CUDA, torch) combo in the URL** -- there is one index directory
+per pairing, the same convention as `download.pytorch.org/whl/cu128/`:
 
 ```bash
-pip install "flash_attn==2.8.3+cu128torch2.8" \
-    --extra-index-url https://pozzettiandrea.github.io/cuda-wheels/v2/
+pip install flash_attn \
+    --extra-index-url https://pozzettiandrea.github.io/cuda-wheels/cu128/torch2.8/
 ```
 
-The one rule: this index is **selected from, not resolved against**. A
-wheel's CUDA and torch versions live in its local version tag, and pip cannot
-match those against your machine -- an unpinned install grabs the highest
-combo, not the one you can load. Pin the full version as above, or use the
+That directory contains only wheels built for cu128 + torch 2.8, so pip's
+normal resolution does the rest: your Python version and OS are the two tags
+pip matches by itself. The same command works verbatim on Windows and Linux.
+
+The flat [v2 index](https://pozzettiandrea.github.io/cuda-wheels/v2/) also
+exists, but be careful: it should be **selected from, not resolved against**.
+It mixes every combo, and pip cannot read the `+cu128torch2.8` tag against
+your machine -- an unpinned install there grabs the highest combo, not the
+one you can load. Use it only with a full version pin
+(`"flash_attn==2.8.3+cu128torch2.8"`), or let the
 [install helper](https://pozzettiandrea.github.io/cuda-wheels/dashboard/install.html)
-to pick for you.
+pick for you.
 
 No `nvcc`, no Visual Studio, no waiting.
-
-!!! info "How comfy-env currently uses it"
-    [comfy-env](../comfy-env/index.md) resolves names like `flash_attn`
-    against this index automatically for each node pack's environment --
-    matching the tags, installing by direct URL, with fallbacks. See
-    [comfy-env ADR-0004](../comfy-env/adr/0004-prebuilt-cuda-wheel-index.md).
-

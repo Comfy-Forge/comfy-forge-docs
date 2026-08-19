@@ -3,6 +3,10 @@
 From a YAML config to a wheel a resolver can find: what runs, where it
 lands, and what to check when it breaks.
 
+!!! info ""
+    *Where all these files live, and how to add a package:
+    [Repo breakdown](repo-breakdown.md)*
+
 ## What happens after a build?
 
 ```mermaid

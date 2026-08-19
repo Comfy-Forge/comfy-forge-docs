@@ -4,17 +4,17 @@ You just downloaded a 200 MB wheel. pip installed it without a word of
 complaint. **Will it actually run?**
 
 Here is the uncomfortable part: pip checked *two* of the seven things that can
-kill it -- the Python tag and the platform tag. The other four are promises
-the binary makes silently, and the machine only tells you a promise was broken
+kill it -- the Python tag and the platform tag. The other five are demands the
+binary never states out loud, and the machine only tells you one went unmet
 when the code finally reaches it: at import, or twenty minutes into a render.
 
 A wheel is Python code plus compiled extension modules (`.so` / `.pyd`)
 zipped together. The Python half runs anywhere; the compiled half is a **set
-of promises about the machine it will land on**. Source code asks for
+of demands on the machine it will land on**. Source code asks for
 nothing, but a binary says *"I assume a GPU of this
 generation, exactly this torch and its CUDA line, this exact Python, this CPU,
-this OS."* Every promise below is one axis of the farm's build matrix -- and
-**each broken promise has its own famous error message**, so this page doubles
+this OS."* Every demand below is one axis of the farm's build matrix -- and
+**each unmet demand has its own famous error message**, so this page doubles
 as a field guide to the crash you just had.
 
 ### 1. "Your GPU speaks my instruction set"
@@ -115,7 +115,7 @@ build against torch and must match the torch they load into.
 This means that every CUDA line (12.4, 12.6...) torch compiles and ships for is a CUDA line
 this farm must ship too.
 
-Promise 2 already pinned the torch *version*; this one pins the torch **CUDA
+Demand 2 already pinned the torch *version*; this one pins the torch **CUDA
 line**, and the loader enforces it just as hard. A cu126 torch pulled the
 **12.6** runtime libraries into the environment
 (`nvidia-cuda-runtime-cu12==12.6.*` and friends). A cu128-built extension asks
@@ -171,7 +171,7 @@ that gcc and clang follow versus MSVC's, which mangle names and pass arguments
 differently. Different system libraries entirely. **A Linux build cannot load
 on Windows on byte-identical hardware.**
 
-Both this promise and the next land in the same field of the filename:
+Both this demand and the next land in the same field of the filename:
 
 ```text
 ...-cp312-cp312-win_amd64.whl                 Windows          + x86-64
@@ -180,7 +180,7 @@ Both this promise and the next land in the same field of the filename:
 
 ### 7. "Your glibc is at least this new"
 
-On Linux the OS promise has a *floor* as well as a name: a binary linked
+On Linux the OS demand has a *floor* as well as a name: a binary linked
 against glibc 2.35 will not start on a distro shipping 2.31. `auditwheel`
 bundles what it safely can and stamps whatever floor it could not avoid --
 often as a dual tag, e.g. `manylinux_2_34_x86_64.manylinux_2_35_x86_64`,
@@ -207,7 +207,7 @@ old-distro user actually turns up.
 
 !!! failure "`libc.so.6: version 'GLIBC_2.35' not found`"
     The tag matched well enough for pip to install it, and the loader
-    disagreed. The glibc floor is the one promise pip cannot fully check up
+    disagreed. The glibc floor is the one demand pip cannot fully check up
     front.
 
 !!! info "What this farm covers"

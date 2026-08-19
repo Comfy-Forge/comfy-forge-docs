@@ -64,3 +64,6 @@ becomes CI jobs -- is walked through in
 [How does a package become build jobs?](repo-breakdown.md#how-does-a-package-become-build-jobs)
 -- along with how to add a package of your own.
 
+!!! info ""
+    *The upstream index this coverage tracks is not a tidy place:
+    [Upstream PyTorch quirks](upstream-quirks.md)*
