@@ -14,7 +14,9 @@
 effective(cuda, torch) = policy[cuda]
     ∩ nvcc_supported(cuda)              # hard toolkit constraint
     ∩ torch_runnable(cuda, torch)       # floor/ceiling from torch's own build
-  + PTX on the highest arch of each major family present
+  + PTX twice: on the highest arch overall (real codegen for future
+    majors), and on the highest arch below any major gap (the
+    compatibility net that catches devices we ship no cubin for)
 ```
 
 Per-package overrides (`arch_list_by_cuda` / `arch_list`) still win over the
@@ -79,10 +81,17 @@ Two consequences, both verified with ptxas during review:
    cu128+ wheels carried compute_120 PTX, which *cannot* JIT for sm_100/103
    (B200/B300) or sm_110 (Thor) — ptxas rejects a .target above the device.
    The promise held only for CC ≥ 12.1. Hence PTX **per major family**.
-2. **A major with no cubin, below the PTX arch, is a dead device** — it does
-   not "fall back", it gets `cudaErrorNoKernelImageForDevice` at first
+2. **A major with no cubin and no PTX at or below it is a dead device** — it
+   does not "fall back", it gets `cudaErrorNoKernelImageForDevice` at first
    kernel launch (lazy loading defers it past import). Exclusions are
    therefore computed and printed (on the P.A.M page), never implied.
+3. **The same-major rule does not apply to arch-conditional targets.** An
+   `sm_100a` cubin runs on CC 10.0 exactly — not 10.3; family-conditional
+   `10.0f` (CUDA 12.9+) restores forward-compat within the major. So "10.3
+   is covered by 10.0" holds for the *policy rows* (plain targets) but NOT
+   for packages compiling `a`-suffixed CUTLASS kernels (e.g. sageattn3's
+   FP4): those must declare every CC they serve, or use `f` targets. The
+   coverage computation treats `a` entries as single points, not ranges.
 
 ## What PyTorch itself builds (the input)
 
@@ -125,18 +134,40 @@ family.**
 | cu128, cu129 | 70,75,80,86,90,100,120 | `7.0;7.5;8.0;8.6;9.0+PTX;10.0;12.0+PTX` | identical SASS set; the clamp trims 7.0 exactly where the paired torch lacks it (2.7, 2.11+), so we never ship a Volta cubin torch cannot host; **PTX per major** instead of 120-only |
 | cu130, cu132 | 75,80,86,90,100,120 | `7.5;8.0;8.6;9.0+PTX;10.0;12.0+PTX` | identical SASS set; PTX per major (upstream: none or 120-only) |
 
-Covered by same-major compat, hence deliberately absent as slots: 6.1, 8.7,
-8.8, **8.9**, 10.3, 12.1. Declared uncovered: **sm_110 (Thor)** everywhere
-and Maxwell — embedded/automotive majors and sub-0.1% desktop hardware are
-out of scope for a desktop farm.
+Coverage is three-tier, and the P.A.M page prints each combo's tiers:
+
+- **Native** (cubin, same-major): 6.1, 8.7, 8.8, **8.9**, 10.3, 12.1 ride
+  the listed cubins — deliberately not separate slots.
+- **JIT-only** (caught by a PTX net, minutes-long first import, driver-cache
+  fragile): **sm_110 (Thor)** rides `9.0+PTX` on cu128+. Functional, not
+  supported; nobody should ship a Thor product on this farm's wheels.
+- **Dead**: Maxwell after the 5.0 drop (no cubin, no PTX at or below 5.x).
+
+Why two PTX entries and not one: the JIT loads the highest PTX ≤ the device,
+and compute_90 PTX cannot express Blackwell ISA. `12.0+PTX` is the *quality*
+path for future majors; `9.0+PTX` is the *compatibility* net for the sm_11x
+gap. On cu124/126 a single `9.0+PTX` plays both roles.
+
+**Why 7.0 stays while 5.0 goes, under the same population criterion:** the
+population is not the same. Maxwell is 4 GB desktop cards that cannot run
+current workflows at all. Volta is V100 16/32 GB — near-zero on Steam but
+the cheapest usable VRAM on rental clouds (vast.ai / RunPod), where ComfyUI
+demonstrably runs. One is dead hardware; the other is a live niche costing
+one slot on two CUDA lines that PyTorch itself still builds.
 
 A new CUDA index gets its row by running the same derivation against the
 refreshed snapshot — a reviewed PR, not an automatic commit.
 
 **8.9 (Ada) stays opt-in.** The review compiled fp16/bf16 attention kernels
-for sm_86 and sm_89: byte-identical SASS. Absent FP8 there is nothing to
-gain, and the five FP8 packages (natten, nunchaku, sageattention, torchao,
-natten_sequential) already declare 8.9. The associated hazard — source gated
+for sm_86 and sm_89: byte-identical SASS. Scope honestly stated: that is one
+representative kernel, and a library that selects tile sizes or smem budgets
+via `__CUDA_ARCH__` gets Ampere-tuned configs on Ada even with no FP8 — a
+performance delta the measurement cannot see. Such packages are exactly the
+ones that should declare 8.9, which is the opt-in working as designed. The
+five FP8 packages (natten, nunchaku, sageattention, torchao,
+natten_sequential) already declare it. (Population figures here and above
+are Steam-survey based — no ComfyUI hardware census exists; the VRAM-floor
+argument is the sturdier leg.) The associated hazard — source gated
 on `__CUDA_ARCH__ >= 890` compiling to stubs that dispatch selects at
 runtime — is handled by a lint (CW-ADR-0013), not by paying +1 arch on 40
 packages that don't use it.
