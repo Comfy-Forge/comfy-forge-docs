@@ -100,7 +100,7 @@ and the resolver matches both against the environment
 ([CW-ADR-0004](adr/0004-combo-encoded-versions-and-metadata-patching.md)).
 One wheel per (CUDA x torch) pair is not caution, it is the bare minimum we must do to avoid compilation.
 
-### 4. "You are running exactly this Python"
+### 4. "You are running exactly this Python version"
 
 CUDA is not callable from Python on its own. What ships is a **C++ shim** that
 Python can import and that forwards into the kernels. That shim is
@@ -151,48 +151,21 @@ Both this demand and the next land in the same field of the filename:
 
 On Linux the OS demand has a *floor* as well as a name: a binary linked
 against glibc 2.35 will not start on a distro shipping 2.31. `auditwheel`
-bundles what it safely can and stamps whatever floor it could not avoid --
+bundles what it safely can and stamps whatever floor it could not avoid,
 often as a dual tag, e.g. `manylinux_2_34_x86_64.manylinux_2_35_x86_64`,
 meaning "measured floor 2.34, requested ceiling 2.35" (pip accepts either).
 
-**This farm's floor is inherited, not chosen.** Linux builds run on stock
-`ubuntu-22.04` runners (glibc 2.35) rather than in old-glibc manylinux
-containers, so the binaries need whatever Ubuntu 22.04's toolchain gave them
--- in practice **glibc &ge; 2.34**. PyTorch itself builds in AlmaLinux 8
-containers and ships `manylinux_2_28`, reaching two distro generations
-further back:
-
-| glibc | Distros | torch's wheel | this farm's wheels |
-|---|---|---|---|
-| 2.31 | Ubuntu 20.04, Debian 11 | installs | no compatible wheel |
-| 2.28-2.33 | AlmaLinux 8, older enterprise | installs | no compatible wheel |
-| &ge; 2.34 | Ubuntu 22.04+, Debian 12+ | installs | installs |
-
-So a user on Ubuntu 20.04 can run torch but will not find these wheels -- and
-the failure is quiet (pip just skips them), not a clear error. Pushing the
-floor down would mean building inside `manylinux_2_28` containers with the
-CUDA toolchain, as PyTorch does; a real CI rework, deferred until an
-old-distro user actually turns up.
+So a user on Ubuntu 20.04 can run torch but will not find these wheels, and
+the failure is quiet (pip just skips them), not a clear error.
 
 !!! failure "`libc.so.6: version 'GLIBC_2.35' not found`"
     The tag matched well enough for pip to install it, and the loader
     disagreed. The glibc floor is the one demand pip cannot fully check up
     front.
 
-!!! info "What this farm covers"
-    Every wheel here is **x86-64**, built on `ubuntu-22.04` and
-    `windows-2022`. There are no aarch64 builds, so ARM CUDA hosts (Jetson,
-    Grace Hopper) are out of scope today -- and macOS never appears at all,
-    since Apple Silicon has no CUDA.
+## To summarise:
 
-!!! note "torch or PyTorch?"
-    Both, for different things. **PyTorch** is the project. **`torch`** is the
-    package you `pip install` and `import`. **`libtorch`** is the C++ library
-    the extension actually links against. The short import name is inherited
-    from **Torch**, the Lua framework PyTorch grew out of -- the "Py" was added
-    to the project name, never to the module.
-
-What comes out is one `.so` / `.pyd` bound to all of it at once:
+A compiled wheel is bound to all of this at once
 
 | Bound to | Because |
 |---|---|
@@ -204,24 +177,14 @@ What comes out is one `.so` / `.pyd` bound to all of it at once:
 | **OS** | gcc vs MSVC, `.so` vs `.pyd` |
 | **glibc floor** (Linux) | the runner's toolchain, measured and stamped by auditwheel |
 
-Change any one and it is a different binary -- and the axes **multiply**, they
-do not add:
-
-```text
-GPU arch  x  CUDA  x  Python  x  torch  x  CPU  x  OS
-```
-
-Six axes, not six builds. That is how one flash-attention source release
-becomes **127 wheels** here, each around 240 MB.
-
-Almost nobody upstream publishes that, and it is not laziness. Every cell in
-that grid is a **full CUDA compile** -- twenty minutes to several hours of a
+Almost no library publishes the full combination, and it is not laziness.
+Every cell in this 7 dimensional grid is a **full CUDA compile**, twenty minutes to several hours of a
 machine's life, needing a CUDA toolkit and, on Windows, a Visual Studio
-install. Covering the grid means owning a build matrix, runners and hundreds
-of gigabytes of release storage, then doing the whole thing again on the next
-torch release. That is an infrastructure job, and it has nothing to do with
-why anyone wrote the kernels in the first place. So upstream ships nothing, or
-one lucky combination, and everyone else compiles from source.
+install.
+
+!!! tip "NOTE:"
+    There are other things that could make wheels fail to run, like libstdc++ or GPU driver, but
+    these can be fixed through reinstalling VC Redist or upgrading your GPU driver.
 
 !!! tip "The saving grace: PyTorch already narrowed the grid"
     The space is not actually open-ended. **PyTorch itself only publishes
