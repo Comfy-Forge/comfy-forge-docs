@@ -60,7 +60,8 @@ What the audit of the 21 hand-copied rows found:
 
 **Implemented mechanism** (amended after implementation; an earlier draft
 described a parsed-snapshot pipeline that was never built): the owned policy
-lives in `packages/_arch_policy.yml` — per-CUDA rows plus a hand-maintained
+lives in the arch policy file (`defaults/arch_policy.yml` in the Comfy-Forge
+line; `packages/_arch_policy.yml` in the legacy layout) — per-CUDA rows plus a hand-maintained
 `arch_exceptions` map encoding the torch clamp (e.g. no sm_70 row on
 cu128/torch2.7, where torch ships none). `generate_matrix.py` reads that
 file **directly at build time**; `_defaults.yml` carries cell axes only.

@@ -7,11 +7,6 @@
     version combination PyTorch ships for CUDA**, cheaply and on repeat, so
     that installing them is a download instead of a compile.
 
-**Live pages:** [Package Index v2](https://pozzettiandrea.github.io/cuda-wheels/v2/) ·
-[Dashboard](https://pozzettiandrea.github.io/cuda-wheels/dashboard/) ·
-[Install Helper](https://pozzettiandrea.github.io/cuda-wheels/dashboard/install.html) ·
-[Full Build Matrix](https://pozzettiandrea.github.io/cuda-wheels/matrix/)
-
 Design decisions live in the [ADR series](adr/index.md)
 
 ## Why can't I just pip install flash-attention?

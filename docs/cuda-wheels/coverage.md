@@ -12,7 +12,7 @@ What is in the farm right now.
 
 | | at time of writing |
 |---|---|
-| package configs | 49 (plus `_defaults.yml` and `_arch_policy.yml`; kaolin was dropped — upstream caps torch at 2.8) |
+| package configs | 49 (plus the `defaults/` trio; kaolin was dropped — upstream caps torch at 2.8) |
 | packages published | 39 |
 | wheels published | ~7,700 |
 | combinations per package | up to 250 (x86+Windows), +112 for aarch64 opt-ins |
@@ -32,13 +32,13 @@ references define the target:
   `download.pytorch.org/whl/` actually publishes. Scraped daily-ish and
   rendered live at
   [/matrix/](https://pozzettiandrea.github.io/cuda-wheels/matrix/); the grid in
-  `packages/_defaults.yml` is **derived from it**, so a new torch release or
+  the grid in `defaults/python_cuda_torch_os_policy.yml` is **derived from it** (via the committed `defaults/scraped_torch_matrix.json`), so a new torch release or
   CUDA line widens the farm automatically.
 - **The P.A.M** -- the *PyTorch Arches Matrix*: which GPU architectures
   (`sm_75` ... `sm_120`) each of those combos is compiled for. Unlike the
   combos, the arch lists are **not** derived -- they are an owned policy
   ([CW-ADR-0012](adr/0012-arch-list-policy.md)) that uses PyTorch's own lists
-  as input, kept in `packages/_arch_policy.yml`.
+  as input, kept in `defaults/arch_policy.yml`.
 
     Getting an arch list wrong is **silent** -- it fails *after* a successful
     install. A real case from this farm: `diso` cannot build for Maxwell at
@@ -52,7 +52,7 @@ references define the target:
     - **A package can override the policy**, because kernel floors belong to
       packages. Resolution order, highest first: per-combo `arch_list` in the
       package's own `build_matrix` &rarr; `arch_list_by_cuda[cuda]` &rarr;
-      `arch_list` &rarr; the per-CUDA policy row in `_arch_policy.yml`.
+      `arch_list` &rarr; the per-CUDA policy row in `defaults/arch_policy.yml`.
 
 What we skip, on purpose: pre-release Pythons, free-threaded builds
 ([CW-ADR-0010](adr/0010-no-free-threaded-builds.md)), and the cells upstream

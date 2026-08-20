@@ -198,4 +198,3 @@ install.
     is large but knowable in advance and re-derivable whenever upstream moves.
     [How that becomes build jobs](build-process.md#how-does-a-package-become-build-jobs)
     walks the arithmetic.
-

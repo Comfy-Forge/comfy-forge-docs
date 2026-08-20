@@ -6,29 +6,40 @@ lands, and what to check when it breaks.
 ## Where do the files live?
 
 ```text
-cuda-wheels/
-├── packages/            WHAT to build -- one YAML per package
-│   ├── _defaults.yml       the shared cell grid (GENERATED from the PCWM)
-│   ├── _arch_policy.yml    arch policy + exceptions, read at BUILD time (CW-ADR-0012)
-│   ├── flash_attn.yml      per-package config: source repo, tag, build knobs
-│   ├── nvdiffrast.yml      ...
-│   ├── ...
-│   └── README.md           authoritative "how to add a package" reference
+cuda-wheels/                          (the Comfy-Forge line's layout)
+├── defaults/            WHAT the farm builds, farm-wide
+│   ├── python_cuda_torch_os_policy.yml  the PCTO axes: owned policy
+│   │                                    (platforms, python bounds,
+│   │                                    supported_cudas, defaults) + the
+│   │                                    GENERATED combinations rows
+│   ├── arch_policy.yml                  the owned arch policy + exceptions,
+│   │                                    read at BUILD time (CW-ADR-0012)
+│   ├── scraped_torch_matrix.json        what upstream ships (the committed
+│   │                                    PCWM snapshot -- derivation input)
+│   └── NOTES.md                         farm-wide constraint notes
 │
-├── patches/             HOW to fix it -- edits to the upstream source so it
-│                        compiles here; one Python script per package
-│   ├── flash_attn.py       runs on the checked-out source before building
-│   ├── pytorch3d.py        ...
-│   └── ...
+├── packages/            one FOLDER per package = the complete unit
+│   ├── flash_attn/
+│   │   ├── package.yml          source repo, tag, build knobs
+│   │   ├── arch_override.yml    arch_list / arch_list_by_cuda (optional)
+│   │   └── patches/             pre-build source patches (optional)
+│   ├── natten/
+│   │   ├── package.yml
+│   │   ├── pcto_override.yml    build_matrix / min_pytorch / links_torch
+│   │   ├── arch_override.yml
+│   │   ├── patches/natten.py
+│   │   └── NOTES.md             this package's quirks
+│   └── ...                      49 packages
 │
 ├── scripts/             the machinery
+│   ├── package_loader.py            ONE loader: folders + overrides ->
+│   │                                the same flat config dict everywhere
 │   ├── generate_matrix.py           configs  -> CI job matrix
-│   ├── derive_defaults.py           PCWM + arch policy -> _defaults.yml
+│   ├── derive_defaults.py           scraped matrix + policy -> generated rows
 │   ├── phantom_combos.json          cells upstream never shipped (GENERATED)
 │   ├── torch_watch.py               daily upstream-combo watcher (reports)
-│   ├── fetch_torch_matrix.py        WHICH (cuda, torch, py, os) combos exist
-│   ├── fetch_pytorch_arch_lists.py  WHICH sm_XX arches torch built inside one
-│   ├── generate_index.py            releases -> PEP 503 index
+│   ├── fetch_torch_matrix.py        scrape upstream / render the matrix page
+│   ├── generate_index.py            releases -> PEP 503 index (into _site/)
 │   ├── generate_dashboard.py        releases -> dashboard page
 │   ├── patch_wheel_version.py       align wheel METADATA with its filename
 │   ├── gap_analysis.py              declared vs published: what is missing
@@ -39,8 +50,8 @@ cuda-wheels/
 │   ├── workflows/
 │   │   ├── build.yml                the build entry point (workflow_dispatch)
 │   │   ├── _chain_link*.yml         resume a 6h-capped compile (prototype)
-│   │   ├── update-index.yml         regenerate + deploy the index on push
-│   │   ├── torch-matrix.yml         regenerate the PCWM page (no deploy)
+│   │   ├── update-index.yml         build _site/ + deploy to gh-pages
+│   │   ├── torch-matrix.yml         refresh scraped_torch_matrix.json only
 │   │   ├── torch-watch.yml          daily: report new upstream combos
 │   │   └── get-sources.yml          publish patched sources for inspection
 │   └── actions/
@@ -48,17 +59,23 @@ cuda-wheels/
 │       ├── setup-build-env/         python, torch, build deps
 │       └── build-wheel/             checkout, patch, compile, repair, rename
 │
-├── docs/                the published GitHub Pages site (PEP 503 index)
-├── notes/packages.md    per-package quirks and constraints
 └── README.md
 ```
+
+**The website is not in main.** The PEP 503 index, dashboard and matrix
+page are built into `_site/` at deploy time and exist only on the
+`gh-pages` branch; the shorter-index guard compares against a checkout of
+the live branch, and the matrix page renders from the committed
+`scraped_torch_matrix.json` without touching upstream.
+
 
 Two rules keep this tidy, and both are load-bearing:
 
 - **`packages/` is declarative.** A package is data, never a shell script
   ([CW-ADR-0001](adr/0001-declarative-package-configs.md)).
-- **`patches/` is the only place source is modified**, as an idempotent Python
-  script. Upstream source is never forked to fix a build.
+- **A package's `patches/` is the only place source is modified**, as
+  idempotent Python scripts co-located with the config. Upstream source is
+  never forked to fix a build.
 
 ## How does a package become build jobs?
 
@@ -67,7 +84,7 @@ Five steps, each **subtracting** from the one before:
 | # | Step | Source | Result |
 |---|---|---|---|
 | 1 | **Upstream truth** | `fetch_torch_matrix.py` scrapes PyTorch's wheel index | every combo torch actually shipped |
-| 2 | **The shared grid** | `packages/_defaults.yml` | 21 `(cuda, torch)` pairings = **190 combos** |
+| 2 | **The shared grid** | `defaults/python_cuda_torch_os_policy.yml` | 21 `(cuda, torch)` pairings = **190 combos** |
 | 3 | **Package overrides** | the package's own `combinations`, `platforms`, `min_pytorch`, `arch_list_by_cuda` | a narrowed grid, if declared |
 | 4 | **Minus phantom combos** | curated denylist ([CW-ADR-0007](adr/0007-phantom-combos-denylist.md)) | −11 that upstream never shipped = **179 buildable** |
 | 5 | **Minus already built** | `generate_matrix.py` queries the rolling release | only the missing combos |
@@ -107,8 +124,8 @@ platforms: ["linux", "windows"]
 flowchart TB
     subgraph declare["1. Declare"]
         yml["packages/<name>.yml<br/>source repo+tag, patches,<br/>deps, arch lists, sharding"]
-        defaults["packages/_defaults.yml<br/>shared cuda x torch x python grid,<br/>arch-list policy"]
-        patch["patches/<name>.py<br/>pre-build source patches"]
+        defaults["defaults/*.yml<br/>PCTO axes + arch policy<br/>(+ scraped torch matrix)"]
+        patch["packages/<name>/patches/<br/>pre-build source patches"]
     end
     subgraph plan["2. Plan"]
         gen["scripts/generate_matrix.py<br/>expand configs into job matrices"]
@@ -227,7 +244,7 @@ A YAML config, plus a Python patch script if the source needs fixing:
 name: flash_attn
 source_repo: Dao-AILab/flash-attention
 source_tag: v2.8.3
-patch_script: patches/flash_attn.py
+patch_script: packages/flash_attn/patches/flash_attn.py
 extra_deps: psutil
 nvcc_flags: -diag-suppress 221
 arch_list_by_cuda:
@@ -263,5 +280,5 @@ gh workflow run build.yml -f package=flash_attn        # full grid
 | `sequential_checkpoint` | timeout-and-resume chain (prototype, 2 links) — see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
 | `links_torch: false` | package never links libtorch: built once per (cuda, python, platform), listed under every torch ([CW-ADR-0011](adr/0011-torch-independent-packages.md)) |
 
-`packages/README.md` is the authoritative reference; `notes/packages.md`
+`packages/README.md` is the authoritative reference; each package folder's `NOTES.md`
 collects per-package quirks.
