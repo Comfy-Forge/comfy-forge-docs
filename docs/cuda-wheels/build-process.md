@@ -16,8 +16,6 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 │   │                                    read at BUILD time (CW-ADR-0012)
 │   ├── scraped_torch_matrix.json        what upstream ships (the committed
 │   │                                    PCWM snapshot -- derivation input)
-│   └── NOTES.md                         farm-wide constraint notes
-│
 ├── packages/            one FOLDER per package = the complete unit
 │   ├── flash_attn/
 │   │   ├── package.yml          source repo, tag, build knobs
@@ -28,7 +26,7 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 │   │   ├── pcto_override.yml    build_matrix / min_pytorch / links_torch
 │   │   ├── arch_override.yml
 │   │   ├── patches/natten.py
-│   │   └── NOTES.md             this package's quirks
+│   │   └── README.md            this package's quirks (rendered in-folder)
 │   └── ...                      49 packages
 │
 ├── scripts/             the machinery
@@ -280,5 +278,5 @@ gh workflow run build.yml -f package=flash_attn        # full grid
 | `sequential_checkpoint` | timeout-and-resume chain (prototype, 2 links) — see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
 | `links_torch: false` | package never links libtorch: built once per (cuda, python, platform), listed under every torch ([CW-ADR-0011](adr/0011-torch-independent-packages.md)) |
 
-`packages/README.md` is the authoritative reference; each package folder's `NOTES.md`
+`packages/README.md` is the authoritative reference; each package folder's `README.md`
 collects per-package quirks.
