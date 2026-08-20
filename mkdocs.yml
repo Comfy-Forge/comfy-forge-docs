@@ -159,3 +159,5 @@ nav:
           - "0011: Torch-independent packages": cuda-wheels/adr/0011-torch-independent-packages.md
           - "0012: Arch-list policy": cuda-wheels/adr/0012-arch-list-policy.md
           - "0013: Arch verification": cuda-wheels/adr/0013-arch-verification.md
+          - "0014: Zero-shim sharding": cuda-wheels/adr/0014-zero-shim-sharding.md
+          - "0015: linux_aarch64 opt-in": cuda-wheels/adr/0015-linux-aarch64-opt-in.md

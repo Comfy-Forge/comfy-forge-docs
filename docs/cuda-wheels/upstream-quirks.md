@@ -127,3 +127,47 @@ The through-line, if there is one: **observation beats declaration.** Every rule
 above replaced an assumption about how the index should be shaped with a fact
 about how it is. The scraper is a little uglier for it and correct instead of
 plausible, which is the trade this whole repository keeps making.
+
+## The toolchain half: what a new CUDA or torch release breaks
+
+The index has quirks; the toolchains have teeth. Every entry below was
+found the expensive way — by a red build — during the torch 2.12/2.13 and
+CUDA 13.2 expansion, and each is now handled by a patch or a policy.
+
+**torch 2.13 headers require C++20.** Designated initializers and
+bit-field default member initializers appeared in `c10/` headers. GCC
+tolerates them under `-std=c++17` as extensions, so Linux kept building;
+MSVC and Windows nvcc hard-error (`C7555`, "data member initializer is not
+allowed"). Every package that pins c++17 — or passes no `/std` at all,
+letting cl default even older — broke on Windows at once: cumesh, drtk,
+cubvh, pytorch3d. The fix is mechanical (pin c++20 everywhere; it is valid
+on every CUDA line in the grid) but must be re-applied per package,
+because each hardcodes the standard its own way.
+
+**CUDA 13.2's CCCL 3.x removed CUB's 4-argument in-place overloads.**
+`DeviceScan::ExclusiveSum(d_temp, bytes, d_data, num)` no longer exists;
+the arguments silently bind to a NEW env-based overload and produce
+garbage template errors (`InputIteratorT=nullptr_t`, "NumItemsT must be an
+integral type"). The 5-arg form with `d_in == d_out` is still in-place and
+valid everywhere — cumesh needed ten call sites rewritten.
+
+**CUDA 13.2's CCCL hard-errors under MSVC's traditional preprocessor.**
+`preprocessor.h` now `#error`s unless cl runs with `/Zc:preprocessor`, and
+torch's `cpp_extension` does not pass it. The farm sets it via the `CL`
+env var for CUDA ≥ 13.2 — cl.exe reads it on every invocation, including
+the ones nvcc spawns.
+
+**NVIDIA's ARM apt repo starts at CUDA 12.5.** There is no 12.4 toolkit
+for `ubuntu2404/sbsa` at all — cu124 is structurally unbuildable on
+GitHub's ARM runners and is deliberately absent from the ARM arch policy.
+
+**Old torch vs new MSVC breaks in the *other* direction.** torch 2.6's
+`ivalue_inl.h` fails ("type name is not allowed") under the runner image's
+current MSVC — backfilling old-combo Windows cells can become impossible
+without pinning an older toolset. Those cells get written off case by
+case rather than fought.
+
+The pattern across all five: **the farm sits between two toolchains that
+move independently**, and a new release on either side breaks the oldest
+thing on the other. The patches directory is where the treaty gets
+renegotiated.

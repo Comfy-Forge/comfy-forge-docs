@@ -58,11 +58,16 @@ What the audit of the 21 hand-copied rows found:
 | Python version | none | ABI tag; zero relationship to GPU codegen. |
 | OS | none | nvcc targets the same arches everywhere. PyTorch's Windows 6.1 entry is a performance tune for its own kernels, already covered by 6.0 via same-major compat. |
 
-The torch bounds come from a **committed snapshot** of PyTorch's build
-tables — parsed (`ast.literal_eval` for ≥ 2.13's Python dict, regex for the
-older bash), never executed, refreshed by a non-deploying workflow whose
-diffs arrive as PRs. Build output is a function of the git SHA; there is no
-network fetch at build time.
+**Implemented mechanism** (amended after implementation; an earlier draft
+described a parsed-snapshot pipeline that was never built): the owned policy
+lives in `packages/_arch_policy.yml` — per-CUDA rows plus a hand-maintained
+`arch_exceptions` map encoding the torch clamp (e.g. no sm_70 row on
+cu128/torch2.7, where torch ships none). `generate_matrix.py` reads that
+file **directly at build time**; `_defaults.yml` carries cell axes only.
+Arch changes go through this ADR process by the owner's explicit decision,
+never through automation. The live `build_cuda.sh` fetch/execute fallback is
+severed from the build path. Build output is a function of the git SHA;
+there is no network fetch at build time.
 
 ## The coverage rule (what a list actually promises)
 
@@ -200,9 +205,10 @@ delivery mechanism.
 
 ## Consequences
 
-- `_defaults.yml` combination rows lose their `arch_list:`; a five-row
-  `arch_policy` table replaces them. `resolve_arch_list` gains the clamp;
-  the live `build_cuda.sh` fetch/execute path is deleted.
+- `_defaults.yml` combination rows lose their `arch_list:` (done); the
+  per-CUDA `arch_policy` table plus `arch_exceptions` replaces them (done);
+  the live `build_cuda.sh` fetch is severed from the build path (done — the
+  fetcher file survives only for the torch watcher).
 - The Volta flicker becomes rational: same policy everywhere, trimmed
   per-combo by a recorded bound rather than by transcription.
 - Dropping 5.0 is a **coverage regression**, decided here; it ships as its

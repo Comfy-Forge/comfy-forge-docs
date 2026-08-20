@@ -49,3 +49,23 @@ personal hardware and blocks outside contributors from running builds.
   internals that shift between releases; nothing asserts the link job
   actually reused the shards (a silent full recompile just runs slow).
   Direction: assert object reuse loudly.
+
+## Amendments (post-implementation)
+
+- **Sharding is now zero-shim on Linux** — see
+  [CW-ADR-0014](0014-zero-shim-sharding.md). The per-package shard shims
+  this ADR's mechanism required are obsolete except natten's (cmake,
+  Windows).
+- **The 6-hour cap has a second, sneakier form**: GitHub applies a *default*
+  `timeout-minutes: 360` to every job, **including on self-hosted runners**
+  where no platform cap exists. The build jobs now set
+  `timeout-minutes: 2880` — a no-op on hosted runners (hard-capped at 6h
+  regardless) that removes the phantom cap from the homelab.
+- **The queue has its own cap**: a job that waits more than 24 hours is
+  discarded. Dispatching more work than the pool clears in a day starves
+  the tail — observed live when ~2,100 queued jobs killed 13 whole runs.
+  Batch dispatches to what ~40 runners clear well inside 24h.
+- **ToS note**: chaining jobs past the 6-hour cap was reviewed against
+  GitHub's Actions policy and is squarely within intended use (building
+  and publishing this repository's software); the cap's documented
+  consequence is cancellation, not sanction.

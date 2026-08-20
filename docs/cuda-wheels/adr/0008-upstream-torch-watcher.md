@@ -1,6 +1,12 @@
 # CW-ADR-0008: Upstream torch watcher
 
-**Status:** PROPOSED (design agreed 2026-08; not yet implemented)
+**Status:** accepted with deviation — shipped as REPORT-ONLY. The watcher
+(`scripts/torch_watch.py` + a daily `torch-watch.yml` cron) detects new
+upstream (cuda, torch) pairings and opens a fingerprinted issue; it never
+commits or dispatches builds, unlike this ADR's original auto-build design.
+An `--apply` mode exists but is not wired to CI, and its arch-list emission
+was removed once arch data left `_defaults.yml` (CW-ADR-0012). Grid updates
+flow through `scripts/derive_defaults.py`, run manually.
 
 ## Context
 

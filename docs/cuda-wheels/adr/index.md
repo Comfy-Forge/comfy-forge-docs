@@ -22,3 +22,5 @@ rather than hidden.
 | [0011](0011-torch-independent-packages.md) | Torch-independent packages lose the torch axis | A package that never links libtorch is built once per (cuda, python, platform); identified by DT_NEEDED, not by Requires-Dist. |
 | [0012](0012-arch-list-policy.md) | Arch lists: per-CUDA policy, clamped by torch runnability | Derived per CUDA from PyTorch's own union minus dead population (−5.0), clamped by toolkit + torch bounds; +PTX per major family. Supersedes 0005's mirror-PyTorch rule. |
 | [0013](0013-arch-verification.md) | The arch list is asserted, not assumed | **Proposed.** cuobjdump post-build assertion, FP8/arch-gate lint, per-wheel provenance and build_epoch. |
+| [0014](0014-zero-shim-sharding.md) | Zero-shim sharding | `sharding: N` is the whole opt-in: an nvcc-seat wrapper hash-partitions TUs; shards hand off a content-addressed ccache; the link job replays and asserts ≥90% hits. |
+| [0015](0015-linux-aarch64-opt-in.md) | linux_aarch64 as an opt-in platform | Per-package platform opt-in; own ARM arch table (Thor native on 13.x); cu124 unbuildable (sbsa repo starts at 12.5); piloted green on cc_torch. |

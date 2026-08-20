@@ -12,11 +12,11 @@ What is in the farm right now.
 
 | | at time of writing |
 |---|---|
-| package configs | 50 (plus `_defaults.yml` and `_arch_policy.yml`) |
+| package configs | 49 (plus `_defaults.yml` and `_arch_policy.yml`; kaolin was dropped — upstream caps torch at 2.8) |
 | packages published | 39 |
-| wheels published | ~6,800 |
-| combinations per package | up to 229 |
-| coverage | CUDA 12.4-13.0 x torch 2.4-2.13 x Python 3.10-3.14 x {Linux, Windows} |
+| wheels published | ~7,700 |
+| combinations per package | up to 250 (x86+Windows), +112 for aarch64 opt-ins |
+| coverage | CUDA 12.4-13.2 x torch 2.4-2.13 x Python 3.10-3.14 x {Linux, Windows, and per-package linux_aarch64} |
 
 The repository layout -- every directory, script and workflow, and the two
 rules that keep them tidy -- is broken down in
@@ -55,9 +55,12 @@ references define the target:
       `arch_list` &rarr; the per-CUDA policy row in `_arch_policy.yml`.
 
 What we skip, on purpose: pre-release Pythons, free-threaded builds
-([CW-ADR-0010](adr/0010-no-free-threaded-builds.md)), aarch64 (for now), and
-the cells upstream never shipped
-([CW-ADR-0007](adr/0007-phantom-combos-denylist.md)).
+([CW-ADR-0010](adr/0010-no-free-threaded-builds.md)), and the cells upstream
+never shipped ([CW-ADR-0007](adr/0007-phantom-combos-denylist.md)).
+**aarch64 is no longer skipped wholesale**: it is an opt-in platform per
+package ([CW-ADR-0015](adr/0015-linux-aarch64-opt-in.md)), piloted green on
+cc_torch — 112 ARM cells including Thor-native cu13.x builds; cu124 is
+unbuildable on ARM (NVIDIA's sbsa repo starts at 12.5).
 
 The mechanism -- how the PCWM becomes grid rows, and how a package's config
 becomes CI jobs -- is walked through in

@@ -95,6 +95,14 @@ platforms: ["linux", "windows"]
 
 ## What happens after a build?
 
+!!! info ""
+    *The index deploy at the end of this pipeline is **opt-in** (a build
+    dispatched with `update_index=true`): by default a build run cannot
+    touch the live index. Wheels land in the rolling release immediately;
+    the index catches up on the next **Update Index** run (push to main or
+    manual dispatch).*
+
+
 ```mermaid
 flowchart TB
     subgraph declare["1. Declare"]
@@ -170,26 +178,45 @@ GPU architectures lack primitives newer code assumes (see the `diso` /
 
 ### What if a compile takes longer than 6 hours?
 
-Builds default to GHA-hosted runners; a `runner` input switches to self-hosted
-homelab machines. Long CUDA compiles get three escape hatches
+Builds default to GHA-hosted runners; a `runner` input switches to
+self-hosted homelab machines. Long CUDA compiles get three escape hatches
 ([CW-ADR-0006](adr/0006-fitting-cuda-compiles-into-hosted-ci.md)):
 
-1. **Disk freeing** -- the runner's dotnet/android/ghc/swift images are deleted
-   up front.
-2. **Sharding** (`sharding: N`) -- N jobs each compile a subset of `.cu` files
-   and upload object tarballs; a link-only job assembles the wheel.
-3. **Sequential checkpointing** (`sequential_checkpoint: <seconds>`) --
-   **a prototype today.** The compile runs under `timeout`; on expiry the
-   entire `source/` tree is tarred as an artifact -- sources *and* `build/`
-   together, in PAX format so nanosecond mtimes survive and ninja's restat
-   check still works -- and a chained job (`_chain_link.yml`) resumes it.
+1. **Disk freeing** -- the runner's dotnet/android/ghc/swift images are
+   deleted up front.
+2. **Sharding (`sharding: N`)** -- the primary fix, and since
+   [CW-ADR-0014](adr/0014-zero-shim-sharding.md) a one-line opt-in: a
+   wrapper in the nvcc seat hash-partitions translation units across N
+   jobs; shards hand off their **compiler cache** (not the build tree);
+   the link job unions the caches, replays the build as hits, links one
+   ordinary fat wheel, and **fails loudly below a 90% hit rate**. A
+   flash-attention cell at `sharding: 4` is four ~80-minute jobs plus a
+   minutes-long link. Windows uses the older generic source-list
+   injection with `.obj` handling and `LINK=/FORCE:UNRESOLVED` at shard
+   stage.
+3. **Sequential checkpointing (`sequential_checkpoint: <seconds>`)** --
+   a prototype: the compile runs under `timeout`; on expiry the build
+   tree is tarred to an artifact and a chained job resumes it.
 
-    !!! warning "Two links, so one resume"
-        Only `link-0` and `link-1` are wired per platform
-        (`build.yml`), so checkpointing currently buys **a single**
-        continuation, not an open-ended ladder. The `link-0..9` "10-job
-        ladder" described in the workflow comments does not exist yet; a
-        compile needing more than two slots still will not finish.
+!!! warning "Two links, so one resume"
+    Only link-0 and link-1 are wired per platform (`build.yml`), so
+    checkpointing currently buys a single continuation. The link-0..9
+    "10-job ladder" described in the workflow comments does not exist
+    yet; a compile needing more than two slots still will not finish.
+
+Three caps to know, all discovered the hard way:
+
+- **6 hours per job** on GitHub-hosted runners, immovable.
+- **A hidden default of 6 hours everywhere else too**: GitHub sets
+  `timeout-minutes: 360` by default *even on self-hosted runners*. The
+  build jobs set `timeout-minutes: 2880` so the homelab actually gets its
+  long-job capability.
+- **24 hours maximum queue wait** -- a job queued longer is discarded.
+  Don't dispatch more than the runner pool clears in a day.
+- **256 entries per job matrix** -- cells x shards per dispatch must stay
+  under it; an oversized matrix fails the run *with every listed job
+  green*, because the offending job is never created. Slice full-grid
+  overwrites of sharded packages with the cuda/pytorch/python filters.
 
 ## How do I add a package?
 
@@ -232,7 +259,9 @@ gh workflow run build.yml -f package=flash_attn        # full grid
 | `nvcc_flags` | appended to the nvcc command line |
 | `arch_list` / `arch_list_by_cuda` | override the inherited GPU architectures |
 | `min_pytorch` | floor, for packages that do not support older torch |
-| `sharding` / `sequential_checkpoint` | see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
+| `sharding: N` | split one cell's compile across N parallel jobs + a link job — the **entire** opt-in on Linux ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)); see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
+| `sequential_checkpoint` | timeout-and-resume chain (prototype, 2 links) — see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
+| `links_torch: false` | package never links libtorch: built once per (cuda, python, platform), listed under every torch ([CW-ADR-0011](adr/0011-torch-independent-packages.md)) |
 
 `packages/README.md` is the authoritative reference; `notes/packages.md`
 collects per-package quirks.

@@ -110,7 +110,12 @@ order.
 
 - `spconv` and `cumm` stop building roughly four redundant wheels per CUDA
   line. On today's grid that is the difference between ~180 wheels each and
-  ~40.
+  ~40. **Implemented:**
+  `generate_matrix.py` collapses the torch axis for `links_torch: false`
+  packages (one build per (cuda, python, platform) against the newest torch
+  row of the CUDA line), and `wheel_exists` accepts ANY torch tag for them,
+  so retagged history never rebuilds. Measured: cumm's pending jobs fell
+  70 → 10, spconv's 104 → 21.
 - The two hand-written `build_matrix` blocks that exist for this reason
   (`flashinfer`, `llama_cpp_python`) become a single field, and stop being a
   pattern the next contributor copies without understanding. `vllm` keeps its
