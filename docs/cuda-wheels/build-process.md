@@ -61,17 +61,6 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 └── README.md
 ```
 
-Examples:
-
-| Kind | Live example |
-|---|---|
-| `package.yml` | [flash_attn](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/flash_attn/package.yml) (plain) · [llama_cpp_python](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/llama_cpp_python/package.yml) (torch-free, checkpointed) |
-| `pcto_override.yml` | [natten](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/natten/pcto_override.yml) (min_pytorch) · [vllm](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/vllm/pcto_override.yml) (own build_matrix) |
-| `arch_override.yml` | [sageattention](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/sageattention/arch_override.yml) (the sm_89/FP8 essay) · [pyg_lib](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/pyg_lib/arch_override.yml) (per-CUDA floors) |
-| a patch | [natten.py](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/natten/patches/natten.py) (env-var injection) · [drtk.py](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/drtk/patches/drtk.py) (MSVC flags) |
-| a package `README.md` | [natten](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/natten/README.md) · [diso](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/diso/README.md) (why *no* override) |
-| the defaults | [python_cuda_torch_os_policy.yml](https://github.com/Comfy-Forge/cuda-wheels/blob/main/defaults/python_cuda_torch_os_policy.yml) · [arch_policy.yml](https://github.com/Comfy-Forge/cuda-wheels/blob/main/defaults/arch_policy.yml) · [defaults/README.md](https://github.com/Comfy-Forge/cuda-wheels/blob/main/defaults/README.md) |
-
 **The website is not in main.** The PEP 503 index, dashboard and matrix
 page are built into `_site/` at deploy time and exist only on the
 `gh-pages` branch; the shorter-index guard compares against a checkout of
@@ -168,11 +157,6 @@ flashinfer, llama_cpp_python) go overboard. Three escape hatches
 
 Rule of thumb: cpp_extension -> shard; CMake/ninja over 6h -> checkpoint.
 
-Two more caps, discovered the hard way: a job **queued over 24h** is
-discarded, and a job **matrix over 256 entries** fails the run with every
-listed job green (the offending job is simply never created) -- slice big
-overwrites with the cuda/pytorch/python filters.
-
 ### Config fields
 
 **Required** (the loader hard-errors without them):
@@ -180,7 +164,7 @@ overwrites with the cuda/pytorch/python filters.
 | Field | Purpose |
 |---|---|
 | `name` | the package/dist name — keys the release tag, wheel prefix and index entry |
-| `source_repo` / `source_tag` | where the source comes from. **Pin a commit or tag** -- a floating `main` means the wheels in one release need not come from the same source |
+| `source_repo` / `source_tag` | where the source comes from. **Always pinned to a commit or tag** -- the loader refuses `main`/`master`/`HEAD`, because a floating ref means the wheels in one release need not come from the same source |
 | `links_torch` | `true` = one wheel per (cuda × torch); `false` = never links libtorch, built once per (cuda, python, platform) and listed under every torch ([CW-ADR-0011](adr/0011-torch-independent-packages.md)) |
 
 **Optional** — in `package.yml`:
