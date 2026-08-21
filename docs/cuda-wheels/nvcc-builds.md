@@ -34,8 +34,13 @@ overridable via env). `MAX_JOBS` is unset by default (ninja then runs
 the `max_jobs` dispatch input for a one-off run. Heavy packages already
 do: natten, mmcv, sageattention and gsplat_maskgaussian cap `max_jobs: 2`;
 flash_attn's patched setup.py sizes its own MAX_JOBS from free RAM ÷ arch
-count. There is no swap: thrashing a compile through a swapfile is slower
-than just running fewer jobs.
+count.
+
+**Swap: avoid using it like the plague.** An 8GB swapfile exists purely as
+a safety net — it turns a brief memory peak into a slow minute instead of
+a SIGKILL at hour 3. If the resource monitor shows swap in *active* use,
+the compile is misconfigured: the fix is fewer jobs (`max_jobs`), never
+more swap — thrashing through a swapfile is slower than running narrower.
 
 ## The escalation ladder
 
