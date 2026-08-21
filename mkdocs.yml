@@ -143,6 +143,8 @@ nav:
       - "Wheel my wheel run?": cuda-wheels/wheel-compatibility.md
       - Coverage: cuda-wheels/coverage.md
       - The build process: cuda-wheels/build-process.md
+      - "generate_matrix.py": cuda-wheels/generate-matrix.md
+      - "generate_index.py": cuda-wheels/generate-index.md
       - Upstream PyTorch quirks: cuda-wheels/upstream-quirks.md
       - Decision records:
           - Index: cuda-wheels/adr/index.md
