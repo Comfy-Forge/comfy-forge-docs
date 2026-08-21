@@ -61,8 +61,7 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 └── README.md
 ```
 
-Every file in that tree is real -- follow the examples instead of
-imagining them:
+Examples:
 
 | Kind | Live example |
 |---|---|
@@ -90,24 +89,13 @@ Two rules keep this tidy, and both are load-bearing:
 
 ## How does a package become build jobs?
 
-Five steps, each **subtracting** from the one before:
+The job list is a subtraction chain:
 
-| # | Step | Source | Result |
-|---|---|---|---|
-| 1 | **Upstream truth** | `fetch_torch_matrix.py` scrapes PyTorch's wheel index | every combo torch actually shipped |
-| 2 | **The shared grid** | `defaults/python_cuda_torch_os_policy.yml` | 21 `(cuda, torch)` pairings = **190 combos** |
-| 3 | **Package overrides** | the package's own `combinations`, `platforms`, `min_pytorch`, `arch_list_by_cuda` | a narrowed grid, if declared |
-| 4 | **Minus phantom combos** | curated denylist ([CW-ADR-0007](adr/0007-phantom-combos-denylist.md)) | −11 that upstream never shipped = **179 buildable** |
-| 5 | **Minus already built** | `generate_matrix.py` queries the rolling release | only the missing combos |
-
-!!! note "The arithmetic is stable; the numbers are not"
-    190 and 179 are today's values. They move whenever PyTorch adds a
-    CUDA/torch pairing or a Python version. What does not change is the
-    shape: **declared, minus never-shipped, minus already-built.**
-
-Step 5 is what makes builds **resumable and incremental**. Re-dispatching a
-package builds only what is missing; a fully built package produces an empty
-matrix. `--overwrite` skips the check.
+1. **Upstream truth** — `fetch_torch_matrix.py` snapshots every combo torch actually ships.
+2. **The shared grid** — `defaults/python_cuda_torch_os_policy.yml`, derived from that snapshot.
+3. **Package overrides** narrow it (`combinations`, `platforms`, `min_pytorch`).
+4. **Minus phantom combos** — cells upstream never shipped ([CW-ADR-0007](adr/0007-phantom-combos-denylist.md)).
+5. **Minus already built** — we check whether the wheel is already in the release and skip it. This makes builds resumable and incremental: re-dispatching builds only what is missing; `--overwrite` skips the check.
 
 The shared grid looks like this -- most packages define no matrix of their own
 and simply inherit it:
