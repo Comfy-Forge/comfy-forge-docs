@@ -62,6 +62,18 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 └── README.md
 ```
 
+Every file in that tree is real -- follow the examples instead of
+imagining them:
+
+| Kind | Live example |
+|---|---|
+| `package.yml` | [flash_attn](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/flash_attn/package.yml) (plain) · [llama_cpp_python](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/llama_cpp_python/package.yml) (torch-free, checkpointed) |
+| `pcto_override.yml` | [natten](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/natten/pcto_override.yml) (min_pytorch) · [vllm](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/vllm/pcto_override.yml) (own build_matrix) |
+| `arch_override.yml` | [sageattention](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/sageattention/arch_override.yml) (the sm_89/FP8 essay) · [pyg_lib](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/pyg_lib/arch_override.yml) (per-CUDA floors) |
+| a patch | [natten.py](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/natten/patches/natten.py) (env-var injection) · [drtk.py](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/drtk/patches/drtk.py) (MSVC flags) |
+| a package `README.md` | [natten](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/natten/README.md) · [diso](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/diso/README.md) (why *no* override) |
+| the defaults | [python_cuda_torch_os_policy.yml](https://github.com/Comfy-Forge/cuda-wheels/blob/main/defaults/python_cuda_torch_os_policy.yml) · [arch_policy.yml](https://github.com/Comfy-Forge/cuda-wheels/blob/main/defaults/arch_policy.yml) · [defaults/README.md](https://github.com/Comfy-Forge/cuda-wheels/blob/main/defaults/README.md) |
+
 Deep dives on the two scripts people ask about most:
 [generate_matrix.py](generate-matrix.md) (configs → job matrix) and
 [generate_index.py](generate-index.md) (releases → pip index).
