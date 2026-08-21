@@ -66,8 +66,8 @@ more machinery than the last:
 3. **Shard** (`sharding: N`): torch `cpp_extension` packages only — split
    the translation units across N parallel jobs
    ([the 6-hour cap](build-process.md#what-if-a-compile-takes-longer-than-6-hours)).
-4. **Sequential checkpoint** (`sequential_checkpoint: <seconds>`): CMake/
-   ninja trees that sharding can't touch — 3h links, up to 6 per platform.
+(A fourth rung -- sequential checkpointing -- was removed 2026-08-21
+after measurement showed nothing needed it; see the build-process page.)
 
 ## Upstream setup.py estimators lie
 

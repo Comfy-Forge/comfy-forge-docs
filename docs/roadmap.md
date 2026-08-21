@@ -13,20 +13,6 @@ stay listed (struck) so the list doubles as a change record.
    deps (gsplat's `ninja` is real: runtime JIT). Unblocks lockfile-visible
    inlining in comfy-env.
    ([CW-ADR-0004](cuda-wheels/adr/0004-combo-encoded-versions-and-metadata-patching.md))
-2. **Paginate `generate_index.py`'s Releases API call** -- at release #31
-   packages silently vanish from the index (currently ~27; a dated time
-   bomb), and assert the generated index never loses packages vs the
-   previous deploy.
-3. **Version-aware rebuild skip** -- `generate_matrix.wheel_exists` matches
-   combo tags with no version component, so version bumps rebuild nothing
-   without `--overwrite`.
-4. **Mutable `-latest` release hygiene** -- old-version wheels accumulate
-   and the index orders them first (a live `cumesh-vb` 0.0.1-over-1.0
-   case); delete superseded assets on publish.
-   ([CW-ADR-0002](cuda-wheels/adr/0002-rolling-releases-as-wheel-storage.md))
-5. **`packages.json` manifest** published with the index (name, combo, url,
-   sha256) so consumers stop regex-scraping HTML and gain hash
-   verification; dissolves the hand-synced torch-family tables.
 
 ## comfy-env
 

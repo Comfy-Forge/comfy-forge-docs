@@ -50,8 +50,6 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 ├── .github/
 │   ├── workflows/
 │   │   ├── build.yml                the build entry point (workflow_dispatch)
-│   │   ├── _chain_link.yml          one sequential-checkpoint chain link
-│   │   ├── _chain_link_windows.yml  its Windows twin (win_amd64, PS host)
 │   │   ├── update-index.yml         build _site/ + deploy to gh-pages
 │   │   ├── torch-matrix.yml         refresh the PCWM snapshot + dry-run
 │   │   │                            the grid derivation (issue on rot)
@@ -154,12 +152,13 @@ flashinfer, llama_cpp_python) go overboard. Three escape hatches
    ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)): translation units are
    hash-partitioned across N parallel jobs; a link job unions their compiler
    caches, links one ordinary wheel, and fails below a 90% cache hit rate.
-3. **Sequential checkpointing (`sequential_checkpoint: <seconds>`)** -- for
-   CMake/ninja builds sharding cannot intercept: the compile runs under
-   `timeout`; on expiry the source tree goes to an artifact and the next
-   chain link resumes it. 6 links per platform at 3h each = up to 18h.
-
-Rule of thumb: cpp_extension -> shard; CMake/ninja over 6h -> checkpoint.
+(A third hatch -- a sequential-checkpoint chain -- existed briefly and was
+removed 2026-08-21: measurement showed no package needed it. The
+"multi-hour" compiles were artifacts of bad parallelism settings; at sane
+knobs the heaviest package, nunchaku, builds in 99 minutes. If a package
+ever truly outgrows 6h, sharding is the answer -- cmake-style packages
+included, via the CUDA_WHEELS_SHARD_INDEX/COUNT env filter natten's patch
+demonstrates.)
 
 ### Config fields
 
@@ -185,7 +184,6 @@ Rule of thumb: cpp_extension -> shard; CMake/ninja over 6h -> checkpoint.
 | `nvcc_flags` | appended to the nvcc command line (trailing flags win) |
 | `max_jobs` | cap parallel compile jobs — see [nvcc builds](nvcc-builds.md) |
 | `sharding: N` | split one cell's compile across N parallel jobs + a link job ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)); see [the 6-hour section](#sequential-and-sharded-compiles) |
-| `sequential_checkpoint` | timeout-and-resume chain, 6 links per platform (flashinfer/llama_cpp use 10800 = 3h links); see [the 6-hour section](#sequential-and-sharded-compiles) |
 
 **Optional** — in override files (each requires an explaining `README.md`):
 
