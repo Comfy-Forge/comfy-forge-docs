@@ -133,6 +133,23 @@ gsplat-1.5.3+cu124torch2.4-cp310-cp310-manylinux_2_28_x86_64.whl
   wheel is **tied to a torch family** -- the same pin comfy-env replicates into
   its generated environments.
 
+### The glibc floor: 2.28
+
+glibc is Linux's C runtime; a binary runs only on systems with a glibc **at
+least as new** as the one it was compiled against, and it cannot be
+upgraded without upgrading the OS. `manylinux_2_28` in a wheel's platform
+tag declares that floor: glibc ≥ 2.28, i.e. AlmaLinux/RHEL 8, Debian 10,
+Ubuntu 18.10 or newer — effectively every distro still receiving updates.
+
+The farm gets that floor by **building inside the
+`quay.io/pypa/manylinux_2_28` container** (AlmaLinux 8), not by trusting
+the runner image: a build on stock ubuntu-22.04 would silently inherit a
+glibc-2.35 floor and lock out older systems. The number is policy, not
+accident — **it tracks PyTorch's own manylinux baseline** (torch ships
+manylinux_2_28 wheels today; if torch moves to 2_34, we move). A wheel and
+the torch it links must sit on the same side of that baseline anyway, so
+there is nothing to gain by diverging in either direction.
+
 ### Sequential and sharded compiles
 
 GitHub runners have a hard **6-hour job limit**; some compiles (flash_attn,
