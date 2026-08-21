@@ -47,9 +47,11 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 ├── .github/
 │   ├── workflows/
 │   │   ├── build.yml                the build entry point (workflow_dispatch)
-│   │   ├── _chain_link*.yml         resume a 6h-capped compile (prototype)
+│   │   ├── _chain_link.yml          one sequential-checkpoint chain link
+│   │   ├── _chain_link_windows.yml  its Windows twin (win_amd64, PS host)
 │   │   ├── update-index.yml         build _site/ + deploy to gh-pages
-│   │   ├── torch-matrix.yml         refresh scraped_torch_matrix.json only
+│   │   ├── torch-matrix.yml         refresh the PCWM snapshot + dry-run
+│   │   │                            the grid derivation (issue on rot)
 │   │   ├── torch-watch.yml          daily: report new upstream combos
 │   │   └── get-sources.yml          publish patched sources for inspection
 │   └── actions/
@@ -125,7 +127,7 @@ platforms: ["linux", "windows"]
 ```mermaid
 flowchart TB
     subgraph declare["1. Declare"]
-        yml["packages/<name>.yml<br/>source repo+tag, patches,<br/>deps, arch lists, sharding"]
+        yml["packages/<name>/package.yml<br/>+ pcto/arch overrides<br/>+ patches/ + README"]
         defaults["defaults/*.yml<br/>PCTO axes + arch policy<br/>(+ scraped torch matrix)"]
         patch["packages/<name>/patches/<br/>pre-build source patches"]
     end
@@ -216,14 +218,24 @@ self-hosted homelab machines. Long CUDA compiles get three escape hatches
    injection with `.obj` handling and `LINK=/FORCE:UNRESOLVED` at shard
    stage.
 3. **Sequential checkpointing (`sequential_checkpoint: <seconds>`)** --
-   a prototype: the compile runs under `timeout`; on expiry the build
-   tree is tarred to an artifact and a chained job resumes it.
+   for builds sharding cannot touch: the compile runs under `timeout`;
+   on expiry the ENTIRE source tree (PAX tar, nanosecond mtimes -- ninja's
+   restat check demands them) goes to an artifact and the next chain link
+   restores it and continues. Both platforms are wired: `build.yml`
+   carries **6 links per platform** (`_chain_link.yml` /
+   `_chain_link_windows.yml`), and the two users -- flashinfer and
+   llama_cpp_python -- checkpoint every **3 hours**, so a chain can
+   absorb up to 18h of compile. A finished chain skips its remaining
+   links at zero cost.
 
-!!! warning "Two links, so one resume"
-    Only link-0 and link-1 are wired per platform (`build.yml`), so
-    checkpointing currently buys a single continuation. The link-0..9
-    "10-job ladder" described in the workflow comments does not exist
-    yet; a compile needing more than two slots still will not finish.
+!!! note "Sharding vs checkpointing — how to choose"
+    Sharding intercepts the flat `.cu` list inside torch's
+    `cpp_extension` build, so it only works for packages that build
+    through that path. CMake/ninja trees (flashinfer's AOT cache,
+    llama_cpp_python's GGML build) are opaque to the shim -- but their
+    incremental state is exactly what makes checkpoint/resume reliable.
+    Rule of thumb: cpp_extension -> `sharding: N`; CMake/ninja that
+    exceeds 6h -> `sequential_checkpoint`.
 
 Three caps to know, all discovered the hard way:
 
@@ -241,20 +253,33 @@ Three caps to know, all discovered the hard way:
 
 ## How do I add a package?
 
-A YAML config, plus a Python patch script if the source needs fixing:
+A folder under `packages/`, holding a `package.yml` plus optional override
+files and patches:
 
 ```yaml
-# packages/flash_attn.yml
+# packages/flash_attn/package.yml
 name: flash_attn
+links_torch: true   # REQUIRED: the loader hard-errors if undeclared
 source_repo: Dao-AILab/flash-attention
 source_tag: v2.8.3
 patch_script: packages/flash_attn/patches/flash_attn.py
 extra_deps: psutil
 nvcc_flags: -diag-suppress 221
+```
+
+```yaml
+# packages/flash_attn/arch_override.yml  (optional)
 arch_list_by_cuda:
   '12.4': 8.0 9.0+PTX
   '12.8': 8.0 9.0 10.0 12.0+PTX
 ```
+
+!!! warning "The loader enforces two contracts"
+    `package_loader.py` refuses (hard error, not a warning) any package
+    that **does not declare `links_torch`**, and any package carrying a
+    `pcto_override.yml` or `arch_override.yml` **without a `README.md`
+    that explains the override** (an `## Overrides` section). Every
+    deviation from `defaults/` must say why.
 
 Then dispatch it -- **narrow first**, to prove the recipe on one combination
 before opening it to the whole grid:
@@ -278,11 +303,11 @@ gh workflow run build.yml -f package=flash_attn        # full grid
 | `clone_recursive` | clone submodules |
 | `extra_deps` | extra pip build dependencies |
 | `nvcc_flags` | appended to the nvcc command line |
-| `arch_list` / `arch_list_by_cuda` | override the inherited GPU architectures |
-| `min_pytorch` | floor, for packages that do not support older torch |
+| `arch_list` / `arch_list_by_cuda` | in `arch_override.yml`: override the inherited GPU architectures |
+| `min_pytorch` | in `pcto_override.yml`: floor, for packages that do not support older torch |
 | `sharding: N` | split one cell's compile across N parallel jobs + a link job — the **entire** opt-in on Linux ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)); see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
-| `sequential_checkpoint` | timeout-and-resume chain (prototype, 2 links) — see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
-| `links_torch: false` | package never links libtorch: built once per (cuda, python, platform), listed under every torch ([CW-ADR-0011](adr/0011-torch-independent-packages.md)) |
+| `sequential_checkpoint` | timeout-and-resume chain, 6 links per platform (flashinfer/llama_cpp use 10800 = 3h links) — see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
+| `links_torch` | **required.** `false` = never links libtorch: built once per (cuda, python, platform), listed under every torch ([CW-ADR-0011](adr/0011-torch-independent-packages.md)) |
 
 `packages/README.md` is the authoritative reference; each package folder's `README.md`
 collects per-package quirks.

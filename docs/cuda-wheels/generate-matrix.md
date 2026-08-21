@@ -55,6 +55,13 @@ python scripts/generate_matrix.py --platform linux    # one platform
 - **The auditor uses the same resolver.** `scripts/audit.py --archs` imports
   `resolve_arch_list` rather than keeping its own arch table, so the planner
   and the verifier cannot disagree.
+- **The `+PTX` suffix is part of the contract.** Because the normalizer
+  always suffixes the highest arch, any *patch* that parses
+  `TORCH_CUDA_ARCH_LIST` into tokens must strip `+` suffixes before
+  comparing (`a.split("+")[0]`). Two shipped incidents prove the stakes:
+  flash_attn's and sageattn3's bridges matched tokens exactly, so
+  `"9.0+PTX"`/`"12.0+PTX"` silently dropped the top arch from every
+  wheel (no H100 SASS on cu124/126, no RTX 5090 SASS at all).
 - **Skip logic is name-based.** A published wheel satisfies its cell by
   filename; changing arch policy does not re-open cells (rebuilds are a
   deliberate act, see CW-ADR-0013).

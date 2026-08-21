@@ -28,7 +28,15 @@ Two named references define the target:
 What we skip, on purpose: pre-release Pythons, free-threaded builds
 ([CW-ADR-0010](adr/0010-no-free-threaded-builds.md)), and the cells upstream
 never shipped ([CW-ADR-0007](adr/0007-phantom-combos-denylist.md)).
-We do not skip aarch64 and we set the same glibc floor as PyTorch (2.28)
+We do not skip aarch64 and we set the same glibc floor as PyTorch (2.28).
+
+The SASS sets match torch's own wheels **exactly**, per CUDA line and per
+platform -- including Maxwell (5.0) on cu124/cu126 and the per-torch sm_70
+drops tracked in `arch_exceptions`. The one deliberate divergence is PTX:
+the farm always ships `+PTX` on the highest arch (forward compat for GPUs
+newer than any SASS in the wheel), while torch's release wheels stopped
+shipping PTX entirely in 2.13 -- a size trade-off that makes sense for a
+250MB libtorch and not for kilobyte extension wheels.
 
 **Packages can override our build default policy**: for example, sageattention has a kernel floor (sm_80).
 
