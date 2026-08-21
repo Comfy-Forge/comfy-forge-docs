@@ -10,7 +10,7 @@ The knobs below decide how many of those 4GB processes exist at once.
 
 ## The knobs that control memory usage.
 
-Two knobs multiply, and both default to "more parallelism":
+Two knobs multiply — and they are NOT interchangeable:
 - **`MAX_JOBS`** — how many translation units torch's `cpp_extension`
   compiles in parallel (it hands this to ninja as `-j`).
   When unset, torch sizes
@@ -19,29 +19,32 @@ Two knobs multiply, and both default to "more parallelism":
   how many target architectures nvcc compiles concurrently.
   Setting it to 4 means that 4 arches (sm_80, sm_86, sm_10...) get compiled at once.
 
-So `MAX_JOBS=4 × NVCC_THREADS=4 × 4GB = 64GB` of theoretical peak on a
-16GB machine. That is why "just let it default" ends in a SIGKILL around
-minute three.
+The farm pins **`NVCC_THREADS=1`**. The reason: `--threads` parallelizes
+the *same* file's per-arch passes, which have near-identical memory
+profiles — their peaks land at the same instant (2 threads = 2× peak).
+Two ninja jobs compile *different* files, so their peaks hit at different
+times. Per GB of RAM, MAX_JOBS-parallelism is strictly better than
+threads-parallelism; spend the budget there.
 
 ## What the farm sets, and where
 
-`NVCC_THREADS` is auto-tuned in `build-wheel` (< 20GB free RAM → 2, else 4
-— hosted runners always get 2). `MAX_JOBS` is unset by default (ninja then
-runs ≈ cores+2 = 6). Both are yours to override per package: `max_jobs:` in
-`package.yml`, `nvcc_flags: --threads=N` (trailing flags win over the
-auto-tune), or the `max_jobs` dispatch input for a one-off run. Heavy
-packages already do: natten runs `2 × --threads=1`; mmcv, sageattention and
-gsplat_maskgaussian cap `max_jobs: 2`; flash_attn's patched setup.py sizes
-its own MAX_JOBS from free RAM ÷ arch count.
+`NVCC_THREADS` is pinned to **1** in `build-wheel` (both platforms;
+overridable via env). `MAX_JOBS` is unset by default (ninja then runs
+≈ cores+2 = 6). Override per package with `max_jobs:` in `package.yml` or
+the `max_jobs` dispatch input for a one-off run. Heavy packages already
+do: natten, mmcv, sageattention and gsplat_maskgaussian cap `max_jobs: 2`;
+flash_attn's patched setup.py sizes its own MAX_JOBS from free RAM ÷ arch
+count. There is no swap: thrashing a compile through a swapfile is slower
+than just running fewer jobs.
 
 ## The escalation ladder
 
 When a package OOMs or overruns, escalate in this order — each step costs
 more machinery than the last:
 
-1. **Trim parallelism**: `max_jobs: 2`, or `nvcc_flags: --threads=1`
-   (natten's proven pair: `max_jobs: 4` OOM'd ~3 minutes in; `2` +
-   `--threads=1` + 8GB swap held stable for full 3h links).
+1. **Trim parallelism**: `max_jobs: 2` (natten's proven setting:
+   `max_jobs: 4` OOM'd ~3 minutes in; `2` with single-threaded nvcc held
+   stable for full 3h links).
 2. **Trim the arch list**: if the package has a real floor (Ampere-only
    kernels), an `arch_override.yml` is both correctness *and* memory relief.
 3. **Shard** (`sharding: N`): torch `cpp_extension` packages only — split
