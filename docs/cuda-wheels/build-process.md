@@ -151,7 +151,7 @@ flowchart TB
         rel["one rolling GitHub Release per pkg:<br/><pkg>-latest holds every wheel"]
     end
     subgraph publish["4. Publish"]
-        idx["scripts/generate_index.py<br/>PEP 503 static index (v2 + v1 shim)<br/>+ dashboard"]
+        idx["scripts/generate_index.py<br/>one flat PEP 503 index<br/>+ combo channels + dashboard"]
         pages["GitHub Pages<br/>(orphan branch deploy)"]
     end
     declare --> gen
@@ -172,9 +172,10 @@ flash_attn-2.8.3+cu124torch2.4-cp311-cp311-win_amd64.whl
 gsplat-1.5.3+cu124torch2.4-cp310-cp310-manylinux_2_34_x86_64....whl
 ```
 
-- The local version tag `+cu128torch2.9` **encodes the CUDA/torch combo** (v2
-  keeps the dot in the torch version; the v1 index stripped it and survives as
-  a compat shim).
+- The local version tag `+cu128torch2.9` **encodes the CUDA/torch combo**.
+  (The old farm's index also served dot-stripped `torch29` names as a "v1"
+  compat shim; the Comfy-Forge line serves one index with real filenames
+  only.)
 - The wheel's internal `METADATA` version is **patched to match the filename**
   so pip/uv see a consistent version
   ([CW-ADR-0004](adr/0004-combo-encoded-versions-and-metadata-patching.md)).

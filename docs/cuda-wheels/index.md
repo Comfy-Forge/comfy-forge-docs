@@ -101,8 +101,9 @@ That directory contains only wheels built for cu128 + torch 2.8, so pip's
 normal resolution does the rest: your Python version and OS are the two tags
 pip matches by itself. The same command works verbatim on Windows and Linux.
 
-The flat [v2 index](https://pozzettiandrea.github.io/cuda-wheels/v2/) also
-exists, but be careful: it should be **selected from, not resolved against**.
+A flat all-combos index also exists (the site root on the Comfy-Forge line;
+[/v2/](https://pozzettiandrea.github.io/cuda-wheels/v2/) on the legacy farm),
+but be careful: it should be **selected from, not resolved against**.
 It mixes every combo, and pip cannot read the `+cu128torch2.8` tag against
 your machine -- an unpinned install there grabs the highest combo, not the
 one you can load. Use it only with a full version pin

@@ -11,9 +11,11 @@ force-pushed to `gh-pages` as a single orphan commit; none of it lives on
 1. **Enumerate wheels** from every `<package>-latest` rolling release via the
    GitHub API. Wheels stay on Releases (CW-ADR-0002); the index holds only
    anchor tags whose hrefs point at the release assets (CW-ADR-0003).
-2. **Emit the PEP 503 tree**: `/whl/<package>/index.html` pages listing every
-   wheel, in both v2 (`+cu128torch2.8`) and v1 (`+cu128torch28`) naming so
-   older resolvers keep working.
+2. **Emit the PEP 503 tree**: one flat index at the site root
+   (`/<package>/index.html`, actual asset filenames) plus per-combo channel
+   indexes (`/cu128/torch2.8/<package>/`) that make bare pip resolution
+   unambiguous. There is no v1/v2 split -- this line has no legacy
+   consumers; the old farm keeps serving the old names.
 3. **Expand torch-free aliases.** Packages declaring `links_torch: false`
    build one wheel per (cuda, python, platform) under a single torch tag.
    The index lists that same asset under **every** torch of its CUDA line —
