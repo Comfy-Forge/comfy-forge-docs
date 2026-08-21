@@ -1,29 +1,23 @@
 # nvcc builds and what we can change in the settings
 
-A CUDA compile on a hosted runner is a memory-budgeting problem wearing a
-compiler costume. GitHub's standard runners give you **4 vCPUs and 16GB of
-RAM** (Linux and Windows alike), and a single `cicc` instance — nvcc's
-device-code front end — peaks at **roughly 4GB** on heavy template code
-(CUTLASS instantiations are the usual offender). The knobs below decide how
-many of those 4GB processes exist at once.
+A CUDA compile on a hosted runner is a memory-budgeting problem.
 
-## The multiplication that OOMs you
+GitHub's standard runners give you **4 vCPUs and 16GB of
+RAM** (Linux and Windows alike).
 
-```text
-peak memory ≈ MAX_JOBS  ×  NVCC_THREADS  ×  ~4GB
-              (parallel      (arches compiled
-               .cu files)     in parallel per file)
-```
+A single `cicc` instance (nvcc's device-code front end) peaks at **roughly 4GB** on heavy template code.
+The knobs below decide how many of those 4GB processes exist at once.
+
+## The knobs that control memory usage.
 
 Two knobs multiply, and both default to "more parallelism":
-
 - **`MAX_JOBS`** — how many translation units torch's `cpp_extension`
-  compiles in parallel (it hands this to ninja as `-j`). Unset, torch sizes
+  compiles in parallel (it hands this to ninja as `-j`).
+  When unset, torch sizes
   it from `cpu_count()`.
 - **`NVCC_THREADS`** (`nvcc --threads N`) — within *one* translation unit,
-  how many target architectures nvcc compiles concurrently. Each arch in
-  `TORCH_CUDA_ARCH_LIST` is its own cicc pass; `--threads 4` runs four of
-  them at once.
+  how many target architectures nvcc compiles concurrently.
+  Setting it to 4 means that 4 arches (sm_80, sm_86, sm_10...) get compiled at once.
 
 So `MAX_JOBS=4 × NVCC_THREADS=4 × 4GB = 64GB` of theoretical peak on a
 16GB machine. That is why "just let it default" ends in a SIGKILL around
@@ -31,14 +25,14 @@ minute three.
 
 ## What the farm sets, and where
 
-| Knob | Where | What the farm does |
-|---|---|---|
-| `MAX_JOBS` | `package.yml: max_jobs`, or the `max_jobs` dispatch input | Unset by default (torch uses `cpu_count()` = 4). **`0` means unset, not unlimited** — an old guard exported `MAX_JOBS=0`, which ninja reads as `-j INT_MAX`; that bug is why several packages once carried hand caps they no longer need. natten still legitimately caps at `2`. |
-| `NVCC_THREADS` | auto-tuned in `build-wheel` (both platforms) | `< 20GB` free RAM → `2`, else `4`. Each cicc ≈ 4GB; the auto-tune keeps the multiplication inside the machine. Overridable via env. |
-| `nvcc_flags` | `package.yml`, exported as `NVCC_APPEND_FLAGS` | Appended flags **win over earlier ones**, so `--threads=1` here overrides the auto-tuned `--threads $NVCC_THREADS` that cpp_extension emits — natten uses exactly this to bound per-process memory. Also the home of warning suppressions. |
-| the arch list | `defaults/arch_policy.yml` + per-package `arch_override.yml` | Every extra arch is one more cicc pass per file (and a fatter fatbin). A 7-arch policy row costs real memory and minutes; packages with narrow floors (flash_attn: 4 arches) compile measurably lighter. `+PTX` adds a pass too. |
-| swap | the "Add swap space" step | 8GB swapfile on Linux builds (and unconditionally for chain-mode packages). Swap turns an OOM kill into slow-but-alive; cheap insurance when a single link spikes. |
-| the resource monitor | `build-wheel` background step | Logs `mem / swap / load / top-3 processes` every interval, so a build that died at minute 40 leaves a memory trace instead of a mystery. |
+`NVCC_THREADS` is auto-tuned in `build-wheel` (< 20GB free RAM → 2, else 4
+— hosted runners always get 2). `MAX_JOBS` is unset by default (ninja then
+runs ≈ cores+2 = 6). Both are yours to override per package: `max_jobs:` in
+`package.yml`, `nvcc_flags: --threads=N` (trailing flags win over the
+auto-tune), or the `max_jobs` dispatch input for a one-off run. Heavy
+packages already do: natten runs `2 × --threads=1`; mmcv, sageattention and
+gsplat_maskgaussian cap `max_jobs: 2`; flash_attn's patched setup.py sizes
+its own MAX_JOBS from free RAM ÷ arch count.
 
 ## The escalation ladder
 
@@ -61,7 +55,9 @@ more machinery than the last:
 Some packages auto-size their own parallelism from free RAM, with baked-in
 assumptions that break on our matrix. flash-attention divides free memory by
 9GB assuming **2 arches per job**; on cu128+ we compile 4, so its own
-estimate would OOM. The farm's patch scales the divisor by the actual arch
+estimate would OOM.
+
+The farm's patch scales the divisor by the actual arch
 count (`packages/flash_attn/patches/flash_attn.py`). When adding a package
 that "auto-tunes", read its estimator against the multiplication above
 before trusting it.
