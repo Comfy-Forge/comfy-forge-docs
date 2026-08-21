@@ -69,3 +69,10 @@ personal hardware and blocks outside contributors from running builds.
   GitHub's Actions policy and is squarely within intended use (building
   and publishing this repository's software); the cap's documented
   consequence is cancellation, not sanction.
+
+---
+
+**Amended (Comfy-Forge line):** the `runner=self-hosted` opt-in described
+above was removed — the farm is hosted-runners-only. Sharding and the
+sequential-checkpoint chain are the only long-build strategies; the
+`timeout-minutes` phantom-cap workaround went with the homelab support.

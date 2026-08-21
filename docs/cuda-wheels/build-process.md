@@ -97,55 +97,10 @@ The job list is a subtraction chain:
 4. **Minus phantom combos** — cells upstream never shipped ([CW-ADR-0007](adr/0007-phantom-combos-denylist.md)).
 5. **Minus already built** — we check whether the wheel is already in the release and skip it. This makes builds resumable and incremental: re-dispatching builds only what is missing; `--overwrite` skips the check.
 
-The shared grid looks like this -- most packages define no matrix of their own
-and simply inherit it:
-
-```yaml
-combinations:
-  - cuda: "12.8"
-    pytorch: "2.8.0"
-    python_versions: ["3.10", "3.11", "3.12", "3.13"]
-    arch_list: "7.0;7.5;8.0;8.6;9.0+PTX;10.0;12.0+PTX"
-platforms: ["linux", "windows"]
-```
-
 ## What happens after a build?
 
-!!! info ""
-    *The index deploy at the end of this pipeline is **opt-in** (a build
-    dispatched with `update_index=true`): by default a build run cannot
-    touch the live index. Wheels land in the rolling release immediately;
-    the index catches up on the next **Update Index** run (push to main or
-    manual dispatch).*
-
-
-```mermaid
-flowchart TB
-    subgraph declare["1. Declare"]
-        yml["packages/<name>/package.yml<br/>+ pcto/arch overrides<br/>+ patches/ + README"]
-        defaults["defaults/*.yml<br/>PCTO axes + arch policy<br/>(+ scraped torch matrix)"]
-        patch["packages/<name>/patches/<br/>pre-build source patches"]
-    end
-    subgraph plan["2. Plan"]
-        gen["scripts/generate_matrix.py<br/>expand configs into job matrices"]
-        skip["subtract: already-built wheels<br/>+ phantom combos"]
-    end
-    subgraph build["3. Build"]
-        gha["build.yml on GHA<br/>ubuntu-22.04 / windows-2022<br/>(or self-hosted homelab runners)"]
-        rel["one rolling GitHub Release per pkg:<br/><pkg>-latest holds every wheel"]
-    end
-    subgraph publish["4. Publish"]
-        idx["scripts/generate_index.py<br/>one flat PEP 503 index<br/>+ combo channels + dashboard"]
-        pages["GitHub Pages<br/>(orphan branch deploy)"]
-    end
-    declare --> gen
-    gen --> skip --> gha --> rel
-    rel -->|"Releases API is the<br/>source of truth"| idx --> pages
-
-    consumer["comfy-env resolver"]
-    pages -->|"scrape index, install by direct URL"| consumer
-    rel -.->|"fallback: Releases API<br/>(different routing edge)"| consumer
-```
+Wheels are released in github releases.
+We can run an index deploy, standalone, when we know that they are ready.
 
 ## What do the wheel names mean?
 
@@ -157,48 +112,23 @@ gsplat-1.5.3+cu124torch2.4-cp310-cp310-manylinux_2_34_x86_64....whl
 ```
 
 - The local version tag `+cu128torch2.9` **encodes the CUDA/torch combo**.
-  (The old farm's index also served dot-stripped `torch29` names as a "v1"
-  compat shim; the Comfy-Forge line serves one index with real filenames
-  only.)
 - The wheel's internal `METADATA` version is **patched to match the filename**
   so pip/uv see a consistent version
   ([CW-ADR-0004](adr/0004-combo-encoded-versions-and-metadata-patching.md)).
-- Linux wheels go through **`auditwheel repair`** to `manylinux_2_35`,
+- Linux wheels go through **`auditwheel repair`** to `manylinux_2_35`, SHOULDNT IT BE 28?
   excluding libcuda/libtorch -- those must come from the host.
 - Builds pin exactly `torch==<ver>+cu<short>` from PyTorch's own index, so every
   wheel is **tied to a torch family** -- the same pin comfy-env replicates into
   its generated environments.
 
-## A build failed. What do I check?
+### Sequential and sharded compiles
 
-| Question | Command |
-|---|---|
-| What is declared but not built? | `python scripts/audit.py --gaps -v` |
-| ...ignoring a torch release still rolling out? | `python scripts/audit.py --gaps --exclude-torch 2.11` |
-| Do the wheels contain the architectures they claim? | `python scripts/audit.py --archs --package <name>` |
-| Are filenames and versions consistent? | `python scripts/audit.py --naming` |
-| Everything at once | `python scripts/audit.py --all` |
+If a compile takes longer than 6 hours?
 
-!!! warning "One known blind spot"
-    `audit.py --archs` scans for architecture markers inside the compiled
-    binary. nvcc compresses device code by default from CUDA 12.8 (and some
-    packages pass `-Xfatbin -compress-all` explicitly), so the scan may find
-    nothing at all -- such wheels report as UNVERIFIED, not MISMATCH.
-    **Confirm with `cuobjdump` before drawing conclusions:**
+Github runners have a hard 6 hour limit, some packages like natten or flash attn go overboard.
 
-    ```bash
-    cuobjdump --list-elf <extracted .so or .pyd> | grep -o 'sm_[0-9]*' | sort -u
-    ```
-
-If a failure is clustered by CUDA version rather than scattered, suspect the
-**arch list** -- the cu124 and cu126 default lists start at sm_50, and older
-GPU architectures lack primitives newer code assumes (see the `diso` /
-`atomicAdd` case in [What combos do we compile for?](coverage.md#what-combos-do-we-compile-for)).
-
-### What if a compile takes longer than 6 hours?
-
-Builds default to GHA-hosted runners; a `runner` input switches to
-self-hosted homelab machines. Long CUDA compiles get three escape hatches
+Builds run on GitHub-hosted runners only. Long CUDA compiles get three
+escape hatches
 ([CW-ADR-0006](adr/0006-fitting-cuda-compiles-into-hosted-ci.md)):
 
 1. **Disk freeing** -- the runner's dotnet/android/ghc/swift images are
@@ -235,11 +165,8 @@ self-hosted homelab machines. Long CUDA compiles get three escape hatches
 
 Three caps to know, all discovered the hard way:
 
-- **6 hours per job** on GitHub-hosted runners, immovable.
-- **A hidden default of 6 hours everywhere else too**: GitHub sets
-  `timeout-minutes: 360` by default *even on self-hosted runners*. The
-  build jobs set `timeout-minutes: 2880` so the homelab actually gets its
-  long-job capability.
+- **6 hours per job** on GitHub-hosted runners, immovable — hence the
+  escape hatches above.
 - **24 hours maximum queue wait** -- a job queued longer is discarded.
   Don't dispatch more than the runner pool clears in a day.
 - **256 entries per job matrix** -- cells x shards per dispatch must stay
