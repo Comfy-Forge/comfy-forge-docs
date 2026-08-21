@@ -32,19 +32,26 @@ threads-parallelism; spend the budget there.
 
 ## What the farm sets, and where
 
-`NVCC_THREADS` is pinned to **1** in `build-wheel` (both platforms;
-overridable via env). `MAX_JOBS` is unset by default (ninja then runs
-≈ cores+2 = 6). Override per package with `max_jobs:` in `package.yml` or
-the `max_jobs` dispatch input for a one-off run. Heavy packages already
-do: natten, mmcv, sageattention and gsplat_maskgaussian cap `max_jobs: 2`;
-flash_attn's patched setup.py sizes its own MAX_JOBS from free RAM ÷ arch
-count.
+Both knobs are **first-class package.yml fields**: `nvcc_threads`
+(farm default **1**) and `max_jobs` (farm default **3** — "unset" used to
+mean ninja -j6, gsplat's self-set 10, mmcv's 32, or serial, depending on
+which setup.py you asked). They flow generate_matrix → build.yml →
+build-wheel, which enforces threads as a **trailing `--threads=N` on
+`NVCC_APPEND_FLAGS`** — nvcc applies append-flags last and the last
+`--threads` wins, so the knob reaches every build system and overrides
+setup.py hardcodes (nunchaku, torchao, sageattn3). `max_jobs` is also
+mirrored into `CMAKE_BUILD_PARALLEL_LEVEL` for the CMake family
+(pyg_lib, llama_cpp_python) that never sees ninja `-j`. One-off override:
+the `max_jobs` dispatch input.
 
-**Swap: avoid using it like the plague.** An 8GB swapfile exists purely as
-a safety net — it turns a brief memory peak into a slow minute instead of
-a SIGKILL at hour 3. If the resource monitor shows swap in *active* use,
-the compile is misconfigured: the fix is fewer jobs (`max_jobs`), never
-more swap — thrashing through a swapfile is slower than running narrower.
+**Swap: avoid using it like the plague — and CI enforces that.** An 8GB
+swapfile exists purely as a safety net (a brief peak becomes a slow minute
+instead of a SIGKILL at hour 3). The resource monitor tracks a swap
+high-water mark, and after the compile a gate rules on it: **any swap use
+fails the build** with an error annotation naming the cell and its peak
+swap GB — unless the package is already at the `max_jobs: 1`,
+`nvcc_threads: 1` floor, where swap merely warns (nothing left to trim;
+the package is at the runner's memory ceiling).
 
 ## The escalation ladder
 

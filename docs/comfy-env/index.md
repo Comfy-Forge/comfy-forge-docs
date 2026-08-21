@@ -1,4 +1,4 @@
-# comfy-env architecture
+# comfy-env
 
 [comfy-env](https://github.com/PozzettiAndrea/comfy-env) is environment
 management and automatic CUDA wheel resolution for ComfyUI custom nodes
