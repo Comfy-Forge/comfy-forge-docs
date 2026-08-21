@@ -40,7 +40,6 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 │   ├── fetch_torch_matrix.py        scrape upstream / render the matrix page
 │   ├── generate_index.py            releases -> PEP 503 index (into _site/)
 │   ├── generate_dashboard.py        releases -> dashboard page
-│   ├── patch_wheel_version.py       align wheel METADATA with its filename
 │   └── audit.py                     one audit command, three lenses:
 │                                    --gaps / --naming / --archs
 │
