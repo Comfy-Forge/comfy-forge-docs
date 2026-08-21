@@ -1,8 +1,8 @@
 # comfy-forge
 
 **comfy-forge** is the umbrella name for a family of tools that make ComfyUI
-custom nodes with heavy native dependencies installable, isolatable, and
-testable on end-user machines:
+custom nodes more easily installable, isolatable, and
+testable:
 
 | Project | What it does | Docs |
 |---------|--------------|------|
@@ -13,16 +13,5 @@ testable on end-user machines:
 The three fit together like this: **cuda-wheels** builds the binaries nobody
 should have to compile, **comfy-env** delivers and isolates them (and
 everything else) on the user's machine, and **comfy-test** proves the whole
-thing actually installs and runs -- on every platform ComfyUI users really
+thing actually installs and runs, on every platform ComfyUI users really
 have.
-
-## Where to start
-
-- The starting aim that justifies all of this, the platform thesis, and
-  the recorded non-goals: [The aim](aims.md).
-
-- New to ComfyUI packaging? Read the
-  [ComfyUI background](comfy-env/index.md#comfyui-background-for-newcomers)
-  primer first.
-- Want the "why" behind the design? The
-  [comfy-env decision records](comfy-env/adr/index.md).

@@ -40,6 +40,10 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 │   ├── fetch_torch_matrix.py        scrape upstream / render the matrix page
 │   ├── generate_index.py            releases -> PEP 503 index (into _site/)
 │   ├── generate_dashboard.py        releases -> dashboard page
+│   ├── verify_wheel.py              pre-publication gate: every wheel is
+│   │                                verified in the build container
+│   │                                BEFORE upload (import test, arch
+│   │                                assert, ABI/glibc audits)
 │   └── audit.py                     one audit command, three lenses:
 │                                    --gaps / --naming / --archs
 │

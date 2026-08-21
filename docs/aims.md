@@ -1,18 +1,22 @@
 # The aim
 
-ComfyUI loads every node pack into one shared Python environment, and tells
-each pack to pip-install its own requirements into it. That design makes
-dependency conflicts **structurally possible** -- not a bug to fix but a
-property of the architecture. Everything in comfy-forge starts from one
-aim:
+ComfyUI loads every node pack into one shared Python environment, and any package installed from the ComfyUI Registry
+pip-installs its own requirements into it.
+ComfyUI also serves every pack's frontend JavaScript into one shared browser page.
+Both designs make collisions **structurally possible**, not bugs to fix but properties of the
+architecture, leading to generally poor stability of the platform.
 
-> **Make node packs behave like real software**: installable by
-> non-developers with one click, isolated when their dependencies demand
-> it, and tested the way users actually install them -- without forking
-> ComfyUI.
+Everything in comfy-forge starts from one aim:
 
-That single sentence justifies the whole stack. If a proposed feature does
-not serve it, the feature is scope creep; if an architectural choice
+> **Make node packs behave like real software** -- without forking ComfyUI:
+>
+> 1. **Installable** by non-developers with one click.
+> 2. **Isolated** where they would otherwise collide: Python dependencies in
+>    their own environments, frontend JavaScript in its own namespace.
+> 3. **Tested** the way users actually install them.
+
+Those three justify the whole stack. If a proposed feature serves
+none of them, the feature is scope creep; if an architectural choice
 conflicts with it, the choice is wrong.
 
 ## The thesis
@@ -33,26 +37,21 @@ The operating rule that falls out:
 > **Defaults should be boring; exceptional dependencies should be
 > isolated.**
 
-A pack whose deps fit the host's blessed runtime just uses it. Isolation
-is the *escape hatch* for components that cannot comfortably inhabit the
-platform (a different Python for `bpy`, a conda-only native stack, a
-conflicting torch) -- not a fashion applied to everything.
+A pack whose deps fit the host's blessed runtime just uses it.
+Isolation is the *escape hatch* for components that cannot comfortably inhabit the
+platform, and one should NEVER touch the blessed ComfyUI OG runtime.
 
 Crucially, none of this requires owning ComfyUI. The proxy-class design
 means ComfyUI never needs to understand any of it: isolated nodes look
-like ordinary nodes. That is leverage -- the strategy is to make the
-substrate so good that ComfyUI effectively becomes the graph host sitting
-on top of it, not to fork the host (and certainly not torch). A fork
-becomes justified only if upstream ever structurally blocks isolation;
-until then, compatibility is the weapon.
+like ordinary nodes.
 
 ## How the tools serve the aim
 
-| Tool | Contribution |
-|------|--------------|
-| [cuda-wheels](cuda-wheels/index.md) | Nobody compiles anything: prebuilt binaries for the combos users actually have. |
-| [comfy-env](comfy-env/index.md) | Delivery + isolation: the escape hatch that makes "exceptional dependencies" safe. |
-| [comfy-test](comfy-test/index.md) | Proof: installs and runs packs the way users do, on the platforms users have. |
+| Tool | Serves | Contribution |
+|------|--------|--------------|
+| [cuda-wheels](cuda-wheels/index.md) | 1 | Nobody compiles anything: prebuilt binaries for the combos users actually have. |
+| [comfy-env](comfy-env/index.md) | 1, 2 | Delivery + Python isolation: the escape hatch that makes "exceptional dependencies" safe. |
+| [comfy-test](comfy-test/index.md) | 2, 3 | Proof: installs and runs packs the way users do, on the platforms users have -- and today the **JavaScript** half of aim 2 is enforced here, not in comfy-env ([ADR-0031](comfy-env/adr/0031-frontend-javascript-isolation.md) defers it; comfy-test's `javascript` level is the shipped gate). |
 
 ## What the aim implies (working principles)
 
@@ -73,9 +72,12 @@ change it here first, in writing.
    (banners, badges, named-reason errors) but ComfyUI always boots
    ([ADR-0008](comfy-env/adr/0008-graceful-degradation-everywhere.md)).
 4. **Nodes declare, machines decide.** Requirements are declarations
-   (`ACCELERATOR = "cuda"`), never runtime guesswork; unavailable nodes
-   stay visible and explain themselves
-   ([accelerator rule](comfy-env/accelerators.md)).
+   (`ACCELERATOR = "cuda"`), never runtime guesswork. A node whose declared
+   backend the machine lacks -- a CUDA node on a Mac, say -- is **hidden from
+   the node menu**, but stays *registered* so shared workflows still load, and
+   it says why if something reaches it
+   ([accelerator rule](comfy-env/accelerators.md),
+   [ADR-0012](comfy-env/adr/0012-unavailable-nodes-hidden-not-unregistered.md)).
 5. **One physical copy per machine.** Cost scales with distinct stacks,
    not with installs or envs
    ([ADR-0007](comfy-env/adr/0007-machine-wide-workspace-with-per-env-manifests.md)).
