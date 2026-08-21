@@ -184,6 +184,7 @@ demonstrates.)
 | `nvcc_flags` | appended to the nvcc command line (trailing flags win) |
 | `max_jobs` | cap parallel compile jobs — see [nvcc builds](nvcc-builds.md) |
 | `sharding: N` | split one cell's compile across N parallel jobs + a link job ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)); see [the 6-hour section](#sequential-and-sharded-compiles) |
+| `requires_dist` | curated `Requires-Dist`: REPLACES the wheel's upstream dependency metadata wholesale ([CW-ADR-0004](adr/0004-combo-encoded-versions-and-metadata-patching.md)). PEP 508 strings; `{LOCAL}` expands to the wheel's own local tag, `{VER:<folder>}` to that package's pinned `version` — together they make exact sibling pins (`cumesh==0.0.1+cu128torch2.8`) that only our index can satisfy. Declare it only for packages whose upstream list is wrong (build-tool leakage, sibling mis-pins); the gate's C2 check asserts the wheel carries exactly the expanded list. Never pin `torch==X.Y.Z` — consumer envs pin torch at major.minor deliberately |
 
 **Optional** — in override files (each requires an explaining `README.md`):
 

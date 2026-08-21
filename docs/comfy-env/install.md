@@ -96,12 +96,17 @@ the node's position, then `install_workspace()` (`install/workspace.py`):
    [cuda-wheels index](../cuda-wheels/index.md) can satisfy -- exact host
    combo first, known-good fallback second. (No GPU? See the box below.)
 3. **Generate one `pixi.toml` per env** (`packages/toml_generator.py`) with
-   the torch pin replicated verbatim and CUDA wheels inlined as direct URLs.
+   the torch pin replicated verbatim; CUDA wheels stay OUT of the manifest
+   and install in a later `uv pip install --no-deps` pass (step 6).
 4. **Hash each env's config** -- unchanged envs are skipped entirely.
 5. **`pixi install --manifest-path envs/<name>/pixi.toml`**, one invocation
    per env, so a broken manifest cannot poison the others
    ([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)).
-6. **Stamp the env** (Python ABI + comfy-env version + torch pin) so later
+6. **Install the CUDA wheels** with `uv pip install --no-deps --no-cache`
+   against their direct URLs, into the env pixi just materialized -- the
+   [two-system problem](two-system-problem.md) explains why they bypass
+   the resolver.
+7. **Stamp the env** (Python ABI + comfy-env version + torch pin) so later
    launches can detect staleness, then dedupe macOS libomp copies.
 
 The pixi binary itself is bootstrapped to a comfy-env-owned, pinned,

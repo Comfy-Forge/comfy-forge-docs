@@ -16,8 +16,11 @@ wheels automatically (`packages/cuda_wheels.py`):
 
 - Packages listed under `[cuda]` in `comfy-env.toml` are resolved against the
   **GitHub Pages simple index** (`pozzettiandrea.github.io/cuda-wheels/v2/`)
-  for the user's exact combination; matching wheel URLs are inlined into the
-  generated `pixi.toml` as URL pypi-dependencies.
+  for the user's exact combination; the matched wheel URLs install in a
+  post-pixi `uv pip install --no-deps` pass, outside `pixi.toml` (the
+  [two-system problem](../two-system-problem.md) -- inlining them as URL
+  pypi-dependencies returns once the farm's Requires-Dist curation ships
+  in consumers' wheels).
 - The resolver derives **torch family pins** so the chosen wheels and the
   env's torch agree.
 - Network resilience: transient TCP resets are retried with a real

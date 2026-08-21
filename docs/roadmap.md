@@ -7,11 +7,13 @@ stay listed (struck) so the list doubles as a change record.
 
 ## cuda-wheels
 
-1. **Requires-Dist curation** -- per-package `requires_dist_overrides`
-   applied in the existing METADATA rewrite: strip build-tool leakage
-   (spconv), pin sibling packages to exact farm builds, keep true runtime
-   deps (gsplat's `ninja` is real: runtime JIT). Unblocks lockfile-visible
-   inlining in comfy-env.
+1. **Requires-Dist curation** -- *landed 2026-08-21*: per-package
+   `requires_dist` in `package.yml` replaces the wheel's metadata in the
+   existing METADATA rewrite, with `{LOCAL}`/`{VER:<folder>}` expansion
+   for exact local-version sibling pins; gate C2 asserts the result.
+   Seven packages curated (ovoxel, spconv, cumm, cubvh, sageattn3,
+   detectron2, nvdiffrast); torch lines deliberately untouched. Unblocks
+   lockfile-visible inlining in comfy-env.
    ([CW-ADR-0004](cuda-wheels/adr/0004-combo-encoded-versions-and-metadata-patching.md))
 
 ## comfy-env

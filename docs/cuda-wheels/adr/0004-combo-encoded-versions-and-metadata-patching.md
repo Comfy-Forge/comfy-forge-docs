@@ -45,22 +45,38 @@ would collide, and resolvers could not select by combo.
   the local version at build time so the wheel is *born* correct and the
   repack step disappears.
 
-## Direction: Requires-Dist curation (planned)
+## Requires-Dist curation (2026-08-21)
 
-The same METADATA pass currently leaves `Requires-Dist` as upstream wrote
-it, which is wrong for the artifact we ship (2026-08 audit of live wheels):
+The same METADATA pass also curates `Requires-Dist` -- upstream's list is
+sometimes wrong for the artifact we ship (2026-08 audit of live wheels):
 spconv leaks build-time tools (`pccm`, `ccimport`, `pybind11`) as runtime
-deps and pins sibling `cumm` to a spec that resolves to the WRONG artifact
-on PyPI; gsplat declares bare `torch`, inviting resolvers to re-decide the
-one thing consumer envs pin deliberately. This is why comfy-env must
+deps and pins sibling `cumm<0.8.0` -- a spec our own farm cumm (0.8.2)
+does not satisfy and that resolves to the WRONG artifact on PyPI; ovoxel's
+sibling deps were bare names resolving against PyPI; detectron2 ships
+`black==21.4b2` as a runtime dep. This mis-metadata is why comfy-env must
 install these wheels with `--no-deps`, outside its lockfile (the
 "two-system problem" --
 [comfy-env docs](../../comfy-env/two-system-problem.md)).
 
-Planned: a per-package `requires_dist_overrides` field in `packages/*.yml`,
-applied in this same rewrite step -- strip build-tool leakage, rewrite
-sibling farm packages to exact local-version pins, keep genuine runtime
-deps (incl. runtime-JIT toolchains like gsplat's `ninja`). Several wheels
-(sageattention, cc_torch, fused_ssim) already declare nothing and need no
-changes. Result: resolver-safe wheels that consumers can inline as ordinary
-URL dependencies, hashed, inside their lockfiles.
+Mechanism: an optional `requires_dist` list in the package's own
+`package.yml` REPLACES the wheel's Requires-Dist (and Provides-Extra)
+wholesale during this rewrite. `{LOCAL}` expands to the wheel's local tag
+and `{VER:<folder>}` to a sibling's pinned `version`, yielding exact
+local-version sibling pins (`cumm==0.8.2+cu128torch2.8`) -- PyPI forbids
+local versions, so such a pin resolves from our index or fails loudly,
+never to a stranger's package. The verify gate's C2 check asserts the
+published wheel carries exactly the expanded list.
+
+Curation is surgical, not blanket: most upstream lists are correct and
+stay untouched, including genuine runtime-JIT deps (gsplat's `ninja` is
+real; JIT-only nvdiffrast *gains* a ninja declaration). Torch policy:
+leave upstream's bare `torch`/floor specifiers alone and never emit
+`torch==X.Y.Z` -- consumer envs (comfy-env) pin torch at major.minor with
+a per-package index on purpose, and an exact-patch pin in wheel metadata
+would deadlock resolution the moment the index picks a different patch.
+Result: resolver-safe wheels that consumers can inline as ordinary URL
+dependencies, hashed, inside their lockfiles.
+
+Propagation caveat: comfy-env's env identity hashes the wheel URLs, so a
+metadata-only re-upload under the same filename is invisible to it --
+curated metadata reaches consumers through actual rebuilds.
