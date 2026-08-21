@@ -73,10 +73,6 @@ imagining them:
 | a package `README.md` | [natten](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/natten/README.md) · [diso](https://github.com/Comfy-Forge/cuda-wheels/blob/main/packages/diso/README.md) (why *no* override) |
 | the defaults | [python_cuda_torch_os_policy.yml](https://github.com/Comfy-Forge/cuda-wheels/blob/main/defaults/python_cuda_torch_os_policy.yml) · [arch_policy.yml](https://github.com/Comfy-Forge/cuda-wheels/blob/main/defaults/arch_policy.yml) · [defaults/README.md](https://github.com/Comfy-Forge/cuda-wheels/blob/main/defaults/README.md) |
 
-Deep dives on the two scripts people ask about most:
-[generate_matrix.py](generate-matrix.md) (configs → job matrix) and
-[generate_index.py](generate-index.md) (releases → pip index).
-
 **The website is not in main.** The PEP 503 index, dashboard and matrix
 page are built into `_site/` at deploy time and exist only on the
 `gh-pages` branch; the shorter-index guard compares against a checkout of
