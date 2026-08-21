@@ -29,7 +29,7 @@ cuda-wheels/                          (the Comfy-Forge line's layout)
 │   │   ├── arch_override.yml
 │   │   ├── patches/natten.py
 │   │   └── README.md            this package's quirks (rendered in-folder)
-│   └── ...                      49 packages
+│   └── ...                      one folder per package
 │
 ├── scripts/             the machinery
 │   ├── package_loader.py            ONE loader: folders + overrides ->
