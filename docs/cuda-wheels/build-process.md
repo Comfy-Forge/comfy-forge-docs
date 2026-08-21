@@ -190,7 +190,8 @@ demonstrates.)
 
 | Field | File | Purpose |
 |---|---|---|
-| `arch_list` / `arch_list_by_cuda` | `arch_override.yml` | override the inherited GPU architectures |
+| `arch_list` / `arch_list_by_cuda` | `arch_override.yml` | override the inherited GPU architectures (x86 lanes) |
+| `arch_list_aarch64` / `arch_list_by_cuda_aarch64` | `arch_override.yml` | same, for the aarch64 lane — the x86 fields are deliberately not consulted there; declare these when a kernel gap is platform-independent (e.g. sageattention ships no sm_100 anywhere) |
 | `min_pytorch` | `pcto_override.yml` | floor, for packages that do not support older torch |
 | `build_matrix` (`combinations` / `platforms`) | `pcto_override.yml` | own cell grid or platform restriction |
 
