@@ -99,8 +99,16 @@ The job list is a subtraction chain:
 
 ## What happens after a build?
 
-Wheels are released in github releases.
-We can run an index deploy, standalone, when we know that they are ready.
+Every finished wheel is uploaded straight to its package's rolling GitHub
+release (`<pkg>-latest`) — that's the storage, and it updates the moment a
+job succeeds.
+
+The pip index is a separate, deliberate step. Dispatching **Update Index**
+(`update-index.yml`) rebuilds the whole site from the Releases API and
+deploys it to gh-pages — run it standalone once the builds you care about
+have landed. A build run never touches the live index on its own unless
+dispatched with `update_index=true`, so half-finished build waves can't
+publish a half-updated index.
 
 ## What do the wheel names mean?
 
@@ -108,71 +116,43 @@ We can run an index deploy, standalone, when we know that they are ready.
 <pkg>-<version>+cu<CCC>torch<M.m>-cp<PY>-cp<PY>-<platform>.whl
 
 flash_attn-2.8.3+cu124torch2.4-cp311-cp311-win_amd64.whl
-gsplat-1.5.3+cu124torch2.4-cp310-cp310-manylinux_2_34_x86_64....whl
+gsplat-1.5.3+cu124torch2.4-cp310-cp310-manylinux_2_28_x86_64.whl
 ```
 
 - The local version tag `+cu128torch2.9` **encodes the CUDA/torch combo**.
 - The wheel's internal `METADATA` version is **patched to match the filename**
   so pip/uv see a consistent version
   ([CW-ADR-0004](adr/0004-combo-encoded-versions-and-metadata-patching.md)).
-- Linux wheels go through **`auditwheel repair`** to `manylinux_2_35`, SHOULDNT IT BE 28?
-  excluding libcuda/libtorch -- those must come from the host.
+- Linux wheels go through **`auditwheel repair`** to `manylinux_2_28` (the
+  glibc floor is policy: it tracks PyTorch's manylinux baseline, enforced by
+  building in the manylinux_2_28 container), excluding libcuda/libtorch --
+  those must come from the host.
 - Builds pin exactly `torch==<ver>+cu<short>` from PyTorch's own index, so every
   wheel is **tied to a torch family** -- the same pin comfy-env replicates into
   its generated environments.
 
 ### Sequential and sharded compiles
 
-If a compile takes longer than 6 hours?
-
-Github runners have a hard 6 hour limit, some packages like natten or flash attn go overboard.
-
-Builds run on GitHub-hosted runners only. Long CUDA compiles get three
-escape hatches
+GitHub runners have a hard **6-hour job limit**; some compiles (flash_attn,
+flashinfer, llama_cpp_python) go overboard. Three escape hatches
 ([CW-ADR-0006](adr/0006-fitting-cuda-compiles-into-hosted-ci.md)):
 
-1. **Disk freeing** -- the runner's dotnet/android/ghc/swift images are
-   deleted up front.
-2. **Sharding (`sharding: N`)** -- the primary fix, and since
-   [CW-ADR-0014](adr/0014-zero-shim-sharding.md) a one-line opt-in: a
-   wrapper in the nvcc seat hash-partitions translation units across N
-   jobs; shards hand off their **compiler cache** (not the build tree);
-   the link job unions the caches, replays the build as hits, links one
-   ordinary fat wheel, and **fails loudly below a 90% hit rate**. A
-   flash-attention cell at `sharding: 4` is four ~80-minute jobs plus a
-   minutes-long link. Windows uses the older generic source-list
-   injection with `.obj` handling and `LINK=/FORCE:UNRESOLVED` at shard
-   stage.
-3. **Sequential checkpointing (`sequential_checkpoint: <seconds>`)** --
-   for builds sharding cannot touch: the compile runs under `timeout`;
-   on expiry the ENTIRE source tree (PAX tar, nanosecond mtimes -- ninja's
-   restat check demands them) goes to an artifact and the next chain link
-   restores it and continues. Both platforms are wired: `build.yml`
-   carries **6 links per platform** (`_chain_link.yml` /
-   `_chain_link_windows.yml`), and the two users -- flashinfer and
-   llama_cpp_python -- checkpoint every **3 hours**, so a chain can
-   absorb up to 18h of compile. A finished chain skips its remaining
-   links at zero cost.
+1. **Disk freeing** -- preinstalled runner images deleted up front.
+2. **Sharding (`sharding: N`)** -- for torch `cpp_extension` builds
+   ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)): translation units are
+   hash-partitioned across N parallel jobs; a link job unions their compiler
+   caches, links one ordinary wheel, and fails below a 90% cache hit rate.
+3. **Sequential checkpointing (`sequential_checkpoint: <seconds>`)** -- for
+   CMake/ninja builds sharding cannot intercept: the compile runs under
+   `timeout`; on expiry the source tree goes to an artifact and the next
+   chain link resumes it. 6 links per platform at 3h each = up to 18h.
 
-!!! note "Sharding vs checkpointing — how to choose"
-    Sharding intercepts the flat `.cu` list inside torch's
-    `cpp_extension` build, so it only works for packages that build
-    through that path. CMake/ninja trees (flashinfer's AOT cache,
-    llama_cpp_python's GGML build) are opaque to the shim -- but their
-    incremental state is exactly what makes checkpoint/resume reliable.
-    Rule of thumb: cpp_extension -> `sharding: N`; CMake/ninja that
-    exceeds 6h -> `sequential_checkpoint`.
+Rule of thumb: cpp_extension -> shard; CMake/ninja over 6h -> checkpoint.
 
-Three caps to know, all discovered the hard way:
-
-- **6 hours per job** on GitHub-hosted runners, immovable — hence the
-  escape hatches above.
-- **24 hours maximum queue wait** -- a job queued longer is discarded.
-  Don't dispatch more than the runner pool clears in a day.
-- **256 entries per job matrix** -- cells x shards per dispatch must stay
-  under it; an oversized matrix fails the run *with every listed job
-  green*, because the offending job is never created. Slice full-grid
-  overwrites of sharded packages with the cuda/pytorch/python filters.
+Two more caps, discovered the hard way: a job **queued over 24h** is
+discarded, and a job **matrix over 256 entries** fails the run with every
+listed job green (the offending job is simply never created) -- slice big
+overwrites with the cuda/pytorch/python filters.
 
 ## How do I add a package?
 
