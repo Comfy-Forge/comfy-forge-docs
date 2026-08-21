@@ -100,13 +100,15 @@ The job list is a subtraction chain:
 ## What happens after a build?
 
 Every finished wheel is uploaded straight to its package's rolling GitHub
-release (`<pkg>-latest`) — that's the storage, and it updates the moment a
+release (`<pkg>-latest`).
+That's the storage, and it updates the moment a
 job succeeds.
 
-The pip index is a separate, deliberate step. Dispatching **Update Index**
+The pip index is a separate, deliberate step.
+
+Dispatching **Update Index**
 (`update-index.yml`) rebuilds the whole site from the Releases API and
-deploys it to gh-pages — run it standalone once the builds you care about
-have landed. A build run never touches the live index on its own unless
+deploys it to gh-pages. A build run never touches the live index on its own unless
 dispatched with `update_index=true`, so half-finished build waves can't
 publish a half-updated index.
 
@@ -154,63 +156,39 @@ discarded, and a job **matrix over 256 entries** fails the run with every
 listed job green (the offending job is simply never created) -- slice big
 overwrites with the cuda/pytorch/python filters.
 
-## How do I add a package?
-
-A folder under `packages/`, holding a `package.yml` plus optional override
-files and patches:
-
-```yaml
-# packages/flash_attn/package.yml
-name: flash_attn
-links_torch: true   # REQUIRED: the loader hard-errors if undeclared
-source_repo: Dao-AILab/flash-attention
-source_tag: v2.8.3
-patch_script: packages/flash_attn/patches/flash_attn.py
-extra_deps: psutil
-nvcc_flags: -diag-suppress 221
-```
-
-```yaml
-# packages/flash_attn/arch_override.yml  (optional)
-arch_list_by_cuda:
-  '12.4': 8.0 9.0+PTX
-  '12.8': 8.0 9.0 10.0 12.0+PTX
-```
-
-!!! warning "The loader enforces two contracts"
-    `package_loader.py` refuses (hard error, not a warning) any package
-    that **does not declare `links_torch`**, and any package carrying a
-    `pcto_override.yml` or `arch_override.yml` **without a `README.md`
-    that explains the override** (an `## Overrides` section). Every
-    deviation from `defaults/` must say why.
-
-Then dispatch it -- **narrow first**, to prove the recipe on one combination
-before opening it to the whole grid:
-
-```bash
-gh workflow run build.yml -f package=flash_attn -f cuda=12.8 -f pytorch=2.8
-gh workflow run build.yml -f package=flash_attn        # full grid
-```
-
-!!! warning "The package list is an enum"
-    `build.yml` declares `package` as a `choice` input. A new package **must be
-    added to that list** or dispatch is rejected.
-
 ### Config fields
+
+**Required** (the loader hard-errors without them):
 
 | Field | Purpose |
 |---|---|
+| `name` | the package/dist name — keys the release tag, wheel prefix and index entry |
 | `source_repo` / `source_tag` | where the source comes from. **Pin a commit or tag** -- a floating `main` means the wheels in one release need not come from the same source |
+| `links_torch` | `true` = one wheel per (cuda × torch); `false` = never links libtorch, built once per (cuda, python, platform) and listed under every torch ([CW-ADR-0011](adr/0011-torch-independent-packages.md)) |
+
+**Optional** — in `package.yml`:
+
+| Field | Purpose |
+|---|---|
+| `version` | pin the wheel version when upstream detection fails |
 | `build_subdir` | build from a subdirectory, for extensions inside a larger repo |
 | `patch_script` | Python run against the checked-out source before building |
+| `pre_build_script` | shell run before the compile (e.g. export CMAKE_ARGS) |
 | `clone_recursive` | clone submodules |
 | `extra_deps` | extra pip build dependencies |
-| `nvcc_flags` | appended to the nvcc command line |
-| `arch_list` / `arch_list_by_cuda` | in `arch_override.yml`: override the inherited GPU architectures |
-| `min_pytorch` | in `pcto_override.yml`: floor, for packages that do not support older torch |
-| `sharding: N` | split one cell's compile across N parallel jobs + a link job — the **entire** opt-in on Linux ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)); see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
-| `sequential_checkpoint` | timeout-and-resume chain, 6 links per platform (flashinfer/llama_cpp use 10800 = 3h links) — see [the 6-hour cap](#what-if-a-compile-takes-longer-than-6-hours) |
-| `links_torch` | **required.** `false` = never links libtorch: built once per (cuda, python, platform), listed under every torch ([CW-ADR-0011](adr/0011-torch-independent-packages.md)) |
+| `extra_cuda_components` | additional CUDA toolkit packages (cufft, nvtx, ...) |
+| `nvcc_flags` | appended to the nvcc command line (trailing flags win) |
+| `max_jobs` | cap parallel compile jobs — see [nvcc builds](nvcc-builds.md) |
+| `sharding: N` | split one cell's compile across N parallel jobs + a link job ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)); see [the 6-hour section](#sequential-and-sharded-compiles) |
+| `sequential_checkpoint` | timeout-and-resume chain, 6 links per platform (flashinfer/llama_cpp use 10800 = 3h links); see [the 6-hour section](#sequential-and-sharded-compiles) |
+
+**Optional** — in override files (each requires an explaining `README.md`):
+
+| Field | File | Purpose |
+|---|---|---|
+| `arch_list` / `arch_list_by_cuda` | `arch_override.yml` | override the inherited GPU architectures |
+| `min_pytorch` | `pcto_override.yml` | floor, for packages that do not support older torch |
+| `build_matrix` (`combinations` / `platforms`) | `pcto_override.yml` | own cell grid or platform restriction |
 
 `packages/README.md` is the authoritative reference; each package folder's `README.md`
 collects per-package quirks.
