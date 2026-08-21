@@ -5,8 +5,12 @@ A CUDA compile on a hosted runner is a memory-budgeting problem.
 GitHub's standard runners give you **4 vCPUs and 16GB of
 RAM** (Linux and Windows alike).
 
-A single `cicc` instance (nvcc's device-code front end) peaks at **roughly 4GB** on heavy template code.
-The knobs below decide how many of those 4GB processes exist at once.
+A single `cicc` instance (nvcc's device-code front end) is usually small
+(0.3-1GB) but peaks at **7-11GB** on heavy template code — measured, not
+guessed: a real natten build showed one cicc at **10.6GB**, and two
+simultaneous 7.5GB ciccs took a 16GB runner to 0.1GB free and 3GB into
+swap at `max_jobs: 2`. The knobs below decide how many of those processes
+exist at once.
 
 ## The knobs that control memory usage.
 
