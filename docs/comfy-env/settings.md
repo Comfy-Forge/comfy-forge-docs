@@ -31,24 +31,6 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 | `COMFY_ENV_AUTO_INSTALL` | `auto_install` | **off** | Materialize a missing env at `register_nodes()` time. Off by default because installs take minutes and block startup. |
 | `COMFY_ENV_POOL_IPC` | `pool_ipc` | **off** | **Experimental, Linux-only, known-unsound** pool-based zero-copy GPU transfer. Enabling it prints a loud warning; do not use outside experiments -- see [ADR-0030](adr/0030-gpu-platform-floors.md) / [ADR-0005](adr/0005-tiered-tensor-serialization.md). |
 
-!!! warning "Removed in 0.4.25: `isolate` / `install_isolated` / `worker_vram_budget`"
-    `COMFY_ENV_ISOLATE` and `COMFY_ENV_INSTALL_ISOLATED` (and their
-    `[settings]` keys) no longer exist -- isolation is always on, and the
-    off-states never composed into a working mode. The tombstones are
-    value-sensitive: a **falsy** setting fails loudly (env var: boot error;
-    `[settings]` key: the pack goes IMPORT FAILED), because "run this
-    un-isolated" is written intent the system can no longer honor; a
-    **truthy** one only warns. Keys the old settings TUI wrote into
-    `~/.comfy-env/settings.env` are skipped silently and disappear on the
-    next save. For containers and CI, see
-    [Containers, CI & air-gapped](containers.md); the automatic per-env
-    fallback (missing env -> in-process import,
-    [ADR-0008](adr/0008-graceful-degradation-everywhere.md)) is unchanged.
-    Full rationale: [ADR-0037](adr/0037-no-non-isolated-paths.md).
-    `COMFY_ENV_WORKER_VRAM_BUDGET` (manual per-worker VRAM cap) went with
-    them, warn-only for any leftover value: the budget-negotiation callback
-    computes the honest number automatically, and 0 already meant auto.
-
 ## Transport
 
 | Env var | default | meaning |
