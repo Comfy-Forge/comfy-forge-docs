@@ -50,8 +50,8 @@ Results and inputs cross the boundary via the first applicable strategy
 
 | # | Strategy | Wire type | Mechanism | Copies | Constraints |
 |---|----------|-----------|-----------|--------|-------------|
-| 1 | CUDA IPC | `CudaIPC` | `reduce_tensor()` / `rebuild_cuda_tensor()` | zero-copy GPU | Linux only; broken under `cudaMallocAsync` |
-| 2 | Pool IPC | `PoolIPC` | `cudaMemPoolExportPointer` + FD passing | zero-copy GPU | **experimental, default-off, Linux only** ([ADR-0030](adr/0030-gpu-platform-floors.md)) |
+| 1 | CUDA IPC | `CudaIPC` | `reduce_tensor()` / `rebuild_cuda_tensor()` | zero-copy GPU | Linux only; **dark on a stock ComfyUI** -- unsupported under `cudaMallocAsync`, which ComfyUI enables by default ([Zero-copy CUDA transfer](zero-copy-ipc.md)) |
+| 2 | Pool IPC | `PoolIPC` | `cudaMemPoolExportPointer` + FD passing | zero-copy GPU | **experimental, default-off, Linux only** ([ADR-0030](adr/0030-gpu-platform-floors.md)); the mechanism that replaces it is measured in [Zero-copy CUDA transfer](zero-copy-ipc.md) |
 | 3 | Torch shared memory | `TensorRef` | `file_system` strategy (/dev/shm) | zero-copy CPU | |
 | 4 | NumPy | -- | converted to torch tensor, then #3 | zero-copy CPU | |
 | 5 | Pickle (last resort) | -- | pickled into a `SharedMemory` block | 1 copy | unregistered types (pack types belong in [`[types]` declarations](adr/0015-declared-wire-types.md)); unpicklable values raise a named error |

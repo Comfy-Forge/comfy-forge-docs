@@ -71,6 +71,7 @@ nav:
           - How ComfyUI manages memory: comfy-env/comfyui-memory.md
           - Sharing one GPU: comfy-env/sharing-one-gpu.md
           - The process boundary: comfy-env/process-boundary.md
+          - Zero-copy CUDA transfer: comfy-env/zero-copy-ipc.md
           - Dynamic combos: comfy-env/dynamic-combos.md
           - The three seals: comfy-env/seals.md
           - Import layering: comfy-env/import-layering.md

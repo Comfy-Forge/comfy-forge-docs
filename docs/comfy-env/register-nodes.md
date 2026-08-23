@@ -61,7 +61,7 @@ Step by step:
    **persistent worker** for that env -- spawned on first use, kept alive
    across executions (models stay resident), auto-restarted on crash, torn
    down at exit. Tensors cross the boundary via the
-   [serialization ladder](index.md#tensor-serialization-ladder).
+   [serialization ladder](process-boundary.md#tensor-serialization-ladder).
 5. **Everything else** -- directories without a config, or with a config but
    no materialized env -- is imported normally in-process, and their
    mappings merged into the same return value.

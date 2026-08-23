@@ -2,6 +2,10 @@
 
 **Status:** accepted (2026-08-14) -- from the NVIDIA-lens external
 review. Records three decisions and one demotion.
+**Amended 2026-08-24:** decision 2's precondition is met -- the
+ownership contract now exists and the mechanism it stands on is
+measured. See [The contract, and what met it](#the-contract-and-what-met-it)
+at the foot of this record.
 
 ## Decision
 
@@ -104,3 +108,78 @@ default. This ADR reorders the investment accordingly.
 - Multi-GPU device-identity rules live in
   [ADR-0025](0025-vram-co-management.md); this ADR's floors apply
   per-device when that day comes.
+
+## The contract, and what met it
+
+*Amendment, 2026-08-24.* Decision 2 demoted pool IPC until a written
+cross-process ownership contract existed -- "who frees, in what order,
+with what sync primitive". It now does, and the mechanism it rests on
+has been verified end-to-end on an RTX 3090 (driver 580.126.20, torch
+2.8.0+cu128). The full write-up, with the scripts that produced it, is
+[Zero-copy CUDA transfer](../zero-copy-ipc.md); `research/pool-ipc/`
+in the comfy-env repo holds the code.
+
+The contract:
+
+```
+EXPORT -> READY-event -> IMPORT -> WRITE -> DONE-event -> UNIMPORT -> ACK -> RELEASE
+```
+
+Three things about it answer this ADR's objections directly.
+
+**Who frees, resolved by inverting the direction.** The unsoundness
+recorded above -- a parent left holding an imported pointer it cannot
+safely free -- came from the worker exporting results. Instead the
+parent allocates the result tensor and the worker writes into it in
+place, so the parent's result is an ordinary refcounted
+`torch.Tensor` and the importer (the worker) always releases before
+the exporter (the parent) does. The requirement stops being a rule to
+enforce and becomes a consequence of the layout.
+
+**What sync primitive: interprocess CUDA events**, as this ADR
+predicted, and they do work under `cudaMallocAsync` -- now measured
+rather than assumed. Two gates: the worker waits on a ready-event
+before touching imported memory, and the parent's consumer streams
+wait on a write-done event before reading. The ack gates on GPU work
+completion, never CPU receipt, because `cudaFreeAsync` returns bytes
+to the pool where the next allocation can immediately reissue them.
+
+**Exporter-side pinning is no longer a bounded cache.** The parent
+holds an ordinary Python reference for the transfer's lifetime; there
+is no metadata cache whose eviction can free memory under a live
+alias, and the pool carries an explicit release threshold set by us
+rather than inherited.
+
+The remaining gap is not the contract but the mechanism's reach. The
+shipped `PoolIPC` rung stays experimental and default-off; what
+replaces it is a **parent-side pool swap** (`cuDeviceSetMemPool` to a
+`POSIX_FD`-shareable pool before torch imports), which makes ComfyUI's
+own tensors exportable without patching torch's allocator -- the
+pluggable-allocator ambition of ADR-0010 v2 item 6, reached from the
+other end and at a fraction of the cost.
+
+Two measured constraints bind any implementation:
+
+- `cuMemPoolExportPointer` fails until the pool has been exported to a
+  shareable handle. Undocumented; export the FD once at startup.
+- `cuMemPoolImportPointer` segfaults the importer above **5248 MiB per
+  allocation** -- a NULL dereference inside `libcuda`, with no prior
+  public report anywhere. The limit is per allocation and not
+  cumulative, so multi-tensor payloads of any total size are
+  unaffected; a single larger tensor must take the copy path. A size
+  guard and its fallback are therefore part of the admission
+  arithmetic ([ADR-0034](0034-admission-by-arithmetic.md)), not an
+  afterthought.
+
+**Decision 1 is unchanged.** Pinned host memory on the shm segment
+remains the floor and still precedes this work everywhere, because it
+is the only improvement that needs no handles, no probes and no
+platform gating -- and because zero-copy's unique win is *fitting*, not
+latency. A copy path needs source and destination resident at once;
+that is what puts a 16 GiB tensor out of reach on a 24 GiB card, and no
+amount of chunked staging fixes it. Latency was never the argument.
+
+Windows remains unprobed and therefore unchanged: `research/pool-ipc/
+wddm_pool_probe.py` decides whether the same architecture works on WDDM
+or whether the worker-side VMM arena is required, and until it runs on
+real hardware this ADR's platform gating stands exactly as written.
