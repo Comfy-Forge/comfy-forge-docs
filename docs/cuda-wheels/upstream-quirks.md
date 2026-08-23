@@ -91,7 +91,11 @@ need opposite responses.
   older CUDA -- carries 2.13. The index most Blackwell users are pinned to is
   the one upstream moved on from first.
 - **Windows comes and goes.** `cu129` has Windows builds through torch 2.9.0 and
-  none after.
+  none after -- including 2.9.**1**, the patch the farm's rows pin. The farm's
+  answer is per-platform patch anchoring: a policy row can carry
+  `pytorch_windows: "2.9.0"` (emitted automatically by `derive_defaults.py`
+  whenever the pinned patch shipped nothing for a platform that a sibling
+  patch covers), so the `torch2.9` wheel tag keeps its promise on Windows too.
 - **Coverage varies by Python within a single release.** `cu124` torch 2.5.1 has
   Windows for py3.10 through py3.12 and not for py3.13. Torch 2.13.0 has no
   Windows for py3.15 on cu126, cu130 or cu132.
