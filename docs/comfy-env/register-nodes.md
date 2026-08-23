@@ -82,8 +82,6 @@ Step by step:
   `COMFY_ENV_AUTO_INSTALL` is on (default **off** -- installs take
   minutes), `register_nodes()` first tries to materialize the env at
   startup, guarded by a file lock against concurrent launches.
-- **`COMFY_ENV_ISOLATE=0`** (or `[settings] isolate = false` in the TOML)
-  -> everything is imported in-process, proxies never built.
 - Per-node `[settings]` are propagated to workers as env vars
   (`SETTINGS_KEY_MAP`), so flags like `pool_ipc` or a VRAM budget can be
   set per pack.

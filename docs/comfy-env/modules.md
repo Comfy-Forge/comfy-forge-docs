@@ -11,7 +11,7 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 |------|-----:|----------------|
 | `__init__.py` | 199 | Public facade. Re-exports the whole API grouped by layer; defines `__version__` from installed metadata; runs `_mock_cuda_packages()` at import (stub modules from `COMFY_TEST_MOCK_PACKAGES` so CPU-only machines can import). |
 | `cli.py` | 682 | The `comfy-env` console entrypoint: `init`, `generate`, `install`, `info`, `doctor`, `settings`, `debug`, `gc`. Settings/debug are curses TUIs with a plain-text fallback. |
-| `settings.py` | 108 | Feature-flag resolution, 3-tier priority: env var > `~/.comfy-env/settings.env` > default. Maps short TOML keys (`isolate`, `pool_ipc`) to `COMFY_ENV_*` vars for per-node override. |
+| `settings.py` | 108 | Feature-flag resolution, 3-tier priority: env var > `~/.comfy-env/settings.env` > default. Maps short TOML keys (`auto_install`, `pool_ipc`) to `COMFY_ENV_*` vars for per-node override. |
 | `debug.py` | 61 | Granular debug-category switches (`SERIALIZE`, `IPC`, `WORKER`, `VRAM`, ...), same 3-tier priority via `~/.comfy-env/debug.env`. Workers cannot import it (different venv) and parse env vars directly. |
 
 ## `config/`
@@ -50,7 +50,7 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 
 | File | ~LoC | Responsibility |
 |------|-----:|----------------|
-| `install/__init__.py` | 95 | `install()` entrypoint; infers the caller's directory via `inspect.stack()`; orchestrates node_reqs -> main-env pip -> workspace install (gated on `COMFY_ENV_INSTALL_ISOLATED`). |
+| `install/__init__.py` | 95 | `install()` entrypoint; infers the caller's directory via `inspect.stack()`; orchestrates node_reqs -> main-env pip -> workspace install. |
 | `install/plugin.py` | 71 | Plugin half: clone `[node_reqs]` peers, re-run the plugin's own `requirements.txt` in the main env. |
 | `install/workspace.py` | 850 | Workspace half: discover configs, resolve bootstrap torch pin (CPU-only without GPU), pick wheel combo, hash configs for change detection, write per-env `pixi.toml`, run `pixi install` per env, stamp. |
 | `install/helpers.py` | 164 | Cross-platform utilities: `_rmtree` via robocopy-mirror-from-empty-dir (defeats Windows long-path/read-only deletes), uv discovery and platform patch, tee logging, streaming subprocess runner. |

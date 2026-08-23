@@ -34,6 +34,10 @@ stay listed (struck) so the list doubles as a change record.
     `platforms:` beyond the pilot is a build-capacity decision
     ([CW-ADR-0015](cuda-wheels/adr/0015-linux-aarch64-opt-in.md)).
 
+0. *Unscheduled thought (2026-08, not a commitment):* if the host env can be
+   detected as conda-managed already, installing a pack's deps into that
+   existing env might one day be acceptable -- recorded from the
+   isolate-flag debate; today the answer to envless remains "not supported".
 1. **Revive the inlining path** once curated wheels land -- URL
    pypi-dependencies in generated manifests, side-channel + `--no-cache`
    retired.

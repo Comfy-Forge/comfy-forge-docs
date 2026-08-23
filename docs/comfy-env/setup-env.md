@@ -33,15 +33,12 @@ caller's directory via `inspect.stack()`, same trick as the other two calls.
     `[MISSING -- run install.py]` means the config was discovered but the
     env was never materialized.
 
-3. **Stop here if isolation is disabled** (`COMFY_ENV_ISOLATE`, default on)
-   -- the banner still prints, nothing else happens.
-
-4. **`dedupe_libomp()`** -- macOS only: symlinks redundant bundled
+3. **`dedupe_libomp()`** -- macOS only: symlinks redundant bundled
    `libomp.dylib` copies to torch's canonical one, because multiple loaded
    copies corrupt OpenMP runtime state and segfault inside native filters
    ([ADR-0009](adr/0009-platform-strategy.md)). No-op elsewhere.
 
-5. **Ensure `args.base_directory` is set** -- some nodes resolve relative
+4. **Ensure `args.base_directory` is set** -- some nodes resolve relative
    paths through ComfyUI's `--base-directory`; if the user did not pass it,
    it is filled in from `folder_paths.base_path`.
 

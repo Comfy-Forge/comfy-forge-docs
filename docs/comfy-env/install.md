@@ -145,8 +145,8 @@ fails an install.
 
 ### 2. Workspace half (isolated environments)
 
-Gated on the `COMFY_ENV_INSTALL_ISOLATED` flag (default **on**;
-overridable per-node via `[settings]`). Locates the ComfyUI base dir from
+Always runs (the old `COMFY_ENV_INSTALL_ISOLATED` off-switch was removed
+in 0.4.25). Locates the ComfyUI base dir from
 the node's position, then `install_workspace()` (`install/workspace.py`)
 runs the flow in the diagram. Two clarifications the boxes are too small
 for:

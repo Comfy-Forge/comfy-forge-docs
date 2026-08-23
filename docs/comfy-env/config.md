@@ -51,8 +51,6 @@ ComfyUI-GeometryPack = "https://github.com/PozzettiAndrea/ComfyUI-GeometryPack"
 # COMFY_ENV_* env vars; a pack's [settings] wins over env vars --
 # most specific wins; see the settings reference).
 [settings]
-isolate = true            # COMFY_ENV_ISOLATE      (default true)
-install_isolated = true   # COMFY_ENV_INSTALL_ISOLATED (default true)
 auto_install = false      # COMFY_ENV_AUTO_INSTALL (default false)
 pool_ipc = false          # COMFY_ENV_POOL_IPC     (default false)
 worker_vram_budget = 0    # COMFY_ENV_WORKER_VRAM_BUDGET (GB, 0 = auto)
@@ -82,6 +80,29 @@ Notes:
   `register_nodes()` consult the second, and `register_nodes()`
   validates and loads the third (see
   [custom wire types](serializers.md)).
+
+### `[node_reqs]` -- every spelling the code accepts
+
+Two sources, checked in this order per entry (`packages/node_dependencies.py`):
+**registry first, then github**. An entry with neither logs a warning and is
+skipped. After cloning/downloading, the peer's own `requirements.txt` is
+pip-installed and its `install.py` run -- the standard ComfyUI install flow.
+
+| Spelling | Example | What happens |
+|---|---|---|
+| string shorthand | `Pack = "owner/Pack"` | `owner/repo` is normalized to `https://github.com/owner/repo`; full URLs pass through. Shallow clone of the default branch -- **unpinned, deprecated by ADR-0016** |
+| `github` + `tag` | `Pack = { github = "owner/Pack", tag = "v1.2.0" }` | `git clone --depth 1 --branch v1.2.0` -- **the required shape per ADR-0016** |
+| `github` + `branch` | `{ github = ..., branch = "dev" }` | shallow clone of that branch (moving ref -- unreproducible) |
+| `github` + `commit` | `{ github = ..., commit = "abc1234..." }` | full clone + `git checkout <sha>` (arbitrary commits cannot be shallow-cloned) |
+| `registry` | `{ registry = "pack-id" }` | zip download via `api.comfy.org/nodes/<id>/install` (latest version) |
+| `registry` + `version` | `{ registry = "pack-id", version = "1.2.0" }` | same endpoint, pinned version |
+
+`repo` is accepted as an alias for `github`. `tag`/`branch`/`commit` are
+mutually exclusive in effect (tag wins over branch; commit only consulted
+when neither is set). Registry entries and unpinned github entries are
+**deprecated by ADR-0016** (unpinned = unreproducible; registry versions are
+mutable and unsigned) -- still accepted by 0.4.x, rejected once enforcement
+lands.
 - `[apt]` / `[brew]` **no longer exist** (removed 2026-08): they predate
   the realization that everything they would deliver installs through
   pixi/conda-forge -- declare the equivalent conda package under a

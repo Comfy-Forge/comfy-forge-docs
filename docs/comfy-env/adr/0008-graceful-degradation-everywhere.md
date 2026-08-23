@@ -55,6 +55,20 @@ prestartup time is the entire application.
 
 - A broken or half-installed comfy-env degrades to "isolation off", not to a
   broken ComfyUI.
+
+    !!! note "Amended 2026-08: the fallback is per-env and automatic -- no flag"
+        The global off-switches (`COMFY_ENV_ISOLATE`,
+        `COMFY_ENV_INSTALL_ISOLATED`) were removed in 0.4.25 (ADR-0017,
+        pre-1.0): nobody set them, their off-states never composed into a
+        working mode, and `isolate=0` collaterally disabled the macOS
+        libomp fix. The terminal fallback is the **per-env automatic**
+        in-process import (missing env or stamp refusal), which is
+        evidence-triggered rather than flag-triggered;
+        `COMFY_ENV_AUTO_INSTALL` remains the recovery hatch (full
+        rationale: [ADR-0037](0037-no-non-isolated-paths.md)), and a failed
+        in-process import now fails loudly (full traceback; all-sources-
+        failed raises so ComfyUI marks the pack IMPORT FAILED) instead of
+        silently registering zero nodes.
 - Failures can hide: a node silently running in-process, or tensors silently
   taking the slow CPU path, look like success. Counterweights: the startup
   banner prints per-env `[OK]` / `[MISSING -- run install.py]`, and
