@@ -57,13 +57,8 @@ individual categories:
 Workers cannot import the settings module (different env), so debug env
 vars are forwarded to and parsed by workers directly.
 
-## Internal (set by comfy-env itself -- not user-facing)
-
-| Env var | set by | consumed by |
-|---|---|---|
-| `COMFY_ENV_ACCEL_PKGS` | `register_nodes()` from `[cuda].packages` | metadata scan's top-level-import check ([accelerator rule](accelerators.md)) |
-| `COMFY_ENV_SERIALIZER_FILES` | `register_nodes()` from `[types]` custom entries (`serialization.py` paths) | worker startup, to load custom type serializers ([ADR-0015](adr/0015-declared-wire-types.md)) |
-
-`COMFY_TEST_MOCK_PACKAGES` is the comfy-test harness's variable
-(interpreted by comfy-env at import; see the accelerator page for its
-planned retirement).
+Other `COMFY_ENV_*` variables you may see in a worker's environment
+(`COMFY_ENV_SERIALIZER_FILES`, `COMFY_ENV_ACCEL_PKGS`, ...) are internal
+plumbing -- the parent->worker spawn channel, documented in
+[The process boundary](process-boundary.md#the-spawn-time-channel). Never
+set them.

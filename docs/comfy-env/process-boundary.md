@@ -69,3 +69,25 @@ Results and inputs cross the boundary via the first applicable strategy
     `cudaMallocAsync`; until it is default-on the ladder falls back to
     CPU shared memory.
 
+## The spawn-time channel
+
+Workers cannot import comfy_env -- the worker program crosses the boundary
+as source text ([ADR-0006](adr/0006-worker-crosses-the-boundary-as-source-text.md)),
+and the isolated venv has no comfy_env installed. So when the parent spawns
+a worker, **environment variables are the configuration channel**: argv by
+another name, set per worker, carrying data rather than toggles.
+
+| Env var | set by | consumed by |
+|---|---|---|
+| `COMFY_ENV_ACCEL_PKGS` | `register_nodes()` from `[cuda].packages` | metadata scan's top-level-import check ([accelerator rule](accelerators.md)) |
+| `COMFY_ENV_SERIALIZER_FILES` | `register_nodes()` from `[types]` custom entries (`serialization.py` paths) | worker startup, to load custom type serializers ([ADR-0015](adr/0015-declared-wire-types.md)) |
+
+The same channel carries a pack's `[settings]` overrides (via
+`SETTINGS_KEY_MAP` in `register_nodes()`) and the `COMFY_ENV_DEBUG_*`
+variables, which workers parse directly. None of these are user settings:
+set what you need in [the settings reference](settings.md) and the parent
+forwards the right things.
+
+`COMFY_TEST_MOCK_PACKAGES` is the comfy-test harness's variable
+(interpreted by comfy-env at import; see the accelerator page for its
+planned retirement).
