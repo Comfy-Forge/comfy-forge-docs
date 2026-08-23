@@ -27,9 +27,8 @@ pixi validates its own language at install. The exceptions are the
 compiler-owned keys, which error loudly if you set them:
 `[environments]`, `[feature.*]`, `workspace.name/version/platforms`
 (host-derived identity); torch-family pins are rewritten to the host
-family. Typos inside comfy-env's own sections (`[cuda]`, `[options]`,
-`[settings]`) produce warnings; invalid `[types]` values are parse
-errors.
+family. Typos inside comfy-env's own sections (`[cuda]`, `[options]`) produce
+warnings; invalid `[types]` values are parse errors.
 
 ## `comfy-env-root.toml` (pack root)
 
@@ -47,13 +46,6 @@ OtherPack = { github = "https://github.com/x/OtherPack", tag = "v1.2.0" }
 # still accepted by 0.4.x code, rejected once 0016 enforcement lands.
 ComfyUI-GeometryPack = "https://github.com/PozzettiAndrea/ComfyUI-GeometryPack"
 
-# Per-pack overrides of comfy-env feature flags (short keys map to
-# COMFY_ENV_* env vars; a pack's [settings] wins over env vars --
-# most specific wins; see the settings reference).
-[settings]
-auto_install = false      # COMFY_ENV_AUTO_INSTALL (default false)
-pool_ipc = false          # COMFY_ENV_POOL_IPC     (default false)
-
 # Wire types this pack puts on node sockets (ADR-0015).
 # "builtin" = automatic transport (tensors/arrays/dicts), listed for
 # humans and tests; "custom" = serialize/deserialize functions in
@@ -64,21 +56,21 @@ TRIMESH    = "custom"
 SKELETON   = "builtin"
 INTRINSICS = "builtin"
 
-# NOTE: this file is a CLOSED schema. [node_reqs], [settings] and [types]
-# are the only sections accepted; anything else -- [dependencies], [cuda],
-# [env_vars], a legacy [apt], or a typo'd section name -- is a hard parse
-# error, not a silently-ignored no-op. Installing packages from the root
+# NOTE: this file is a CLOSED schema. [node_reqs] and [types] are the
+# only sections accepted; anything else -- [dependencies], [cuda],
+# [env_vars], a removed [settings], or a typo'd section name -- is a hard
+# parse error, not a silently-ignored no-op. Installing packages from the root
 # file would violate the host-environment principle above, so anything
 # installable belongs in a subdirectory comfy-env.toml.
 ```
 
 Notes:
 
-- `[node_reqs]`, `[settings]`, and `[types]` are the load-bearing
-  sections: `install()` consumes the first, both `install()` and
-  `register_nodes()` consult the second, and `register_nodes()`
-  validates and loads the third (see
-  [custom wire types](serializers.md)).
+- `[node_reqs]` and `[types]` are the load-bearing sections:
+  `install()` consumes the first; `register_nodes()` validates and
+  loads the second (see [custom wire types](serializers.md)). Settings
+  are machine-global env vars ([settings reference](settings.md)) --
+  the per-pack `[settings]` section was removed in 0.4.25.
 
 ### `[node_reqs]` -- every spelling the code accepts
 
@@ -108,7 +100,7 @@ lands.
   subdirectory's `[dependencies]` instead (e.g. `mesalib` replaces apt
   `libgl1-mesa-glx`). A leftover `[apt]` or `[brew]` table in a root file
   is now a **parse error**, not a silent no-op -- delete it.
-- The root file's schema is **closed**: `[node_reqs]`, `[settings]` and
+- The root file's schema is **closed**: `[node_reqs]` and
   `[types]` are the only accepted sections, and any other top-level table
   raises at load time (`config/__init__.py`, `ROOT_ALLOWED_SECTIONS`).
   This is deliberate -- a no-op `[env_vars]` shipped in the flagship pack
@@ -174,7 +166,7 @@ KMP_DUPLICATE_LIB_OK = "TRUE"
 [options]
 health_check_timeout = 5.0   # seconds; per-env worker ping timeout
 
-# NOTE: [settings], [node_reqs], and [types] are ROOT-file sections and
+# NOTE: [node_reqs] and [types] are ROOT-file sections and
 # are REJECTED here. [serializers] no longer exists anywhere (removed
 # 0.4.16, hard error with a migration message): declare wire types in
 # the root file's [types] and put custom serializers in

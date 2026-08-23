@@ -4,32 +4,24 @@ Every comfy-env setting, its default, and how to change it.
 
 ## How settings resolve
 
-Four tiers, highest priority first -- **most specific wins** (a per-pack
-declaration is more specific than a global environment variable):
+Three tiers, highest priority first. All settings are **machine-global**
+(the per-pack `[settings]` section was removed in 0.4.25):
 
-1. **Per-pack `[settings]`** in that pack's `comfy-env-root.toml`, using
-   the short keys below:
-
-    ```toml
-    [settings]
-    auto_install = true      # this pack may materialize its env at startup
-    ```
-
-2. **Environment variable** -- `COMFY_ENV_AUTO_INSTALL=1 python main.py`
-3. **Persistent file** -- `~/.comfy-env/settings.env`, plain `KEY=VALUE`
+1. **Environment variable** -- `COMFY_ENV_AUTO_INSTALL=1 python main.py`
+2. **Persistent file** -- `~/.comfy-env/settings.env`, plain `KEY=VALUE`
    lines; edited comfortably via the `comfy-env settings` TUI. Loaded with
    `setdefault`, so it fills *unset* env vars and can never override an
    explicitly-set one.
-4. **Built-in default**
+3. **Built-in default**
 
 Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 
 ## General settings
 
-| Env var | short key (`[settings]`) | default | meaning |
-|---|---|---|---|
-| `COMFY_ENV_AUTO_INSTALL` | `auto_install` | **off** | Materialize a missing env at `register_nodes()` time. Off by default because installs take minutes and block startup. |
-| `COMFY_ENV_POOL_IPC` | `pool_ipc` | **off** | **Experimental, Linux-only, known-unsound** pool-based zero-copy GPU transfer. Enabling it prints a loud warning; do not use outside experiments -- see [ADR-0030](adr/0030-gpu-platform-floors.md) / [ADR-0005](adr/0005-tiered-tensor-serialization.md). |
+| Env var | default | meaning |
+|---|---|---|
+| `COMFY_ENV_AUTO_INSTALL` | **off** | Materialize a missing env at `register_nodes()` time. Off by default because installs take minutes and block startup. |
+| `COMFY_ENV_POOL_IPC` | **off** | **Experimental, Linux-only, known-unsound** pool-based zero-copy GPU transfer. Enabling it prints a loud warning; do not use outside experiments -- see [ADR-0030](adr/0030-gpu-platform-floors.md) / [ADR-0005](adr/0005-tiered-tensor-serialization.md). |
 
 ## Paths
 

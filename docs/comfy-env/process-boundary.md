@@ -82,9 +82,8 @@ another name, set per worker, carrying data rather than toggles.
 | `COMFY_ENV_ACCEL_PKGS` | `register_nodes()` from `[cuda].packages` | metadata scan's top-level-import check ([accelerator rule](accelerators.md)) |
 | `COMFY_ENV_SERIALIZER_FILES` | `register_nodes()` from `[types]` custom entries (`serialization.py` paths) | worker startup, to load custom type serializers ([ADR-0015](adr/0015-declared-wire-types.md)) |
 
-The same channel carries a pack's `[settings]` overrides (via
-`SETTINGS_KEY_MAP` in `register_nodes()`) and the `COMFY_ENV_DEBUG_*`
-variables, which workers parse directly. None of these are user settings:
+The same channel carries the `COMFY_ENV_DEBUG_*` variables, which
+workers parse directly. None of these are user settings:
 set what you need in [the settings reference](settings.md) and the parent
 forwards the right things.
 
