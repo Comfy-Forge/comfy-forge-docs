@@ -72,10 +72,13 @@ The protocol, as shipped:
    an [ADR-0018](0018-worker-call-timeout.md) timeout kill therefore
    also invalidates every lease that worker held -- the caches are
    rebuilt on the next generation's first load.
-5. **`COMFY_ENV_WORKER_VRAM_BUDGET`** overrides the worker's
+5. ~~**`COMFY_ENV_WORKER_VRAM_BUDGET`** overrides the worker's
    `vram_state` (a `NO_VRAM` worker is promoted to `NORMAL_VRAM` under
    an explicit budget) -- the escape hatch for setups where detection
-   misjudges the card.
+   misjudges the card.~~ *Removed 0.4.25: never set by anyone, untested,
+   and the blindness-corrected negotiation (ADR-0034/0036) computes the
+   honest number automatically. The callback itself -- points 1-4 --
+   is unchanged.*
 
 ### Single-device today, and the two recorded landmines
 

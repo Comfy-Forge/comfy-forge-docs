@@ -83,7 +83,7 @@ Step by step:
   minutes), `register_nodes()` first tries to materialize the env at
   startup, guarded by a file lock against concurrent launches.
 - Per-node `[settings]` are propagated to workers as env vars
-  (`SETTINGS_KEY_MAP`), so flags like `pool_ipc` or a VRAM budget can be
+  (`SETTINGS_KEY_MAP`), so flags like `pool_ipc` or `auto_install` can be
   set per pack.
 - Worker-resident GPU models are bridged into ComfyUI's VRAM manager via
   `SubprocessModelPatcher`, and workers call back into the parent for

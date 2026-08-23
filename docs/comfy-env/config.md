@@ -53,7 +53,6 @@ ComfyUI-GeometryPack = "https://github.com/PozzettiAndrea/ComfyUI-GeometryPack"
 [settings]
 auto_install = false      # COMFY_ENV_AUTO_INSTALL (default false)
 pool_ipc = false          # COMFY_ENV_POOL_IPC     (default false)
-worker_vram_budget = 0    # COMFY_ENV_WORKER_VRAM_BUDGET (GB, 0 = auto)
 
 # Wire types this pack puts on node sockets (ADR-0015).
 # "builtin" = automatic transport (tensors/arrays/dicts), listed for
