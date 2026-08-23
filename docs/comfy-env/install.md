@@ -11,7 +11,7 @@ updated -- ComfyUI-Manager executes `install.py` after pip-installing
 only one of the three calls that touches the network or writes to disk
 outside the pack.
 
-Source: `src/comfy_env/install/__init__.py:39`.
+Source: `install()` in `src/comfy_env/install/__init__.py`.
 
 ## Signature
 
@@ -35,6 +35,42 @@ stdout/stderr to line buffering, so install output streams live even when
 ComfyUI-Manager pipes it.
 
 ## What it does
+
+```mermaid
+flowchart TD
+    entry["install()  --  from a pack's install.py"]
+    entry --> plugin["1. Install [node_reqs] peers<br/>git clone / Comfy Registry download<br/>(install/plugin.py, main env)"]
+    plugin --> reqs["2. Re-run the pack's requirements.txt (just comfy-env)<br/>in the main env -- reasserts our pin if a peer downgraded it"]
+    reqs --> warn["3. Warn on stale sibling comfy-env pins<br/>(last reinstall wins the shared env)"]
+    warn --> discover["4. Discover every comfy-env.toml under custom_nodes<br/>(install/workspace.py)"]
+    discover --> allstamps{"all envs' stamps<br/>valid + unchanged?"}
+    allstamps -->|"yes"| skipall["Done -- nothing to build<br/>(short-circuits before torch resolution)"]
+    allstamps -->|"no"| torchpin["Resolve bootstrap torch pin from host  --  ONCE<br/>(CPU-only build when no accelerator)"]
+    torchpin --> combo["Pick CUDA wheel combo  --  ONCE<br/>(union of all envs' cuda_packages, packages/cuda_wheels.py)"]
+    combo --> perenv["then, for each isolated env:"]
+    perenv --> gen["Generate per-env pixi.toml<br/>(host torch pin replicated in verbatim)<br/>packages/toml_generator.py"]
+    gen --> hash{"this env's config<br/>hash changed?"}
+    hash -->|"no"| skip["Skip this env"]
+    hash -->|"yes"| pinstall["pixi install --manifest-path<br/>envs/&lt;name&gt;/pixi.toml"]
+    pinstall --> stamp["write_env_stamp:<br/>Python ABI + comfy-env version + torch pin"]
+    stamp --> done["Materialized env at<br/>envs/&lt;name&gt;/.pixi/envs/default/"]
+```
+
+Steps 1-3 run once in the main env. Then: the workspace checks **all** env
+stamps first and stops entirely if everything is up to date (the cheap
+warm-run path -- it never even resolves torch). Otherwise the host torch
+pin and CUDA combo are resolved **once** for the whole workspace (not
+per env -- that is what makes parent and every worker share an identical
+torch, [ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)),
+and only the `generate → hash-check → install` block loops per env.
+
+Installs run **per env manifest** deliberately: a parse error in one env's
+`pixi.toml` cannot poison another env's scan or install
+(`environment/cache.py` module docstring). The host's torch family pin is
+replicated verbatim into every generated feature so parent and workers share
+an identical torch
+([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)).
+
 
 Two halves, in order:
 
@@ -140,9 +176,27 @@ comfy-env leaves on disk and why.
       the pack can still be tested on CPU runners.)
     - **With a GPU present**, resolution is two-tier: the exact host combo
       (cuda x torch x python) first; if any required package has no
-      published wheel for it, a known-good fallback combo (currently
-      cu12.8 / torch 2.8) is tried for the cuda envs; if that also misses,
-      the install fails loudly, naming the missing package and index URL.
+      published wheel for it, a known-good fallback combo is tried for the
+      cuda envs; if that also misses, the install fails loudly, naming the
+      missing package and index URL.
+    - The fallback is **per CPU architecture**: **cu12.8 / torch 2.8** on
+      x86_64, **cu13.0 / torch 2.10** on linux aarch64. ARM is not a nudged
+      variant of the x86 cell -- it is its own, for three reasons.
+      (1) `(12.8, 2.8)` has no ARM wheels at all: PyTorch shipped no
+      linux-aarch64 wheel for the whole 2.8 line on cu128, since that build
+      broke mid-cycle
+      ([pytorch#157548](https://github.com/pytorch/pytorch/issues/157548)).
+      (2) `(13.0, 2.8)` does not exist anywhere -- PyTorch's CUDA 13 line
+      starts at torch 2.9. (3) Staying on 12.8/12.9 leaves **Thor dead**:
+      their ARM arch list is `8.0;9.0+PTX;10.0;12.0+PTX`, and `sm_110` has no
+      cubin at or below it, so a Thor raises
+      `cudaErrorNoKernelImageForDevice` at first kernel launch. 13.0's ARM
+      list carries `11.0` natively, so Grace (`sm_90`), GB200 (`sm_100`),
+      Thor (`sm_110`) and Orin (`sm_87`, via the `8.0` cubin) are all
+      covered -- and from torchvision 0.25 / torchaudio 2.10 the ARM wheels
+      are CUDA-tagged (`+cu130`) rather than the plain CPU-only builds
+      cu128/cu129 carry at that torch level. The cost, stated plainly:
+      **CUDA 13 requires driver r580+**.
 
 ## Failure behavior
 

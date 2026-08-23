@@ -12,6 +12,6 @@ testable:
 
 The three fit together like this: **cuda-wheels** builds the binaries nobody
 should have to compile, **comfy-env** delivers and isolates them (and
-everything else) on the user's machine, and **comfy-test** proves the whole
+everything else) on the user's hine, and **comfy-test** proves the whole
 thing actually installs and runs, on every platform ComfyUI users really
 have.

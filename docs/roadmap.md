@@ -18,6 +18,22 @@ stay listed (struck) so the list doubles as a change record.
 
 ## comfy-env
 
+!!! success "12.8 on ARM64 -- resolved in the resolver, still blocked in the farm"
+    The tier-2 fallback is now **per CPU architecture**: cu12.8/torch2.8 on
+    x86_64, **cu13.0/torch2.10 on linux aarch64**. The old fallback was
+    unsatisfiable on ARM -- PyTorch published no aarch64 wheel for the entire
+    2.8 line on cu128 -- and 12.8/12.9 would have left Thor (`sm_110`) with no
+    kernel image. 13.0 is the only line whose ARM arch list carries Thor
+    natively, and it is where the ARM torchvision/torchaudio wheels become
+    CUDA-tagged. Requires driver r580+. The wheel probe also matches the
+    architecture now -- it used to accept an `x86_64` wheel on an ARM host and
+    let pip discover the mismatch much later.
+
+    **Still outstanding:** the farm builds ARM for exactly one pilot package
+    (`cc_torch`), so tier 2 on ARM will still miss for any real pack. Widening
+    `platforms:` beyond the pilot is a build-capacity decision
+    ([CW-ADR-0015](cuda-wheels/adr/0015-linux-aarch64-opt-in.md)).
+
 1. **Revive the inlining path** once curated wheels land -- URL
    pypi-dependencies in generated manifests, side-channel + `--no-cache`
    retired.

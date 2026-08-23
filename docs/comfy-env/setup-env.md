@@ -12,7 +12,7 @@ be fixed. `setup_env()` deliberately installs nothing (that is
 [`install()`](install.md)'s job): it is a health report plus environment
 hygiene.
 
-Source: `src/comfy_env/environment/setup.py:135`. `node_dir` defaults to the
+Source: `setup_env()` in `src/comfy_env/environment/setup.py`. `node_dir` defaults to the
 caller's directory via `inspect.stack()`, same trick as the other two calls.
 
 ## What it does, in order

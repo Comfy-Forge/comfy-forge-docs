@@ -28,7 +28,11 @@ Two named references define the target:
 What we skip, on purpose: pre-release Pythons, free-threaded builds
 ([CW-ADR-0010](adr/0010-no-free-threaded-builds.md)), and the cells upstream
 never shipped ([CW-ADR-0007](adr/0007-phantom-combos-denylist.md)).
-We do not skip aarch64 and we set the same glibc floor as PyTorch (2.28).
+aarch64 is **opt-in per package** ([CW-ADR-0015](adr/0015-linux-aarch64-opt-in.md)),
+so today only the pilot (`cc_torch`) carries ARM cells -- the default stays
+`platforms: ["linux", "windows"]` and every other package is x86+Windows only.
+The ARM arch lists that *would* apply live in `arch_policy_aarch64`. On x86 we
+set the same glibc floor as PyTorch (2.28); ARM repairs to `manylinux_2_39`.
 
 The SASS sets match torch's own wheels **exactly**, per CUDA line and per
 platform -- including Maxwell (5.0) on cu124/cu126 and the per-torch sm_70

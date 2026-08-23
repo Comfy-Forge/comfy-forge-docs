@@ -159,7 +159,10 @@ node is indistinguishable from a normal one.
 
 Worker-resident GPU models participate in ComfyUI's VRAM management through
 `SubprocessModelPatcher` (`isolation/model_patcher.py`): ComfyUI eviction
-calls `unpatch_model()`, which IPCs the worker to move the model to CPU.
+calls `partially_unload()`, escalating to `detach()`, which IPC the worker to
+move the model to CPU. (`unpatch_model` is *not* on the proxy's surface --
+`COMFY_SURFACE` declares 18 members and unknown access raises by design,
+[ADR-0035](0035-duck-typed-model-proxy.md).)
 Model detection is automatic (the worker hooks `Module.to()` / `.cuda()`), so
 isolated repos need zero changes.
 
