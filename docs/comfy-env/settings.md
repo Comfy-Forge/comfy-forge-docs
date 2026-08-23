@@ -31,12 +31,6 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 | `COMFY_ENV_AUTO_INSTALL` | `auto_install` | **off** | Materialize a missing env at `register_nodes()` time. Off by default because installs take minutes and block startup. |
 | `COMFY_ENV_POOL_IPC` | `pool_ipc` | **off** | **Experimental, Linux-only, known-unsound** pool-based zero-copy GPU transfer. Enabling it prints a loud warning; do not use outside experiments -- see [ADR-0030](adr/0030-gpu-platform-floors.md) / [ADR-0005](adr/0005-tiered-tensor-serialization.md). |
 
-## Transport
-
-| Env var | default | meaning |
-|---|---|---|
-| `COMFY_ENV_TRANSPORT_PROBE` | **on** | The canary handshake (ADR-0005): round-trips a tensor through the production serialization path at worker creation; broken CPU tier refuses the worker, broken GPU tier demotes it loudly. Set `0` to skip. |
-
 ## Paths
 
 | Env var | default | meaning |

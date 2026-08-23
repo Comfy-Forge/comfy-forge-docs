@@ -92,8 +92,11 @@ validate nothing) and compares bytes:
 There is deliberately **no hand-maintained compatibility matrix** ("torch
 2.8 talks to 2.10 but not..."). Version-pair tables rot; the probe is the
 single source of truth and never needs updating when torch changes -- when
-torch breaks the protocol, the probe is what reports it. Opt-out:
-`COMFY_ENV_TRANSPORT_PROBE=0`.
+torch breaks the protocol, the probe is what reports it. ~~Opt-out:
+`COMFY_ENV_TRANSPORT_PROBE=0`.~~ *(Opt-out removed 0.4.25: skipping the
+probe did not mean "no check", it meant "assume every tier works,
+unverified" -- an off switch on a correctness check. The probe is now
+unconditional.)*
 
 ## Context
 
