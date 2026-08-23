@@ -6,9 +6,12 @@ from comfy_env import install; install()
 ```
 
 The **build-time** entry point. It runs when the pack is installed or
-updated -- ComfyUI-Manager executes `install.py` after pip-installing
-`requirements.txt`, or the user runs `python install.py` by hand. It is the
-only one of the three calls that touches the network or writes to disk
+updated. 
+
+In the "standard" install path for custom nodes, ComfyUI-Manager executes `install.py` after pip-installing
+`requirements.txt`.
+
+It is the only one of the three calls that touches the network or writes to disk
 outside the pack.
 
 Source: `install()` in `src/comfy_env/install/__init__.py`.
@@ -24,7 +27,7 @@ def install(
 ) -> bool
 ```
 
-With no arguments it figures out everything itself: `node_dir` is inferred
+With no arguments it figures everything out itself: `node_dir` is inferred
 from the caller's file via `inspect.stack()` -- which is how the one-liner in
 `install.py` works -- and the config is discovered by looking for
 `comfy-env-root.toml` / `comfy-env.toml` in that directory. No config file
@@ -43,51 +46,72 @@ flowchart TD
     plugin --> reqs["2. Re-run the pack's requirements.txt (just comfy-env)<br/>in the main env -- reasserts our pin if a peer downgraded it"]
     reqs --> warn["3. Warn on stale sibling comfy-env pins<br/>(last reinstall wins the shared env)"]
     warn --> discover["4. Discover every comfy-env.toml under custom_nodes<br/>(install/workspace.py)"]
-    discover --> allstamps{"all envs' stamps<br/>valid + unchanged?"}
-    allstamps -->|"yes"| skipall["Done -- nothing to build<br/>(short-circuits before torch resolution)"]
-    allstamps -->|"no"| torchpin["Resolve bootstrap torch pin from host  --  ONCE<br/>(CPU-only build when no accelerator)"]
-    torchpin --> combo["Pick CUDA wheel combo  --  ONCE<br/>(union of all envs' cuda_packages, packages/cuda_wheels.py)"]
-    combo --> perenv["then, for each isolated env:"]
-    perenv --> gen["Generate per-env pixi.toml<br/>(host torch pin replicated in verbatim)<br/>packages/toml_generator.py"]
-    gen --> hash{"this env's config<br/>hash changed?"}
-    hash -->|"no"| skip["Skip this env"]
-    hash -->|"yes"| pinstall["pixi install --manifest-path<br/>envs/&lt;name&gt;/pixi.toml"]
-    pinstall --> stamp["write_env_stamp:<br/>Python ABI + comfy-env version + torch pin"]
+    discover --> fastkey{"every env's FAST KEY unchanged?<br/>(a hash of the local inputs: config bytes, host ABI, GPU presence --<br/>and the env is materialized, and not on a fallback combo)"}
+    fastkey -->|"yes"| skipall["We're done! No envs to build<br/>(exits -- zero network)"]
+    fastkey -->|"no"| torchpin["Resolve the torch pin: what version of torch is ComfyUI running?<br/>(Python 3.12, torch 2.8, CUDA 13.1...)<br/>"]
+    torchpin --> wheelq{"any pack need prebuilt CUDA wheels<br/>(flash-attn, spconv...), and is an NVIDIA GPU present?"}
+    wheelq -->|"no"| perenv
+    wheelq -->|"yes"| probe{"does the cuda-wheels index publish EVERY<br/>needed wheel for that exact<br/>(cuda x torch x python) cell?"}
+    probe -->|"yes"| combo1["combo = the host's own cell<br/>(the common case: envs match ComfyUI exactly)"]
+    probe -->|"no"| fbq{"does the known-good fallback cell<br/>(cu12.8/torch2.8 on x86, cu13.0/torch2.10 on arm)<br/>have every needed wheel?"}
+    fbq -->|"yes"| combo2["combo = the fallback cell<br/>cuda envs get the fallback torch;<br/>the comfyui feature keeps host torch"]
+    fbq -->|"no"| fail["Install fails loudly,<br/>naming the package and index URL"]
+    combo1 --> perenv["then, for each isolated env:"]
+    combo2 --> perenv
+    perenv --> gen["Generate per-env pixi.toml<br/>(pinning the combo's torch: the host's own, or the fallback)<br/>packages/toml_generator.py"]
+    gen --> identq{"did the derived OUTPUT change?<br/>(identity: a hash of the generated pixi.toml<br/>+ the resolved cuda wheel URLs)"}
+    identq -->|"no"| skip["Unchanged: refresh install.hash,<br/>skip the rebuild"]
+    identq -->|"yes"| pinstall["pixi install --manifest-path<br/>envs/&lt;name&gt;/pixi.toml"]
+    pinstall --> uvpass["Install the CUDA wheels into the env<br/>uv pip install --no-deps (side-channel --<br/>slated for retirement, see the two-system problem)"]
+    uvpass --> stamp["write_env_stamp:<br/>Python ABI + comfy-env version + torch pin"]
     stamp --> done["Materialized env at<br/>envs/&lt;name&gt;/.pixi/envs/default/"]
 ```
 
-Steps 1-3 run once in the main env. Then: the workspace checks **all** env
-stamps first and stops entirely if everything is up to date (the cheap
-warm-run path -- it never even resolves torch). Otherwise the host torch
-pin and CUDA combo are resolved **once** for the whole workspace (not
-per env -- that is what makes parent and every worker share an identical
-torch, [ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)),
-and only the `generate → hash-check → install` block loops per env.
+One thing the flowchart can't show is cardinality: steps 1-3 run once in
+the main env, the torch pin and CUDA combo are resolved **once for the
+whole workspace** (not per env -- that is what makes every worker share one
+identical torch, and in the common case the parent too,
+[ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)),
+and only the `generate → hash-check → install` block loops per env -- one
+`pixi install` per manifest, so a broken manifest cannot poison another
+env's scan or install (`environment/cache.py` module docstring).
 
-Installs run **per env manifest** deliberately: a parse error in one env's
-`pixi.toml` cannot poison another env's scan or install
-(`environment/cache.py` module docstring). The host's torch family pin is
-replicated verbatim into every generated feature so parent and workers share
-an identical torch
-([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)).
+!!! info "Why two gates? They hash different things, at different costs"
+    The two decision diamonds are a **two-level cache**, ccache-style: a
+    cheap pessimistic hash of the *inputs* in front of a precise hash of
+    the *output*.
 
+    - The **fast key** hashes local inputs only -- this env's config
+      bytes, the host ABI, GPU presence. It misses on any edit, even a
+      comment.
+    - The **identity** hashes what those inputs *derive to* -- the
+      generated `pixi.toml` plus the resolved wheel URLs. Only computed
+      when the fast key missed (or the env sits on a fallback combo).
+
+    They deliberately move independently. Edit a comment or `[env_vars]`
+    in `comfy-env.toml`: fast key misses, identity matches -- one cheap
+    derivation, **no multi-GB rebuild**. An env on a **fallback combo**
+    re-derives every run even with zero local changes, because the wheel
+    index is an input the fast key cannot see -- the moment its missing
+    wheel is published, the identity changes and the env **upgrades
+    itself**. And a comfy-env version bump rebuilds nothing: the identity
+    depends only on the output (the version lives in the stamp, for
+    diagnostics). The stamp -- `env.stamp.json` -- is a third artifact
+    entirely, checked at *runtime* by `register_nodes()`, not here. The
+    full system: [The three seals](seals.md).
 
 Two halves, in order:
 
 ### 1. Plugin half (main environment)
 
-Only runs if the config declares `[node_reqs]`:
-
-- **Install node dependencies** (`install/plugin.py`) -- other ComfyUI packs
-  this one depends on, cloned from GitHub (git, zip fallback) or downloaded
-  from the Comfy Registry into `custom_nodes/`, then their
-  `requirements.txt` and `install.py` are run.
-- **Re-run this pack's own `requirements.txt`** in the main env -- for a
-  comfy-env pack that is *just* `comfy-env` (the host-env principle: nothing
-  else goes in the host). A peer pack's `requirements.txt` pins its **own**
-  comfy-env version and may have downgraded ours; the reinstall reasserts
-  this pack's pin ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md),
-  the sibling-pin hazard).
+Runs only if the config declares `[node_reqs]` (every accepted spelling is
+tabulated in the
+[config reference](config.md#node_reqs-every-spelling-the-code-accepts);
+implementation in `install/plugin.py`). The requirements re-run exists
+because a peer pack's `requirements.txt` pins its **own** comfy-env version
+and may have downgraded ours -- the reinstall reasserts this pack's pin
+([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md), the sibling-pin
+hazard).
 
 !!! note "This is ComfyUI-convention mechanics, not comfy-env installing to the host"
     The requirements.txt reinstalls above follow ComfyUI's standard install
@@ -123,27 +147,25 @@ fails an install.
 
 Gated on the `COMFY_ENV_INSTALL_ISOLATED` flag (default **on**;
 overridable per-node via `[settings]`). Locates the ComfyUI base dir from
-the node's position, then `install_workspace()` (`install/workspace.py`):
+the node's position, then `install_workspace()` (`install/workspace.py`)
+runs the flow in the diagram. Two clarifications the boxes are too small
+for:
 
-1. **Discover** every `comfy-env.toml` under `custom_nodes` -- all packs,
-   not just the calling one; the workspace is shared.
-2. **Resolve the torch pin** from the host env (CPU-only build when no accelerator
-   is present) and pick a CUDA wheel combo the
-   [cuda-wheels index](../cuda-wheels/index.md) can satisfy -- exact host
-   combo first, known-good fallback second. (No GPU? See the box below.)
-3. **Generate one `pixi.toml` per env** (`packages/toml_generator.py`) with
-   the torch pin replicated verbatim; CUDA wheels stay OUT of the manifest
-   and install in a later `uv pip install --no-deps` pass (step 6).
-4. **Hash each env's config** -- unchanged envs are skipped entirely.
-5. **`pixi install --manifest-path envs/<name>/pixi.toml`**, one invocation
-   per env, so a broken manifest cannot poison the others
-   ([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)).
-6. **Install the CUDA wheels** with `uv pip install --no-deps --no-cache`
-   against their direct URLs, into the env pixi just materialized -- the
-   [two-system problem](two-system-problem.md) explains why they bypass
-   the resolver.
-7. **Stamp the env** (Python ABI + comfy-env version + torch pin) so later
-   launches can detect staleness, then dedupe macOS libomp copies.
+The torch **pin** and the wheel **combo** answer different questions: the
+pin is *what ComfyUI itself runs*; the combo is *which (cuda x torch x
+python) cell the prebuilt wheels are published for*. Usually the
+[cuda-wheels index](../cuda-wheels/index.md) has every needed wheel for the
+host's own cell and the two coincide; when some package isn't built for
+that cell (say the host runs a torch newer than spconv's newest wheel),
+only the cuda envs drop to the fallback cell while the comfyui feature
+keeps the host torch.
+
+The CUDA wheels stay OUT of the generated manifest and install afterwards
+with `uv pip install --no-deps --no-cache` against their direct URLs -- the
+[two-system problem](two-system-problem.md) explains why they bypass the
+resolver. This side-channel is slated for retirement: with Requires-Dist
+curation landed in the wheel farm, the URLs can move into the manifest as
+ordinary pypi-dependencies (roadmap item 1).
 
 The pixi binary itself is bootstrapped to a comfy-env-owned, pinned,
 sha256-verified path (`~/.comfy-env/pixi/<version>/`, deliberately *not*
