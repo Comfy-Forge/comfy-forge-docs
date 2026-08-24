@@ -69,7 +69,7 @@ prestartup time is the entire application.
         silently registering zero nodes.
 - Failures can hide: a node silently running in-process, or tensors silently
   taking the slow CPU path, look like success. Counterweights: the startup
-  banner prints per-env `[OK]` / `[MISSING -- run install.py]`, and
+  banner prints per-env `[OK]` / `[<pack>: MISSING -- run `comfy-env install --dir <pack>`]`, and
   `comfy-env doctor` / the `debug` categories expose what path is active.
 - *2026-08 amendment:* this hiding cost is accepted only where the
   fallback is **correct** (slower, but right). Where no correct fallback
@@ -97,7 +97,7 @@ prestartup time is the entire application.
   env is not resilience. The honest position is now: a missing env means
   missing nodes until `install()` is run again, and the mitigations are
   diagnostic rather than automatic -- the startup banner's
-  `[MISSING -- run install.py]`, and the log line at the bind site naming
+  `[<pack>: MISSING -- run `comfy-env install --dir <pack>`]`, and the log line at the bind site naming
   the exact command. **This weakens the headline claim above**: "every
   availability failure ends in ComfyUI still boots" protects the
   *application*, not the failing pack, and on a bare host that distinction

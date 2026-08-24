@@ -27,21 +27,32 @@ hygiene.
     [comfy-env] prestartup complete
     ```
 
-    `[MISSING -- run install.py]` means the config was discovered but the
-    env was never materialized.
+    A `[MISSING]` status means the config was discovered but the env was
+    never materialized. That line names the pack and the exact command,
+    because the header above it scrolls away once several packs report:
+
+    ```
+    [comfy-env]     env: ...  [comfyui-motioncapture: MISSING -- run
+    `comfy-env install --dir .../custom_nodes/comfyui-motioncapture`]
+    ```
 
 3. **`dedupe_libomp()`**: macOS only: symlinks redundant bundled
    `libomp.dylib` copies to torch's canonical one, because multiple loaded
    copies corrupt OpenMP runtime state and segfault inside native filters
    ([ADR-0009](adr/0009-platform-strategy.md)). No-op elsewhere.
 
-4. **Ensure `args.base_directory` is set**: some nodes resolve relative
-   paths through ComfyUI's `--base-directory`, if somehow this directory hasn't been filled yet,
-   it is filled in from `folder_paths.base_path`.
-
 ## What it does NOT do
 
 No pip, no pixi, no network, no writes to the workspace. A missing env is
 **reported, not repaired**.
+
+It also **does not patch ComfyUI's globals**. Until 0.4.27 it filled in
+`comfy.cli_args.args.base_directory` from `folder_paths.base_path` when the
+user had not passed `--base-directory`. That was deleted: `None` there is
+information -- "the user did not ask to relocate the base" -- and nodes read
+it guarded (`if ... and args.base_directory`), so filling it in could never
+prevent a crash. It could only flip that branch on, silently moving a
+relative path from the CWD to the ComfyUI base. Identical when ComfyUI is
+launched from its own directory, different under a service.
 
 Only [`install()`](install.md) builds envs.
