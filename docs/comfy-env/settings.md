@@ -9,9 +9,7 @@ Three tiers, highest priority first. All settings are **machine-global**
 
 1. **Environment variable** -- `COMFY_ENV_POOL_IPC=1 python main.py`
 2. **Persistent file** -- `~/.comfy-env/settings.env`, plain `KEY=VALUE`
-   lines; edited comfortably via the `comfy-env settings` TUI. Loaded with
-   `setdefault`, so it fills *unset* env vars and can never override an
-   explicitly-set one.
+   lines; edited comfortably via the `comfy-env settings` TUI.
 3. **Built-in default**
 
 Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).

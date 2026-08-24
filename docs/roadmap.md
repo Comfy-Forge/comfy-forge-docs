@@ -205,6 +205,42 @@ This is the frontend twin of comfy-env's **isolation before sandboxing**
 ([ADR-0011](comfy-env/adr/0011-isolation-before-sandboxing.md)): ship the
 containment now, propose the real sandbox upstream.
 
+## cookiecutter-comfy-extension
+
+1. **Update the scaffold -- it does not produce a comfy-env pack.**
+   [cookiecutter-comfy-extension](https://github.com/PozzettiAndrea/cookiecutter-comfy-extension)
+   predates the current contract and generates a pack that cannot work. The
+   README advertises it as shipping "the canonical `install.py` /
+   `prestartup_script.py` / `__init__.py` triplet"; measured 2026-08-24,
+   **none of the three calls appear in it**:
+
+    - `install.py` does `from comfy_env import IsolatedEnvManager` -- an API
+      that does not exist. A generated pack raises `ImportError` on install
+      against any current comfy-env. It never calls
+      [`install()`](comfy-env/install.md).
+    - `__init__.py` hand-rolls `from .src.<slug>.nodes import
+      NODE_CLASS_MAPPINGS` instead of calling
+      [`register_nodes()`](comfy-env/register-nodes.md), so the generated pack
+      has no isolation at all -- the opposite of the point.
+    - `prestartup_script.py` copies assets and never calls
+      [`setup_env()`](comfy-env/setup-env.md).
+
+    The config is equally stale: a single `comfy-env.toml` at the **pack
+    root**, which is not one of the two supported locations
+    ([config reference](comfy-env/config.md)) and would never be discovered;
+    an obsolete `[<slug>]` / `[<slug>.packages]` schema with a
+    `cuda_version = "auto"` key that no longer exists; no
+    `comfy-env-root.toml`, so no `[node_packs]` and no `[types]`; and no
+    `comfy-test.toml`. The frontend half ships `WEB_DIRECTORY = "./web"` plus
+    `web/js/example.js` -- the dead-declaration trap stripped from 12 packs in
+    August, superseded by `javascript/` declared through `[tool.comfy] web`.
+
+    Worth doing as a **regeneration against a known-good pack** rather than a
+    patch: take Hunyuan3D-Part (lightest root-only shape) and GeometryPack
+    (full isolation) as the two targets the template should be able to
+    reproduce, and add a CI job that generates the scaffold and runs
+    `comfy-test` on it, so the template cannot rot silently again.
+
 ## Hypothetical TODO: RAM/VRAM efficiency levers
 
 *Status: ideas, not commitments. Everything here was measured/discussed on

@@ -1,12 +1,15 @@
 # Accelerator declarations
 
-A node pack convention, enforced by comfy-env: **a node declares at most one
-accelerator, or none** -- and accelerator packages must be imported lazily,
-inside the nodes that declare them.
+A node pack convention, enforced by comfy-env: **a node declares the
+backend(s) it requires at execution, or none** -- and accelerator packages
+must be imported lazily, inside the nodes that declare them.
 
 ```python
 class RemeshGPUNode(io.ComfyNode):
-    ACCELERATOR = "cuda"   # this node REQUIRES CUDA at execution
+    ACCELERATOR = "cuda"            # REQUIRES CUDA at execution
+
+class SegmentGPUNode(io.ComfyNode):
+    ACCELERATOR = ["cuda", "mps"]   # runs on either; not on ROCm or CPU
 
     def execute(cls, mesh, ...):
         import cumesh      # lazy: only runs when the node actually executes
@@ -15,12 +18,24 @@ class RemeshGPUNode(io.ComfyNode):
 
 ## The rule
 
-1. **Declaration.** `ACCELERATOR` is a class attribute with exactly one
-   value from comfy-env's backend vocabulary -- `"cuda"`, `"rocm"`, `"xpu"`,
-   `"mps"` -- or the reserved `"gpu"` (any non-CPU backend). Absent means
-   CPU-capable. The meaning is strictly **"requires this backend at
-   execution"**, not "can use it": a node with a real CPU fallback declares
-   nothing.
+1. **Declaration.** `ACCELERATOR` is a class attribute holding one value,
+   or a list of values, from comfy-env's backend vocabulary -- `"cuda"`,
+   `"rocm"`, `"xpu"`, `"mps"`. A list means "any of these will do", which is
+   how a node that works on CUDA and Metal but not ROCm says so. Absent
+   means CPU-capable. The meaning is strictly **"requires one of these
+   backends at execution"**, not "can use them": a node with a real CPU
+   fallback declares nothing.
+
+    There is **no "any GPU" sentinel.** Spell out the backends the node
+    actually supports -- `["cuda", "rocm", "xpu", "mps"]` if it really is
+    all four. A catch-all value claims support for hardware nobody tested.
+
+    Values are normalized at scan time (lowercased, de-duplicated, sorted),
+    and an unrecognized one **fails the scan loudly**, naming the node and
+    the vocabulary. It has to: an unknown value used to be compared for
+    equality against the machine backend, so nothing matched it and the node
+    was hidden on *every* machine -- including one with the right hardware --
+    with no message anywhere.
 2. **Lazy imports only.** Packages from the env's `[cuda] packages` list may
    only be imported inside function bodies (typically `execute()`) of nodes
    that declare that accelerator. A module-top-level accelerator import is
@@ -49,13 +64,16 @@ class RemeshGPUNode(io.ComfyNode):
 
 ## Multi-backend nodes: the dispatch pattern
 
+A list covers "this node runs on several GPU backends". It does **not**
+cover "this node has a CPU path too" -- that is a different shape.
+
 A node that offers both CPU and GPU backends should not declare anything --
 it should be an **accelerator-neutral dispatcher** that routes to hidden
-per-backend leaf nodes (by node id, without importing them), each of which
-declares its own single accelerator. This is the pattern
-ComfyUI-GeometryPack's flagship nodes (Remesh, UV Unwrap, Fix Normals)
-already use, and it is the blessed shape: the "one accelerator per node"
-scalar is true at the leaf level by construction.
+per-backend leaf nodes (by node id, without importing them), each declaring
+its own requirement. This is the pattern ComfyUI-GeometryPack's flagship
+nodes (Remesh, UV Unwrap, Fix Normals) already use, and it stays the blessed
+shape: a declaration can express *which GPUs*, never *GPU or CPU*, because
+absent-means-CPU-capable is what makes the node available everywhere.
 
 Opportunistic GPU use -- `device = "cuda" if torch.cuda.is_available() else
 "cpu"` with a genuine CPU path -- is legal anywhere and declares nothing.
@@ -74,8 +92,9 @@ Opportunistic GPU use -- `device = "cuda" if torch.cuda.is_available() else
   advisories. Static analysis can be defeated by dynamic imports, which is
   why the scan-time check is the authority.
 - **Registration-time gate.** `build_proxy_class` builds the
-  unavailable-stub for declared nodes the machine can't serve; available
-  nodes carry `_comfy_env_accelerator` on the proxy class for downstream
+  unavailable-stub for declared nodes the machine can't serve -- the gate is
+  membership, `machine_backend in declared`. Available nodes carry
+  `_comfy_env_accelerator` (a list) on the proxy class for downstream
   consumers (test harnesses, UI badging).
 
 ## What this replaces

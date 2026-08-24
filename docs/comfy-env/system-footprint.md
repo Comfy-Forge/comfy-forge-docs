@@ -1,20 +1,25 @@
 # What comfy-env leaves on your system
 
-A common and reasonable question: if I delete the ComfyUI installation I
-put comfy-env in, is everything gone? **Not quite** -- and the reason is a
-deliberate design choice, not an oversight. This page states exactly what
-persists, why, and how to remove it if you want to.
+FAQ: if I delete the ComfyUI installation I put comfy-env in, is everything gone?
+
+The answer is: **Not quite**, and the reason is a
+deliberate design choice, not an oversight.
+
+This page states exactly what persists, why, and how to remove it if you want to.
 
 ## What is never touched
 
-Verified directly against the source (no registry APIs, service APIs, or
-scheduled-task APIs appear anywhere in the codebase):
+Verified directly against the source. No OS-integration API appears anywhere
+in the codebase -- comfy-env installs no persistent hooks on any platform:
 
 | Never touched | |
 |---|---|
-| Windows registry | comfy-env writes nothing to it. |
-| Services / scheduled tasks | None are created. |
-| System or user `PATH` | Never modified persistently -- only set inside the environment dict of subprocesses comfy-env launches itself. |
+| Windows registry | Nothing is written to it. |
+| Shell startup files | `.bashrc`, `.zshrc`, `.profile` and friends are never edited. |
+| Services, daemons, scheduled tasks | None are created -- no Windows services or scheduled tasks, no systemd units (user or system), no launchd agents, no cron entries. |
+| Anything outside your user account | Nothing is written to `/etc`, `/usr`, `Program Files`, or any location needing root/admin. comfy-env never asks for elevation. |
+| Desktop / autostart integration | No XDG autostart entries, `.desktop` files, dconf/gsettings keys, or login items. |
+| Environment variables, incl. `PATH` | Never modified persistently -- set only inside the environment dict of subprocesses comfy-env launches itself, which vanishes with the process. |
 | Your own pixi install (`~/.pixi`) | comfy-env deliberately installs its own pixi to a separate, comfy-env-owned path so it can never collide with or upgrade a pixi you installed yourself (`pixi.py`). |
 
 ## What persists outside the ComfyUI folder, and why
