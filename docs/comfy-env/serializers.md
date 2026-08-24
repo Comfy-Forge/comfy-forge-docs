@@ -1,37 +1,75 @@
 # Custom wire types (`[types]` + `serialization.py`)
 
-Nodes in ComfyUI exchange objects along edges. A socket type is
-[just a string](comfyui-background.md#data-types-what-a-socket-type-actually-is),
-and vanilla ComfyUI never looks inside the object — the same instance is handed
-from one node to the next, in one process.
+Nodes in ComfyUI exchange objects along edges. A socket type is defined by
+[just a string](comfyui-background.md#data-types-what-a-socket-type-actually-is)
+-- `IMAGE`, `VIDEO`, `LATENT` -- and vanilla ComfyUI never looks inside the
+object. The same instance is handed from one node to the next, in one process.
 
-comfy-env has to move that object **across a process boundary**, and a string
-does not say how to move bytes. For the built-in types it already knows:
-`IMAGE` and `MASK` are tensors, `LATENT` is a dict of them. For `TRIMESH`,
-`POINTCLOUD` or `SKELETON` — names a pack invented — it does not.
+ComfyUI ships ~85 built-in types (`comfy_api/latest/_io.py`). By the shape of
+the Python object behind them:
 
-## What happens without a serializer
+1. **Primitives** -- `INT`, `FLOAT`, `STRING`, `BOOLEAN`, `COMBO`.
+2. **Tensors** -- `IMAGE` and `MASK` are a bare `torch.Tensor`.
+3. **Dicts of tensors** -- `LATENT` (`{"samples": tensor, ...}`), `AUDIO`
+   (`{"waveform": tensor, "sampler_rate": int}`).
+4. **Nested containers** -- `CONDITIONING` is a list of `[tensor, dict]` pairs.
+5. **Model handles** -- `MODEL`, `CLIP`, `VAE`, `CONTROL_NET`, `STYLE_MODEL`:
+   ComfyUI wrapper objects around weights, usually multi-GB and GPU-resident.
+6. **Class-based payloads** -- newer additions like `MESH`, `VOXEL`, `SPLAT`
+   (`comfy_api/latest/_util/geometry_types.py`) and `VIDEO`. Ordinary Python
+   classes whose fields happen to be tensors.
 
-The object still crosses. It falls to the transport's last rung and is
-**pickled into shared memory** (`_ipc_shared.py`, the fallback after every
-tensor path). That works, and for a small object it is fine. The costs:
+## How comfy-env moves the standard types
+
+The transport walks the object structurally -- it dispatches on what the value
+*is*, never on the socket string:
+
+| Shape | How it crosses |
+|---|---|
+| Primitives (1) | inline in the JSON message |
+| Tensors (2) | the [serialization ladder](process-boundary.md#tensor-serialization-ladder): CUDA IPC where available, else shared memory. No copy of the bulk |
+| Dicts and lists (3, 4) | walked recursively; every tensor inside takes the tensor path, so `LATENT` costs the same as the tensor it wraps |
+| Model handles (5) | **they do not cross.** The model stays resident in the worker; the parent gets a `SubprocessModelPatcher` duck-type so ComfyUI's VRAM manager can still see and evict it ([ADR-0035](adr/0035-duck-typed-model-proxy.md)) |
+
+That covers most of ComfyUI's vocabulary for free, because most of it is
+tensors, dicts, lists and primitives all the way down.
+
+## Where that stops working
+
+Group 6 is the exception, and it is the same problem a node author hits with
+their own types.
+
+The transport has no branch for an arbitrary class. `MESH` is a class whose
+fields are all tensors, but the walker dispatches on type, sees nothing it
+recognises, and falls to its last rung: **the object is pickled into shared
+memory**. It still crosses, and for something small that is fine. The costs:
 
 - **The whole object graph is serialized and rebuilt**, then copied into shm
-  and back out — four passes over the data, none of them zero-copy.
-- **Both sides need the class importable.** Pickle stores a module path. If the
-  receiving env lacks the library, or has a version where the name moved, the
-  value degrades to an opaque receipt (see below) instead of a real object.
-- **Version skew is a coin flip.** trimesh 7.x pickling into a trimesh 8.x env
-  is a compatibility question you did not intend to ask.
+  and back out. Tensors inside a pickled object do *not* take the tensor path
+  -- they are pickled with everything else.
+- **Both sides need the class importable.** Pickle stores a module path; if the
+  receiving env lacks the library, the value degrades to an opaque receipt
+  (below) rather than a real object.
+- **Version skew becomes a question you did not intend to ask** -- trimesh 7.x
+  pickling into a trimesh 8.x env.
 
 If pickling fails outright, the transport raises a `TypeError` naming the type
 and the cause. It never silently drops the value.
 
+!!! warning "This includes ComfyUI's own `MESH`, `VOXEL` and `SPLAT`"
+    comfy-env ships no serializer for them today, so they pickle -- tensors and
+    all. A 3D pack that moves them across a worker boundary in bulk should
+    register serializers for them exactly as it would for its own types, using
+    the recipe below.
+
+So: for a type of your own -- `TRIMESH`, `POINTCLOUD`, `SKELETON` -- there is
+no clear serialization method, because the transport has never seen the class
+and cannot guess which of its fields are bulk and which are metadata.
+
 Declaring your wire types ([ADR-0015](adr/0015-declared-wire-types.md),
-mechanism in [ADR-0014](adr/0014-pack-extensible-serializer-registry.md)) lets
-your pack teach the transport its own types, decomposing them into
-**schema + arrays** so the bulk rides the shared-memory tensor path and no
-pickle is involved.
+mechanism in [ADR-0014](adr/0014-pack-extensible-serializer-registry.md)) is
+how you tell it: decompose the type into **schema + arrays**, so the bulk rides
+the shared-memory tensor path and no pickle is involved.
 
 !!! note "`[types]` does not route anything"
     Routing is decided by the **serializer registry**, looked up by Python type
@@ -40,7 +78,7 @@ pickle is involved.
     unless `serialization.py` exists, imports, and registers something. A
     socket marked `"builtin"` changes no behaviour at all.
 
-    So declaring a type does not make it fast — **registering a serializer
+    So declaring a type does not make it fast -- **registering a serializer
     does**. The declaration is what stops you shipping a pack whose serializer
     file quietly went missing.
 
