@@ -56,11 +56,16 @@ memory**. It still crosses, and for something small that is fine. The costs:
 If pickling fails outright, the transport raises a `TypeError` naming the type
 and the cause. It never silently drops the value.
 
-!!! warning "This includes ComfyUI's own `MESH`, `VOXEL` and `SPLAT`"
-    comfy-env ships no serializer for them today, so they pickle -- tensors and
-    all. A 3D pack that moves them across a worker boundary in bulk should
-    register serializers for them exactly as it would for its own types, using
-    the recipe below.
+!!! note "ComfyUI's own `MESH`, `VOXEL` and `SPLAT` are handled"
+    They are group-6 classes, so they *would* pickle -- comfy-env registers
+    codecs for all three (`comfy_api.MESH` / `.VOXEL` / `.SPLAT`), decomposing
+    them field by field so their tensors take the tensor path like any other.
+    You do not need to do anything. A pack that wants different handling can
+    override them by registering the same type name.
+
+    `MODEL`, `CLIP` and `VAE` are deliberately **not** serializable: see
+    [group 5](#how-comfy-env-moves-the-standard-types) -- weights stay in the
+    worker that owns them.
 
 So: for a type of your own -- `TRIMESH`, `POINTCLOUD`, `SKELETON` -- there is
 no clear serialization method, because the transport has never seen the class
