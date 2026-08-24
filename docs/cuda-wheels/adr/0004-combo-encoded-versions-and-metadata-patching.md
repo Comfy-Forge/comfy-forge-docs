@@ -69,11 +69,51 @@ published wheel carries exactly the expanded list.
 
 Curation is surgical, not blanket: most upstream lists are correct and
 stay untouched, including genuine runtime-JIT deps (gsplat's `ninja` is
-real; JIT-only nvdiffrast *gains* a ninja declaration). Torch policy:
-leave upstream's bare `torch`/floor specifiers alone and never emit
-`torch==X.Y.Z` -- consumer envs (comfy-env) pin torch at major.minor with
-a per-package index on purpose, and an exact-patch pin in wheel metadata
-would deadlock resolution the moment the index picks a different patch.
+real; JIT-only nvdiffrast *gains* a ninja declaration).
+
+**Torch policy (revised 2026-08-24): the torch family is stripped from
+every wheel, farm-wide.** The earlier policy -- leave bare `torch`/floor
+specifiers alone, never emit `torch==X.Y.Z` -- was not enough. An audit of
+the live index found 17 of 38 packages still declaring `torch` or
+`torchvision`, and every one of them is unresolvable in the environment
+comfy-env builds.
+
+The reason a torch declaration differs from a numpy one: comfy-env pins the
+torch family **workspace-wide**, by version *and* index, and writes it into
+every generated feature, because tensors cross the process boundary over
+torch's private multiprocessing ABI (`reduce_storage` /
+`rebuild_cuda_tensor`), which carries no version handshake. comfy-env
+enforces this so strictly that it *strips* torch from a node's own
+declarations (`_strip_torch_family()`). A wheel's `Requires-Dist` is the
+one channel that bypasses that strip, because it travels inside the
+artifact rather than in the manifest comfy-env generates. So
+`Requires-Dist: torch>=2.4.0` asks the solver to satisfy `torch` from its
+default source (PyPI) while the manifest pins the same name from the
+PyTorch CUDA index: best case redundant, realistic case a second CPU-only
+torch, or outright failure. It can never be *useful* -- the only torch that
+will ever be present was pinned before the wheel was selected, and the
+wheel's local version (`+cu128torch2.8`) already records which torch it was
+built against far more precisely than a floor does.
+
+The metadata is therefore deliberately incomplete: the wheel does need
+torch to import. That is the same trade `--no-deps` makes today, recorded
+honestly in the artifact instead of hidden behind an install flag, and it
+is safe *in this context* because a cuda-wheel is only ever installed into
+an env whose torch was pinned first.
+
+Implemented farm-wide rather than as a per-package list (`strip_torch_family`
+in `patch_wheel_version.py`), so packages built later cannot regress. Three
+guards keep it that way: the loader rejects a `requires_dist` naming the
+family, the verify gate fails any wheel that still ships one, and lookalike
+distributions (`torch-scatter`, `pytorch-lightning`) are matched by exact
+distribution name, never by prefix.
+
+This unblocks the downstream goal: with the family gone, comfy-env can feed
+the wheel URLs into `build_env_toml()` as ordinary `pypi-dependencies` and
+delete the post-pixi `uv pip install --no-deps` pass, putting the wheels
+inside `pixi.lock`, hashed. (pixi has no `--no-deps` equivalent --
+prefix-dev/pixi#1417 -- which is why `Requires-Dist` becomes load-bearing
+the moment the wheels are inlined, and why this had to land first.)
 Result: resolver-safe wheels that consumers can inline as ordinary URL
 dependencies, hashed, inside their lockfiles.
 
