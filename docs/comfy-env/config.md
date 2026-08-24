@@ -16,20 +16,111 @@ Those two locations are the only ones supported: discovery and the runtime
 binder deliberately match, so a config anywhere else is simply not seen
 rather than silently materialized-but-unused.
 
+Using [ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
+as the example:
+
+```
+ComfyUI/custom_nodes/
+`-- ComfyUI-GeometryPack/
+    +-- comfy-env-root.toml     <- FILE 1: pack-wide. [types], [node_packs].
+    |                              Declares no environment.
+    +-- requirements.txt        <- one line: comfy-env. The host env gets
+    |                              nothing else.
+    +-- prestartup_script.py       setup_env()
+    +-- install.py                 install()
+    +-- __init__.py                register_nodes()
+    `-- nodes/
+        +-- comfy-env.toml      <- FILE 2: everything below is ONE isolated
+        |                          env (cgal, igl, pyvista, trimesh, ...)
+        +-- boolean/
+        +-- remeshing/
+        +-- skeleton/, uv/, io/, analysis/, ...   (29 dirs in total)
+```
+
+GeometryPack puts the env file at `nodes/`, so the whole directory is a
+single environment. A pack that needs **two** environments puts a
+`comfy-env.toml` in each `nodes/<subdir>/` instead -- one env per subdir,
+named `<pack>-<subdir>`.
+
 ## Parsing
 
-Parsing lives in `config/__init__.py` (`parse_config`). One rule to know:
+Parsing lives in `config/__init__.py` (`parse_config`); the compile step that
+consumes the result is `packages/toml_generator.py`. The governing rule is
 **honest passthrough**
-([ADR-0013](adr/0013-env-file-passthrough-contract.md)) -- every table
-comfy-env does not own is forwarded verbatim into the generated
-`pixi.toml` at feature level (`[tasks]`, `[activation]` -- merged with the
-compiler's entries -- future pixi tables, everything), and the *pinned*
-pixi validates its own language at install. The exceptions are the
-compiler-owned keys, which error loudly if you set them:
-`[environments]`, `[feature.*]`, `workspace.name/version/platforms`
-(host-derived identity); torch-family pins are rewritten to the host
-family. Typos inside comfy-env's own sections (`[cuda]`, `[options]`) produce
-warnings; invalid `[types]` values are parse errors.
+([ADR-0013](adr/0013-env-file-passthrough-contract.md)): comfy-env keeps as
+little knowledge of pixi's language as it can get away with, and forwards the
+rest untouched.
+
+Every key in `comfy-env.toml` falls into one of four buckets.
+
+### 1. comfy-env's own — translated, not forwarded
+
+These do not exist in pixi at all. Pixi 0.75.0 accepts exactly seventeen
+top-level tables, and rejects anything else by name:
+
+```
+workspace, package, target, dependencies, host-dependencies,
+build-dependencies, constraints, exclude-newer, pypi-dependencies,
+pypi-exclude-newer, dev, activation, tasks, feature, environments,
+pypi-options, system-requirements
+```
+
+So `[cuda]` in a manifest handed straight to pixi is a hard error
+(`'cuda' was not expected here`). comfy-env consumes these itself and emits
+something pixi does understand:
+
+| You write | What it becomes | When |
+|---|---|---|
+| `python = "3.11"` | `[feature.<env>.dependencies] python = "3.11.*"` | build |
+| `[cuda] packages` | resolved wheel URLs, installed after pixi (see [cuda-wheels](../cuda-wheels/index.md)) | build |
+| `[env_vars]` | environment variables set on the worker process at spawn | run |
+| `[options]` | runtime knobs (`health_check_timeout`) | run |
+
+The bottom two never reach `pixi.toml` in any form. `[env_vars]` in particular
+is **not** `[activation.env]`: it is applied when comfy-env spawns the metadata
+scan and the persistent worker, so it affects those processes and nothing else.
+
+Careful with `cuda`: it is not a pixi *table*, but it **is** a valid key
+*inside* `[system-requirements]`. Different thing, and comfy-env sets that one
+itself from the host.
+
+### 2. Forwarded verbatim
+
+Everything else — `[tasks]`, `[activation]`, `[pypi-options]`,
+`[system-requirements]`, `[target.*]`, `[dependencies]` — is copied into the
+generated `pixi.toml` at **feature** level. comfy-env does not validate it;
+pixi does, because pixi is pinned ([ADR-0002](adr/0002-pixi-as-environment-manager.md))
+and its parser is the only authority worth trusting. Use whatever pixi magic
+you like.
+
+Two of these are merged rather than copied, so comfy-env's own entries do not
+clobber yours: `[activation]` (your `env` entries survive alongside
+`KMP_DUPLICATE_LIB_OK`), and `workspace.channels` (unioned).
+
+### 3. Rewritten on the way through
+
+Forwarded, but not unchanged: **torch-family pins**. `torch`, `torchvision`
+and `torchaudio` in `[dependencies]` or `[pypi-dependencies]` are stripped and
+replaced with the workspace-wide pin, and you get a log line saying so. The
+parent and every worker must share one identical torch — tensors cross the
+process boundary over torch's private multiprocessing ABI, which has no
+version handshake ([ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md)).
+
+### 4. Refused
+
+Setting these is a hard error, because comfy-env generates them and a second
+author would break the manifest's shape:
+
+| Key | Why |
+|---|---|
+| `[environments]`, `[feature.*]` | the per-env manifest is single-feature / single-environment by design ([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)) |
+| `workspace.name`, `workspace.version` | env identity |
+| `workspace.platforms` | derived from the host machine |
+
+Errors and warnings elsewhere: typos inside comfy-env's own sections
+(`[cuda]`, `[options]`) warn and continue; an invalid `[types]` value is a
+parse error; an unquoted `python = 3.10` is a parse error too, because TOML
+reads it as the float `3.1`.
 
 ## `comfy-env-root.toml` (pack root)
 
@@ -190,15 +281,3 @@ Notes:
   `nodes/cgal/` with a config gets its own env.
 - Minimal useful file: an **empty** `comfy-env.toml` already gives the
   directory its own interpreter and env; add sections as needed.
-
-## Real-world examples
-
-- [ComfyUI-TRELLIS2](https://github.com/PozzettiAndrea/ComfyUI-TRELLIS2) --
-  root file only today (node deps + env vars). Its CUDA packages are moving
-  into an isolated env: as a principle, comfy-env never installs anything
-  into the host environment
-  ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)).
-- [ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
-  -- both files; the heavyweight conda + CUDA isolation env.
-- [cookiecutter-comfy-extension](https://github.com/PozzettiAndrea/cookiecutter-comfy-extension)
-  -- scaffold with the minimal template.
