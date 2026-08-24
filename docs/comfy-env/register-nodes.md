@@ -6,15 +6,14 @@ from comfy_env import register_nodes
 NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS = register_nodes()
 ```
 
-The **runtime** entry point. ComfyUI imports the pack's `__init__.py` at
-startup and reads `NODE_CLASS_MAPPINGS`; `register_nodes()` produces those
-mappings -- importing normal nodes in-process and synthesizing **proxy
-classes** for isolated ones, so ComfyUI cannot tell the difference.
-
-Source: `register_nodes()` in `src/comfy_env/isolation/wrap.py`. Signature:
-`register_nodes(nodes_package="nodes") -> (mappings, display_names)` -- the
-only knob is the name of the nodes subpackage, and the caller's package is
-again inferred from the stack.
+The **runtime** entry point.
+At startup, ComfyUI imports the pack's `__init__.py` and reads `NODE_CLASS_MAPPINGS`
+-- at `init_extra_nodes()` (`main.py:531`), so torch and `folder_paths` are live,
+the `PromptServer` object exists but is not yet serving, and
+[`setup_env()`](setup-env.md) has long since run.
+`register_nodes()` produces those mappings by synthesizing **proxy classes**
+for every directory it can bind to an isolated env, so ComfyUI cannot tell the
+difference.
 
 ## What it does
 
@@ -24,7 +23,7 @@ flowchart TD
         reg["register_nodes()<br/>isolation/wrap.py"]
         meta["Metadata scan<br/>isolation/metadata.py<br/>(short-lived subprocess in the env)"]
         proxy["Proxy node classes<br/>(synthesized in the parent)"]
-        reg -->|"1. scan the env"| meta
+        reg -->|"1. scan the subenv"| meta
         meta -->|"2. build proxies"| proxy
     end
 
@@ -35,14 +34,13 @@ flowchart TD
     proxy -. "each proxy forwards its FUNCTION over the socket" .-> node
 ```
 
-The parent holds **only proxies** -- it never imports node code. Proxies
-are built once at `register_nodes()` by the short-lived metadata scan;
+Proxies are built once at `register_nodes()` by the short-lived metadata scan;
 the persistent worker is a separate, long-lived process (one per env,
 auto-restarted on crash).
 
 Step by step:
 
-1. **Reap stale workers** left over from a previous crashed run.
+1. **Reap stale workers** possibly left over from a previous crashed run.
 2. **Discover isolation dirs**: `<nodes_package>/comfy-env.toml` and `<nodes_package>/<subdir>/` -- the two
    shapes the runtime binder can bind. **Deliberately not a recursive glob**:
    a config anywhere else could be scanned but never bound. Each needs *and* a materialized env in the workspace. Per-env

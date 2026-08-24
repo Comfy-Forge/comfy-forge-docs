@@ -9,6 +9,11 @@ The **launch-time** entry point. ComfyUI core executes each pack's
 `prestartup_script.py` on every launch, *before* the server boots and before
 any node imports.
 
+Precisely: `main.py:225`, before ComfyUI imports torch, `folder_paths` or
+`comfy.model_management` -- which is why process-wide hygiene belongs here and
+nowhere else. [`register_nodes()`](register-nodes.md) runs much later, at
+custom-node import time; both finish before the server binds a port.
+
 Setup_env() is mostly a health report plus environment
 hygiene.
 
@@ -46,13 +51,4 @@ hygiene.
 No pip, no pixi, no network, no writes to the workspace. A missing env is
 **reported, not repaired**.
 
-It also **does not patch ComfyUI's globals**. Until 0.4.27 it filled in
-`comfy.cli_args.args.base_directory` from `folder_paths.base_path` when the
-user had not passed `--base-directory`. That was deleted: `None` there is
-information -- "the user did not ask to relocate the base" -- and nodes read
-it guarded (`if ... and args.base_directory`), so filling it in could never
-prevent a crash. It could only flip that branch on, silently moving a
-relative path from the CWD to the ComfyUI base. Identical when ComfyUI is
-launched from its own directory, different under a service.
-
-Only [`install()`](install.md) builds envs.
+It **does not patch ComfyUI's globals** as a principle.

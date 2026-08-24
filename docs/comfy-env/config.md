@@ -1,21 +1,22 @@
 # Config reference: the two TOML files
 
-Two files, two roles ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)):
-`comfy-env-root.toml` at the pack root manages node dependencies and
-pack-wide switches and **never touches the Python environment**;
-`comfy-env.toml` at `nodes/` or `nodes/<subdir>` gives that directory its
-own isolated pixi environment -- the file's *presence* is the isolation
-switch. (Those two locations are the only ones supported: discovery and the
-runtime binder deliberately match, so a config anywhere else is simply not
-seen rather than silently materialized-but-unused.)
+## Files
 
-!!! warning "The host-environment principle"
-    **comfy-env NEVER installs anything into the host environment.** The
-    host env's only comfy-env-related content is `comfy-env` itself (the
-    one line in your `requirements.txt`). CUDA wheels, conda packages, and
-    pip dependencies all live in isolated envs -- there is no config key,
-    and there will be no config key, that installs a library into ComfyUI's
-    own environment.
+Two files, two roles ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)):
+
+1. **`comfy-env-root.toml`** -- at the pack root.
+   Declares node pack dependencies and pack-wide switches, and
+   **never touches the Python environment**.
+
+2. **`comfy-env.toml`** -- at `nodes/` or `nodes/<subdir>`.
+   Gives that directory its own isolated pixi environment. The file's
+   *presence* is the isolation switch.
+
+Those two locations are the only ones supported: discovery and the runtime
+binder deliberately match, so a config anywhere else is simply not seen
+rather than silently materialized-but-unused.
+
+## Parsing
 
 Parsing lives in `config/__init__.py` (`parse_config`). One rule to know:
 **honest passthrough**
