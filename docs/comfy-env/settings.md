@@ -7,7 +7,7 @@ Every comfy-env setting, its default, and how to change it.
 Three tiers, highest priority first. All settings are **machine-global**
 (the per-pack `[settings]` section was removed in 0.4.25):
 
-1. **Environment variable** -- `COMFY_ENV_AUTO_INSTALL=1 python main.py`
+1. **Environment variable** -- `COMFY_ENV_POOL_IPC=1 python main.py`
 2. **Persistent file** -- `~/.comfy-env/settings.env`, plain `KEY=VALUE`
    lines; edited comfortably via the `comfy-env settings` TUI. Loaded with
    `setdefault`, so it fills *unset* env vars and can never override an
@@ -20,7 +20,6 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 
 | Env var | default | meaning |
 |---|---|---|
-| `COMFY_ENV_AUTO_INSTALL` | **off** | Materialize a missing env at `register_nodes()` time. Off by default because installs take minutes and block startup. |
 | `COMFY_ENV_POOL_IPC` | **off** | **Experimental, Linux-only, known-unsound** pool-based zero-copy GPU transfer. Enabling it prints a loud warning; do not use outside experiments -- see [ADR-0030](adr/0030-gpu-platform-floors.md) / [ADR-0005](adr/0005-tiered-tensor-serialization.md). |
 
 ## Paths

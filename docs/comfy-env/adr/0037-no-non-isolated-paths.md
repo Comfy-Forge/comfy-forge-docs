@@ -81,9 +81,18 @@ What this does **not** remove:
 - **Packs without configs.** A directory with no `comfy-env.toml` was
   never isolated and imports normally; that is not a mode, it is the
   absence of a declaration.
-- **`COMFY_ENV_AUTO_INSTALL`** as the recovery hatch, and
-  **`USE_COMFY_ENV`** (install-time helper switch), which are separate
-  mechanisms.
+- **`USE_COMFY_ENV`** (install-time helper switch), which is a separate
+  mechanism.
+
+!!! warning "Superseded in 0.4.25"
+    This section originally also listed **`COMFY_ENV_AUTO_INSTALL`** as a
+    surviving recovery hatch. It was removed in 0.4.25 on this ADR's own
+    criteria -- no known setter, zero test coverage, and an undisclosed
+    blast radius (it skipped the same macOS libomp workaround this ADR cites
+    at *"`isolate=0` also disabled the macOS libomp segfault workaround"*).
+    A hatch that must be opened *before* the crash is a mode, not recovery,
+    and this ADR's thesis is that comfy-env has one mode. See the amendment
+    in [ADR-0008](0008-graceful-degradation-everywhere.md).
 
 Tombstones are **value-sensitive**, because the two stale values mean
 different things: a *falsy* leftover (`COMFY_ENV_ISOLATE=0`, or

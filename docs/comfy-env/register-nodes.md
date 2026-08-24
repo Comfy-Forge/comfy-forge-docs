@@ -77,11 +77,13 @@ Step by step:
 
 ## Degradation and flags
 
-- **Missing env** -> in-process import with a log line; ComfyUI still boots
-  ([ADR-0008](adr/0008-graceful-degradation-everywhere.md)). If
-  `COMFY_ENV_AUTO_INSTALL` is on (default **off** -- installs take
-  minutes), `register_nodes()` first tries to materialize the env at
-  startup, guarded by a file lock against concurrent launches.
+- **Missing env** -> in-process import, with a log line naming the exact
+  command that builds it; ComfyUI still boots
+  ([ADR-0008](adr/0008-graceful-degradation-everywhere.md)). Envs are built
+  **only** by [`install()`](install.md) -- `register_nodes()` never
+  materializes one. A lazy path behind `COMFY_ENV_AUTO_INSTALL` existed until
+  0.4.25 and was removed: it was a second builder that no seal could keep in
+  agreement with the first.
 - Worker-resident GPU models are bridged into ComfyUI's VRAM manager via
   `SubprocessModelPatcher`, and workers call back into the parent for
   progress reporting and VRAM budget negotiation.

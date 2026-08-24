@@ -30,7 +30,6 @@ Every subsystem has an explicit fallback, and the terminal fallback is always
 | Failure | Fallback |
 |---------|----------|
 | Isolation env not materialized | In-process import attempt; on a bare host this fails per-module and those nodes are skipped (logged, never fatal) |
-| Auto-install fails (`isolation/auto_install.py`) | Returns None; caller falls back to in-process import |
 | CUDA IPC unavailable or broken | CPU shared memory (down the [ADR-0005](0005-tiered-tensor-serialization.md) ladder) |
 | cuda-wheels Pages index unreachable | Retry with real User-Agent, then GitHub Releases API ([ADR-0004](0004-prebuilt-cuda-wheel-index.md)) |
 | GPU detection: NVML missing | torch -> nvidia-smi -> sysfs, in order (`detection/gpu.py`) |
@@ -38,10 +37,11 @@ Every subsystem has an explicit fallback, and the terminal fallback is always
 | Worker crash mid-session | Worker pool auto-restarts it (`isolation/wrap.py`) |
 | No GPU at install time | CPU-only torch build is pinned instead of failing |
 
-Feature flags follow the same philosophy: risky capabilities default off
-(`COMFY_ENV_AUTO_INSTALL`, `COMFY_ENV_POOL_IPC`) and everything is
-overridable per env var, per user file (`~/.comfy-env/settings.env`), or per
-node (`[settings]` in the TOML).
+Feature flags followed the same philosophy: risky capabilities default off
+and overridable per env var or per user file (`~/.comfy-env/settings.env`).
+Only `COMFY_ENV_POOL_IPC` remains -- and it is documented as known-unsound,
+so the pattern now has exactly one instance and no longer carries a general
+claim. Per-node `[settings]` was removed in 0.4.25.
 
 ## Context
 
@@ -64,9 +64,7 @@ prestartup time is the entire application.
         libomp fix. The terminal fallback is the **per-env automatic**
         in-process import (missing env or stamp refusal), which is
         evidence-triggered rather than flag-triggered;
-        `COMFY_ENV_AUTO_INSTALL` remains the recovery hatch (full
-        rationale: [ADR-0037](0037-no-non-isolated-paths.md)), and a failed
-        in-process import now fails loudly (full traceback; all-sources-
+        and a failed in-process import now fails loudly (full traceback; all-sources-
         failed raises so ComfyUI marks the pack IMPORT FAILED) instead of
         silently registering zero nodes.
 - Failures can hide: a node silently running in-process, or tensors silently
@@ -87,8 +85,20 @@ prestartup time is the entire application.
   where an in-process import genuinely worked. On a bare host
   (requirements.txt = comfy-env only) the bottom rung is empty by
   construction: fallback means the pack's nodes are missing, not running
-  unisolated. The real safety net there is `COMFY_ENV_AUTO_INSTALL`
-  (materialize the env on first load), which stays default-off because a
-  synchronous pixi install can block startup for minutes -- a deliberate
-  trade of resilience against startup latency that should be revisited if
-  missing-nodes-after-fallback becomes the common failure users hit.
+  unisolated.
+- *2026-08 amendment (0.4.25): there is no safety net below that rung.*
+  `COMFY_ENV_AUTO_INSTALL` was previously named here as the answer --
+  materialize the env on first load. It was removed, because it was a
+  **second builder** that no seal could hold in agreement with
+  `install_workspace`: it skipped the macOS libomp dedupe and uv's
+  python-preference pinning, and because those leave the manifest identity
+  unchanged, every later `comfy-env install` **skipped the resulting env as
+  up to date**. A recovery hatch that silently produces a permanently-wrong
+  env is not resilience. The honest position is now: a missing env means
+  missing nodes until `install()` is run again, and the mitigations are
+  diagnostic rather than automatic -- the startup banner's
+  `[MISSING -- run install.py]`, and the log line at the bind site naming
+  the exact command. **This weakens the headline claim above**: "every
+  availability failure ends in ComfyUI still boots" protects the
+  *application*, not the failing pack, and on a bare host that distinction
+  is the whole outcome.

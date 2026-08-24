@@ -79,7 +79,6 @@ combos x platforms) genuinely is.
 | `isolation/metadata.py` | 1,114 | The scan subprocess + proxy synthesis ([ADR-0023](adr/0023-metadata-scan-and-proxy-synthesis.md)) -- the subsystem most exposed to ComfyUI schema churn (V1/V3 duality, DynamicCombo, hidden inputs). |
 | `isolation/wrap.py` | 546 | `register_nodes()` orchestration -- was 1,112 until 0.4.20, when the worker pool and env builder were extracted (see below); now it reads like the one thing it is. |
 | `isolation/pool.py` | 496 | The worker pool (0.4.20): lifecycle, restart+generations, VRAM/progress callbacks, route proxying, the `_STALE_PATCHERS` invariant ([ADR-0019](adr/0019-worker-lifecycle.md)). Extracted from `wrap.py` to break the `wrap`↔`metadata` cycle. |
-| `isolation/auto_install.py` | 307 | Materialize a missing env at load ([ADR-0008](adr/0008-graceful-degradation-everywhere.md)). |
 | `isolation/model_patcher.py` | 213 | `SubprocessModelPatcher` -- resident models obey ComfyUI's VRAM manager. |
 | `isolation/subenv.py` | 125 | Launch-env construction (0.4.20): platform PATH/libomp/activation for the worker subprocess. A stdlib-only leaf, extracted from `wrap.py`. |
 | `isolation/__init__.py` | 40 | Re-exports. |

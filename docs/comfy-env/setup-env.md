@@ -45,6 +45,5 @@ caller's directory via `inspect.stack()`, same trick as the other two calls.
 ## What it does NOT do
 
 No pip, no pixi, no network, no writes to the workspace. A missing env is
-reported, not repaired -- unless the user has opted into
-`COMFY_ENV_AUTO_INSTALL`, which is handled later by
-[`register_nodes()`](register-nodes.md), not here.
+**reported, not repaired** -- by anything. Only [`install()`](install.md)
+builds envs.
