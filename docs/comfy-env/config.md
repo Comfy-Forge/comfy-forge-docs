@@ -51,12 +51,21 @@ consumes the result is `packages/toml_generator.py`. The governing rule is
 little knowledge of pixi's language as it can get away with, and forwards the
 rest untouched.
 
-Every key in `comfy-env.toml` falls into one of four buckets.
+Every key in `comfy-env.toml` falls into one of four buckets:
 
-### 1. comfy-env's own — translated, not forwarded
+- **Ours** — comfy-env consumes it and emits something else. Exactly four keys.
+- **Passthrough** — copied into the generated `pixi.toml` untouched.
+- **Rewritten** — passed through, but not unchanged. Only the torch family.
+- **Refused** — a hard error, because comfy-env generates it.
 
-These do not exist in pixi at all. Pixi 0.75.0 accepts exactly seventeen
-top-level tables, and rejects anything else by name:
+### 1. Ours — translated, never forwarded
+
+**This bucket is exactly four keys**, and the list is closed: `parse_config`
+consumes `python`, `[cuda]`, `[env_vars]` and `[options]`, and anything it does
+not consume is passthrough by definition.
+
+They do not exist in pixi at all. Pixi 0.75.0 accepts exactly seventeen
+top-level tables:
 
 ```
 workspace, package, target, dependencies, host-dependencies,
@@ -64,6 +73,7 @@ build-dependencies, constraints, exclude-newer, pypi-dependencies,
 pypi-exclude-newer, dev, activation, tasks, feature, environments,
 pypi-options, system-requirements
 ```
+and rejects anything else by name.
 
 So `[cuda]` in a manifest handed straight to pixi is a hard error
 (`'cuda' was not expected here`). comfy-env consumes these itself and emits
@@ -84,7 +94,12 @@ Careful with `cuda`: it is not a pixi *table*, but it **is** a valid key
 *inside* `[system-requirements]`. Different thing, and comfy-env sets that one
 itself from the host.
 
-### 2. Forwarded verbatim
+The **root** file owns two more, `[node_packs]` and `[types]`, and the two
+files do not share a vocabulary: a root-only section in an env file is a hard
+error, and so is the reverse. `[serializers]` is refused by name -- it became
+`[types]` in 0.4.16 ([ADR-0015](adr/0015-declared-wire-types.md)).
+
+### 2. Passthrough -- forwarded verbatim
 
 Everything else — `[tasks]`, `[activation]`, `[pypi-options]`,
 `[system-requirements]`, `[target.*]`, `[dependencies]` — is copied into the
@@ -106,7 +121,7 @@ parent and every worker must share one identical torch — tensors cross the
 process boundary over torch's private multiprocessing ABI, which has no
 version handshake ([ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md)).
 
-### 4. Refused
+### 4. Refused -- hard error
 
 Setting these is a hard error, because comfy-env generates them and a second
 author would break the manifest's shape:
