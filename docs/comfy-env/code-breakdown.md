@@ -92,7 +92,6 @@ three-hook upstream RFC would let comfy-env *delete*.
 | `cli.py` | 692 | The `comfy-env` CLI (doctor, gc, generate, settings...). Large for a CLI; the biggest single non-core file. |
 | `__init__.py` | 139 | Package surface + the three-call contract re-exports. |
 | `config/__init__.py` | 183 | The TOML config layer ([ADR-0003](adr/0003-two-config-files-with-two-roles.md), [ADR-0015](adr/0015-declared-wire-types.md)). |
-| `lint.py` | 130 | Accelerator-rule lint. |
 | `settings.py` | 156 | The env-var control plane. |
 | `debug.py` | 61 | Debug categories. |
 

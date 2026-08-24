@@ -67,9 +67,22 @@ Written only after a **successful** install, read at **runtime**:
   "abi_tag": "py313-torch2-10-cu128",
   "torch_pin": "==2.10.*",
   "provenance": "install_workspace:tier1",
-  "pixi_lock_sha256": "..."
+  "pixi_lock_sha256": "...",
+  "accel_imports": {"faithc-aot": ["faithcontour"], "cumesh": ["cumesh"]}
 }
 ```
+
+`accel_imports` maps each declared `[cuda]` package to the top-level import
+names it actually installs. A distribution name is not an import name and
+cannot be derived from one -- `faithc-aot` installs `faithcontour`, `pyyaml`
+installs `yaml` -- so anything checking the lazy-import rule from outside the
+env can only guess, and guesses wrong silently. Install is the one moment the
+answer is knowable, because the env exists and its metadata is readable;
+recording it here is what lets
+[`comfy-test lint --check accel`](../comfy-test/index.md) be exact on a bare
+checkout. Unlike the other fields it is **not** consulted by
+`validate_env_stamp`: a wrong or missing mapping degrades a downstream check
+to "could not verify", never to a wrong bind.
 
 `validate_env_stamp` runs at `register_nodes()` bind time. Without it, an env
 would be trusted purely because its directory exists -- and a foreign-stack

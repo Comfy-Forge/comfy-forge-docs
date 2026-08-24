@@ -1,8 +1,14 @@
 # Accelerator declarations
 
-A node pack convention, enforced by comfy-env: **a node declares the
-backend(s) it requires at execution, or none**, and accelerator packages
-must be imported lazily, inside the nodes that declare them.
+A node pack convention with two halves, enforced differently:
+
+1. **A node declares the backend(s) it requires at execution, or none.** The
+   vocabulary is closed and comfy-env enforces it -- an unrecognized value
+   raises during the metadata scan.
+2. **Accelerator packages are imported lazily, inside the nodes that declare
+   them.** Nothing can enforce this at declaration time; it is *observed* at
+   scan time and *checked* statically in CI. See
+   [Enforcement](#enforcement) for what each mechanism can and cannot see.
 
 ```python
 class RemeshGPUNode(io.ComfyNode):
@@ -86,11 +92,22 @@ Opportunistic GPU use -- `device = "cuda" if torch.cuda.is_available() else
   Import names are mapped from distribution names via package metadata, so
   `faithc-aot -> faithcontour` is caught too. Violations are reported
   loudly at every `register_nodes()`.
-- **Static lint (advisory).** `comfy-env doctor` AST-walks each env:
-  unguarded top-level accelerator imports are errors; guarded
-  (`try/except`) ones and `torch.cuda` use in undeclared modules are
-  advisories. Static analysis can be defeated by dynamic imports, which is
-  why the scan-time check is the authority.
+- **Static check (CI).** `comfy-test lint --check accel` AST-walks each env
+  on a bare checkout -- no env built, no server -- so a violation is caught
+  before the pack ships rather than after it is installed. Unguarded
+  top-level accelerator imports are errors; guarded (`try/except`) ones and
+  `torch.cuda` use in undeclared modules are warnings. It resolves import
+  names from [`env.stamp.json`](seals.md)'s `accel_imports`, so `faithc-aot`
+  is matched as `faithcontour` exactly rather than guessed; a package with no
+  recorded mapping is **reported as unverifiable, not passed**. Static
+  analysis can still be defeated by dynamic imports, which is why the
+  scan-time check remains the authority.
+
+    This lived in comfy-env as `comfy-env doctor`'s third section until
+    0.4.27. It moved because the check is only useful before shipping, which
+    is CI's job, and because guessing import names by
+    `name.replace("-", "_")` -- the best a checker inside comfy-env could
+    do -- passes a top-level `import faithcontour` silently.
 - **Registration-time gate.** `build_proxy_class` builds the
   unavailable-stub for declared nodes the machine can't serve -- the gate is
   membership, `machine_backend in declared`. Available nodes carry
