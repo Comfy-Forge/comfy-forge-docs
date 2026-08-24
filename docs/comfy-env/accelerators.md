@@ -1,7 +1,7 @@
 # Accelerator declarations
 
 A node pack convention, enforced by comfy-env: **a node declares the
-backend(s) it requires at execution, or none** -- and accelerator packages
+backend(s) it requires at execution, or none**, and accelerator packages
 must be imported lazily, inside the nodes that declare them.
 
 ```python

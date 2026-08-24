@@ -1,8 +1,12 @@
 # Custom wire types (`[types]` + `serialization.py`)
 
-Your nodes exchange domain objects -- meshes, point clouds, skeletons --
-that comfy-env's transport does not know. By default an unknown type
-crosses the worker boundary via **pickle**: three copies, coupled to
+Nodes in ComfyUI exchange objects between themselves!
+Sometimes these objects are covered by ComfyUI (see ComfyUI background page).
+
+For meshes, point clouds, skeletons, trimeshes with uv and tecture data, these aren't known!
+We do not know how to carry them across env boundaries by standard.
+
+By default an unknown type crosses the worker boundary via **pickle**: three copies, coupled to
 library versions across envs, and slow for bulk data. Declaring your
 wire types ([ADR-0015](adr/0015-declared-wire-types.md), mechanism in
 [ADR-0014](adr/0014-pack-extensible-serializer-registry.md)) lets your

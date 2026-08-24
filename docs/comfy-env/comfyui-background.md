@@ -130,6 +130,50 @@ class INTConstant:
         return (value,)
 ```
 
+### Data types: what a socket type actually is
+
+A socket type in ComfyUI is **a string**, and nothing more. `RETURN_TYPES =
+("INT",)` and `INPUT_TYPES` returning `{"required": {"mesh": ("TRIMESH",)}}`
+declare the same kind of thing. ComfyUI never inspects the Python object
+flowing along an edge — it compares the two declared strings and, if they
+match, passes the object through untouched.
+
+The matching rule is `validate_node_input` in
+`comfy_execution/validation.py`, and it is short:
+
+| Rule | Behaviour |
+|---|---|
+| Exact string equality | matches |
+| `"*"` on either side (`IO.AnyType`) | matches anything |
+| `COMFY_MATCHTYPE_V3` on either side | matches; the frontend validates it |
+| `"A,B"` | a **union** — comma-separated. Non-strict (the default) needs a non-empty intersection; strict needs a subset |
+
+There are ~85 built-in types (`comfy_api/latest/_io.py`), and the Python
+objects behind them are ordinary:
+
+| Socket | Python object |
+|---|---|
+| `IMAGE`, `MASK` | `torch.Tensor` |
+| `LATENT` | `dict` with a `samples` tensor, plus optional `noise_mask`, `batch_index` |
+| `CONDITIONING` | list of `[tensor, dict]` pairs |
+| `MODEL`, `CLIP`, `VAE` | ComfyUI wrapper objects (`ModelPatcher` and friends) |
+| `INT`, `FLOAT`, `STRING`, `BOOLEAN` | Python primitives |
+
+**The type registry is open.** Nothing registers a type name centrally, so a
+pack invents one by returning it: `TRIMESH`, `POINTCLOUD`, `SKELETON` are
+strings a pack made up, and ComfyUI wires them as happily as `IMAGE`. Two
+packs that independently pick `MESH` are, as far as ComfyUI is concerned, the
+same type — the string is the whole contract.
+
+!!! note "Why this matters for comfy-env"
+    In vanilla ComfyUI the object never leaves the process, so "the type is
+    just a string" costs nothing — the same `Trimesh` instance is handed from
+    one node to the next.
+
+    Under comfy-env the object may have to cross a **process boundary**, and
+    a string does not say how to move bytes. That is the gap
+    [custom wire types](serializers.md) fills.
+
 ### Lifecycle hooks and who runs them
 
 Every file besides `__init__.py` is optional, and different actors run them

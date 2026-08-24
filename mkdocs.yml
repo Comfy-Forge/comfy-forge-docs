@@ -65,7 +65,6 @@ nav:
           - Accelerator declarations: comfy-env/accelerators.md
           - System footprint: comfy-env/system-footprint.md
           - Custom wire types: comfy-env/serializers.md
-          - "Containers, CI & air-gapped": comfy-env/containers.md
       - Internals:
           - The two-system problem: comfy-env/two-system-problem.md
           - How ComfyUI manages memory: comfy-env/comfyui-memory.md

@@ -38,8 +38,7 @@ decided it:
 - **The demand behind them is real but is not for them.** Docker/CI
   users (comfy-env #2, #9; UniRig #8) want *build-time installation
   and an inert runtime* — which the bake-at-build story plus the
-  fast-key zero-network warm path already provides (now documented in
-  [Containers, CI & air-gapped](../containers.md)). The conda/envless
+  fast-key zero-network warm path already provides. The conda/envless
   audience (Sharp #50, the ~15 frozen `ENVLESS*` forks) wants packs to
   run in an environment they manage — which the dependencies make
   structurally impossible for most packs: **16 of 21 shipped packs
@@ -128,9 +127,9 @@ they reach the environment, cleaned on the next save, never an error.
 
 - The 1.0 stable surface does not carry an execution-mode axis; the
   test matrix has one diagonal.
-- The honest answers to the demand live in docs, not flags:
-  [Containers, CI & air-gapped](../containers.md) for the Docker/CI
-  audience; "not supported, and here is why" for envless.
+- The honest answers to the demand are not flags: run `install()` at
+  image build time for the Docker/CI audience; "not supported, and here
+  is why" for envless.
 - A future *designed* host-install story (e.g. detecting an
   already-conda-managed host env) remains possible — recorded on the
   roadmap as an unscheduled thought — and would arrive as its own
