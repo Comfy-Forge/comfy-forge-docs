@@ -17,7 +17,7 @@ Installing a comfy-env pack currently means trusting:
    mutable index** (`two-system-problem.md` says this honestly; this
    ADR makes it a decision surface). Blast radius: arbitrary native
    code on every GPU machine running these packs.
-3. **`[node_reqs]` transitive installs** -- cloned repos' `install.py`
+3. **`[node_packs]` transitive installs** -- cloned repos' `install.py`
    files run ([ADR-0016](0016-node-pack-dependencies.md) bounds this
    to pinned refs; the registry path is rejected there and the
    dead code that still implements it is scheduled for deletion).

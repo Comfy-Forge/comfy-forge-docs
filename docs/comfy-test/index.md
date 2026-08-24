@@ -204,7 +204,7 @@ thin:
 
 comfy-test knows about [comfy-env](../comfy-env/index.md) as an optional
 peer, not a dependency: it reads `comfy-env.toml` for declared `[cuda]`
-packages and `comfy-env-root.toml` for `[node_reqs]`, sets
+packages and `comfy-env-root.toml` for `[node_packs]`, sets
 `COMFY_ENV_CUDA_VERSION` so wheel resolution works on CPU-only CI, probes
 comfy-env's workspace to see which CUDA packages actually materialized (and
 mocks the ones that didn't, since CUDA imports fail without a GPU), and logs

@@ -7,20 +7,17 @@ from comfy_env import setup_env; setup_env()
 
 The **launch-time** entry point. ComfyUI core executes each pack's
 `prestartup_script.py` on every launch, *before* the server boots and before
-any node imports -- the only moment where the process environment can still
-be fixed. `setup_env()` deliberately installs nothing (that is
-[`install()`](install.md)'s job): it is a health report plus environment
-hygiene.
+any node imports.
 
-Source: `setup_env()` in `src/comfy_env/environment/setup.py`. `node_dir` defaults to the
-caller's directory via `inspect.stack()`, same trick as the other two calls.
+Setup_env() is mostly a health report plus environment
+hygiene.
 
 ## What it does, in order
 
-1. **Enable `faulthandler`** -- if native code segfaults later in the run,
-   you get a Python traceback on stderr instead of a silent death.
+1. **Enable `faulthandler`**: if native code segfaults later in the run,
+   we get a Python traceback on stderr instead of a silent death.
 
-2. **Print the startup banner** -- walks the pack for `comfy-env.toml`
+2. **Print the startup banner**: walks the pack for `comfy-env.toml`
    files and reports each isolation env's resolved workspace path and state:
 
     ```
@@ -33,17 +30,18 @@ caller's directory via `inspect.stack()`, same trick as the other two calls.
     `[MISSING -- run install.py]` means the config was discovered but the
     env was never materialized.
 
-3. **`dedupe_libomp()`** -- macOS only: symlinks redundant bundled
+3. **`dedupe_libomp()`**: macOS only: symlinks redundant bundled
    `libomp.dylib` copies to torch's canonical one, because multiple loaded
    copies corrupt OpenMP runtime state and segfault inside native filters
    ([ADR-0009](adr/0009-platform-strategy.md)). No-op elsewhere.
 
-4. **Ensure `args.base_directory` is set** -- some nodes resolve relative
-   paths through ComfyUI's `--base-directory`; if the user did not pass it,
+4. **Ensure `args.base_directory` is set**: some nodes resolve relative
+   paths through ComfyUI's `--base-directory`, if somehow this directory hasn't been filled yet,
    it is filled in from `folder_paths.base_path`.
 
 ## What it does NOT do
 
 No pip, no pixi, no network, no writes to the workspace. A missing env is
-**reported, not repaired** -- by anything. Only [`install()`](install.md)
-builds envs.
+**reported, not repaired**.
+
+Only [`install()`](install.md) builds envs.

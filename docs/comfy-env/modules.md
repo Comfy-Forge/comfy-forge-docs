@@ -18,7 +18,7 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 
 | File | ~LoC | Responsibility |
 |------|-----:|----------------|
-| `config/__init__.py` | 104 | The entire config layer. Loads `comfy-env.toml` / `comfy-env-root.toml` via `tomli` into `ComfyEnvConfig` (dict subclass with dot access). In an env file, unknown tables are not errors -- they land in `pixi_passthrough` and the generator forwards them verbatim into the generated `pixi.toml`, refusing only the compiler-owned keys (ADR-0013). The root file is the opposite: a closed schema that rejects anything outside `[node_reqs]`/`[types]` (see the config reference). |
+| `config/__init__.py` | 104 | The entire config layer. Loads `comfy-env.toml` / `comfy-env-root.toml` via `tomli` into `ComfyEnvConfig` (dict subclass with dot access). In an env file, unknown tables are not errors -- they land in `pixi_passthrough` and the generator forwards them verbatim into the generated `pixi.toml`, refusing only the compiler-owned keys (ADR-0013). The root file is the opposite: a closed schema that rejects anything outside `[node_packs]`/`[types]` (see the config reference). |
 
 ## `detection/` -- pure functions, no side effects
 
@@ -36,7 +36,7 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 | `packages/pixi.py` | 51 | Provisions the **pinned** pixi binary (version + sha256 vendored in the file) into the comfy-env-owned `~/.comfy-env/pixi/<version>/` -- deliberately not `~/.pixi`, which belongs to the user's own install. Checksum mismatch refuses to install. |
 | `packages/cuda_wheels.py` | 371 | Resolves prebuilt CUDA wheel URLs from the cuda-wheels GitHub Pages simple index; retries TCP resets with a real User-Agent; falls back to the GitHub Releases API. Derives torch family pins and platform tags. |
 | `packages/toml_generator.py` | 802 | The manifest compiler: ComfyUI `requirements.txt` + each `comfy-env.toml` -> per-env `pixi.toml`. One self-contained `[feature.<env_name>]` per env with `no-default-feature = true`; torch pin replicated verbatim into every feature; CUDA wheels inlined as URL pypi-dependencies. |
-| `packages/node_dependencies.py` | 188 | Installs other ComfyUI node packs declared in `[node_reqs]`: git clone or zip, or Comfy Registry (`api.comfy.org`), then their `requirements.txt` and `install.py`. |
+| `packages/node_packs.py` | 188 | Installs other ComfyUI node packs declared in `[node_packs]`: git clone or zip, or Comfy Registry (`api.comfy.org`), then their `requirements.txt` and `install.py`. |
 
 ## `environment/` -- paths and platform workarounds
 
@@ -50,8 +50,8 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 
 | File | ~LoC | Responsibility |
 |------|-----:|----------------|
-| `install/__init__.py` | 95 | `install()` entrypoint; infers the caller's directory via `inspect.stack()`; orchestrates node_reqs -> main-env pip -> workspace install. |
-| `install/plugin.py` | 71 | Plugin half: clone `[node_reqs]` peers, re-run the plugin's own `requirements.txt` in the main env. |
+| `install/__init__.py` | 95 | `install()` entrypoint; infers the caller's directory via `inspect.stack()`; orchestrates node_packs -> main-env pip -> workspace install. |
+| `install/plugin.py` | 71 | Plugin half: clone `[node_packs]` peers, re-run the plugin's own `requirements.txt` in the main env. |
 | `install/workspace.py` | 850 | Workspace half: discover configs, resolve bootstrap torch pin (CPU-only without GPU), pick wheel combo, hash configs for change detection, write per-env `pixi.toml`, run `pixi install` per env, stamp. |
 | `install/helpers.py` | 164 | Cross-platform utilities: `_rmtree` via robocopy-mirror-from-empty-dir (defeats Windows long-path/read-only deletes), uv discovery and platform patch, tee logging, streaming subprocess runner. |
 | `install/verify.py` | 18 | Post-install `__import__` check per package. |

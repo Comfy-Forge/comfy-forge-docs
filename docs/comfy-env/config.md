@@ -38,7 +38,7 @@ warnings; invalid `[types]` values are parse errors.
 # Other ComfyUI node packs this pack depends on. Installed by install():
 # cloned from GitHub (git, zip fallback) or downloaded from the Comfy
 # Registry into custom_nodes/, then their requirements.txt + install.py run.
-[node_reqs]
+[node_packs]
 # table form with an exact git ref -- the required shape per ADR-0016
 OtherPack = { github = "https://github.com/x/OtherPack", tag = "v1.2.0" }
 # short form (unpinned) and registry entries are deprecated by ADR-0016
@@ -56,7 +56,7 @@ TRIMESH    = "custom"
 SKELETON   = "builtin"
 INTRINSICS = "builtin"
 
-# NOTE: this file is a CLOSED schema. [node_reqs] and [types] are the
+# NOTE: this file is a CLOSED schema. [node_packs] and [types] are the
 # only sections accepted; anything else -- [dependencies], [cuda],
 # [env_vars], a removed [settings], or a typo'd section name -- is a hard
 # parse error, not a silently-ignored no-op. Installing packages from the root
@@ -66,15 +66,15 @@ INTRINSICS = "builtin"
 
 Notes:
 
-- `[node_reqs]` and `[types]` are the load-bearing sections:
+- `[node_packs]` and `[types]` are the load-bearing sections:
   `install()` consumes the first; `register_nodes()` validates and
   loads the second (see [custom wire types](serializers.md)). Settings
   are machine-global env vars ([settings reference](settings.md)) --
   the per-pack `[settings]` section was removed in 0.4.25.
 
-### `[node_reqs]` -- every spelling the code accepts
+### `[node_packs]` -- every spelling the code accepts
 
-Two sources, checked in this order per entry (`packages/node_dependencies.py`):
+Two sources, checked in this order per entry (`packages/node_packs.py`):
 **registry first, then github**. An entry with neither logs a warning and is
 skipped. After cloning/downloading, the peer's own `requirements.txt` is
 pip-installed and its `install.py` run -- the standard ComfyUI install flow.
@@ -100,7 +100,7 @@ lands.
   subdirectory's `[dependencies]` instead (e.g. `mesalib` replaces apt
   `libgl1-mesa-glx`). A leftover `[apt]` or `[brew]` table in a root file
   is now a **parse error**, not a silent no-op -- delete it.
-- The root file's schema is **closed**: `[node_reqs]` and
+- The root file's schema is **closed**: `[node_packs]` and
   `[types]` are the only accepted sections, and any other top-level table
   raises at load time (`config/__init__.py`, `ROOT_ALLOWED_SECTIONS`).
   This is deliberate -- a no-op `[env_vars]` shipped in the flagship pack
@@ -166,7 +166,7 @@ KMP_DUPLICATE_LIB_OK = "TRUE"
 [options]
 health_check_timeout = 5.0   # seconds; per-env worker ping timeout
 
-# NOTE: [node_reqs] and [types] are ROOT-file sections and
+# NOTE: [node_packs] and [types] are ROOT-file sections and
 # are REJECTED here. [serializers] no longer exists anywhere (removed
 # 0.4.16, hard error with a migration message): declare wire types in
 # the root file's [types] and put custom serializers in

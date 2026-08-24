@@ -14,7 +14,7 @@ have since landed (summary below); the factoring stands.
 
 Two files with sharply separated roles:
 
-- **`comfy-env-root.toml`** (pack root): `[node_reqs]` dependencies on
+- **`comfy-env-root.toml`** (pack root): `[node_packs]` dependencies on
   other ComfyUI node packs, plus pack-level `[settings]`. Nothing else:
   the root file has a **closed role schema** -- any other section (legacy
   keys, typos, env-file sections like `[env_vars]` or `[cuda]`) is rejected

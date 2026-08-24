@@ -1,18 +1,26 @@
-# ADR-0016: Node pack dependencies (`[node_reqs]`)
+# ADR-0016: Node pack dependencies (`[node_packs]`)
 
 **Status:** accepted (2026-08-14; enforcement lands in comfy-env after the
 existing packs migrate to pinned entries)
 
+**Amended 2026-08-24 (comfy-env 0.4.27):** the section is `[node_packs]`.
+It shipped as `[node_reqs]`, which read as *"the requirements of my node"* --
+pip packages -- when every entry is a whole pack. Renamed to match this ADR's
+own title and to sit parallel to `[cuda_packages]`. No compatibility shim: the
+root file has a closed schema, so a stale `[node_reqs]` is rejected by name at
+parse time. The `[settings] auto_install_node_reqs` opt-out below was never
+built -- per-pack `[settings]` was removed in 0.4.25.
+
 ## Decision
 
 > **A pack may depend on other packs -- automatically installed, but only
-> pinned and only comfy-envved.** `[node_reqs]` stays an install-time
+> pinned and only comfy-envved.** `[node_packs]` stays an install-time
 > mechanism (headless testing needs it); in exchange every entry must
 > name an exact git ref and point at a pack that honors the host-env
 > principle. Anything else is a test-workflow convenience and belongs in
 > the test config, not in runtime dependencies.
 
-- `[node_reqs]` lives in `comfy-env-root.toml`
+- `[node_packs]` lives in `comfy-env-root.toml`
   ([ADR-0003](0003-two-config-files-with-two-roles.md) root role) and is
   auto-installed at `install()` time, recursively, with a cycle guard.
 - **Pinning is mandatory.** Every entry carries `tag = "..."` or
@@ -40,13 +48,13 @@ existing packs migrate to pinned entries)
   different pins by two installed packs fails the install naming both
   requirers -- never first-installed-silently-wins (the current
   behavior).
-- **Opt-out setting:** `[settings] auto_install_node_reqs`
+- **Opt-out setting:** `[settings] auto_install_node_packs`
   (default `true`) through the existing settings machinery, for users
   who want to audit before anything is cloned.
 
 ## Context
 
-A census of the author's 53 packs (2026-08) found `[node_reqs]` in 24 of
+A census of the author's 53 packs (2026-08) found `[node_packs]` in 24 of
 them, with a real dependency graph: GeometryPack has 11 dependents;
 chains run three deep (Cadderizer -> CADabra -> GeometryPack;
 WorldStereo -> WorldNav -> MoGe2/PanoPack/Multiband). The declared needs
@@ -74,7 +82,7 @@ pinned.
 
 ## Rejected alternatives
 
-- **Delete `[node_reqs]`; delegate to ComfyUI-Manager.** Manager
+- **Delete `[node_packs]`; delegate to ComfyUI-Manager.** Manager
   resolves missing nodes from a loaded workflow with user consent --
   the right UX for humans, no story for headless CI. Testing decided
   this.
@@ -115,7 +123,7 @@ pinned.
   the diamond a stranger's problem. That moment is the same rollout
   tripwire as 0017's, and the designated exits are registry-backed
   version ranges (above) or hoisting shared producers out of
-  `[node_reqs]` entirely -- to be chosen then, not now.
+  `[node_packs]` entirely -- to be chosen then, not now.
 - comfy-test runs additionally record each cloned dependency's resolved
   commit SHA in the run report, so even future registry-based installs
   stay reproducible after the fact.

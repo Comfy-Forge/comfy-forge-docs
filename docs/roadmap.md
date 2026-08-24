@@ -34,13 +34,13 @@ stay listed (struck) so the list doubles as a change record.
     `platforms:` beyond the pilot is a build-capacity decision
     ([CW-ADR-0015](cuda-wheels/adr/0015-linux-aarch64-opt-in.md)).
 
-0. **Forbid non-comfy-env'd `[node_reqs]` peers.** A peer that is not itself
+0. **Forbid non-comfy-env'd `[node_packs]` peers.** A peer that is not itself
    comfy-env'd installs its own `requirements.txt` straight into the shared host
    env -- exactly what the host-env principle
    ([ADR-0003](comfy-env/adr/0003-two-config-files-with-two-roles.md)) forbids,
    done on our behalf. The intent is that every peer either carries its own
    isolated env or is not a peer. **Permitted for now**: the ecosystem is not
-   there yet, and refusing today would make `[node_reqs]` unusable for most real
+   there yet, and refusing today would make `[node_packs]` unusable for most real
    packs (a pack depending on KJNodes, say, gets its five deps in the host env).
    Treat it as a known, temporary leak rather than a supported pattern.
 0. *Unscheduled thought (2026-08, not a commitment):* if the host env can be
@@ -131,7 +131,7 @@ stay listed (struck) so the list doubles as a change record.
     only item with a shrinking clock.
 11. **Barrages vs suite-monorepo** -- decide before the
     [ADR-0017](comfy-env/adr/0017-pre-1-0-no-backward-compatibility.md)
-    rollout tripwire whether the ~24 `[node_reqs]`-linked packs consolidate
+    rollout tripwire whether the ~24 `[node_packs]`-linked packs consolidate
     into one suite repo (atomic barrage = one commit) or stay hand-run. Trivial
     now, near-impossible after external packs pin independently.
 12. **Widen the docs truth-sweep to defect-claims + branch names.** The

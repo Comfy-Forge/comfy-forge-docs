@@ -58,7 +58,7 @@ and `_from_shm` halves are the residual fork
 | `environment/cache.py` | 604 | Env identity, ABI tags, workspace layout, the Windows LOCALAPPDATA guard. |
 | `packages/cuda_wheels.py` | 389 | CUDA wheel index resolution ([ADR-0004](adr/0004-prebuilt-cuda-wheel-index.md)). |
 | `environment/setup.py` | 88 | `setup_env()`: faulthandler, libomp dedupe, `base_directory` fill-in. (Shrank from 214 in 0.4.22 when the parent-side shareable-pool hook was deleted.) |
-| `packages/node_dependencies.py` | 188 | `[node_reqs]` peer-pack install ([ADR-0016](adr/0016-node-pack-dependencies.md)). |
+| `packages/node_packs.py` | 188 | `[node_packs]` peer-pack install ([ADR-0016](adr/0016-node-pack-dependencies.md)). |
 | `install/helpers.py` | 164 | Install-time helpers. |
 | `install/plugin.py` | 145 | Plugin half + the sibling-pin warning ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md)). |
 | `pixi.py` | 111 | Pinned, sha256-verified pixi-binary provisioning. A top-level **leaf** (0.4.21) -- moved out of `packages/` so `detection` can import the `PIXI` path without a cycle. |

@@ -9,7 +9,7 @@ The **build-time** entry point, called once when a pack is installed or updated.
 
 **Three things happen, in order:**
 
-(1) peer packs named in `[node_reqs]` are
+(1) peer packs named in `[node_packs]` are
 installed, *if the config declares any*;
 
 (2) every sibling pack is scanned for
@@ -26,9 +26,10 @@ A user cloning by hand should do the same.
 
 Of the [three calls](index.md#the-three-call-contract), this is the **only** one
 that does network and disk work. `install()` is the sole builder of isolated
-envs: nothing materializes one lazily at runtime. A missing env means
-[`register_nodes()`](register-nodes.md) falls back to in-process import for that
-pack, and stays that way until `install()` is run again.
+envs: nothing materializes one at runtime.
+
+A missing env means [`register_nodes()`](register-nodes.md) falls back to in-process import for that
+pack, and stays that way until `install()` is successfully ran.
 
 ## What `install()` does
 
@@ -36,30 +37,27 @@ pack, and stays that way until `install()` is run again.
 flowchart TD
     entry["install()"]
     entry --> cfg["load the pack's config"]
-    cfg --> nrq{"declares [node_reqs]?"}
+    cfg --> nrq{"declares [node_packs]?"}
     nrq -->|"yes"| peers["install peer packs"]
     nrq -->|"no"| pins
-    peers --> pins["scan siblings for stale comfy-env pins"]
+    peers --> pins["scan sibling requirements.txt files for stale comfy-env pins, warn if problematic pins found"]
     pins --> found{"ComfyUI base dir found?"}
     found -->|"no"| warn["warn, skip the workspace"]
     found -->|"yes"| ws["build the workspace"]
 ```
 
-### 1. Peer packs from `[node_reqs]`
+### 1. Peer packs from `[node_packs]`
 
-*Runs only if the config declares `[node_reqs]`* (`install/__init__.py:72`;
-every accepted spelling is tabulated in the
-[config reference](config.md#node_reqs-every-spelling-the-code-accepts)). Peers
-are cloned from GitHub or downloaded from the Comfy Registry, then their own
+*Runs only if the config declares `[node_packs]`;
+every accepted spelling for requirements is tabulated in the
+[config reference](config.md#node_packs-every-spelling-the-code-accepts)).
+
+Peer node packs are cloned from GitHub or downloaded from the Comfy Registry, then their own
 `requirements.txt` and `install.py` run.
 
-The pack's own `requirements.txt` is then re-run in the main env. Both pip
-installs here are the *peers'* own requirements, executed by ComfyUI convention
--- comfy-env itself installs nothing but `comfy-env` into the host env
-([the host-environment principle](config.md)). The re-run exists because a peer
-pins its **own** comfy-env version and may have downgraded ours; reinstalling
-reasserts this pack's pin
-([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md), the sibling-pin
+The pack's own `requirements.txt` is then re-run in the main env. just to ensure that the main pack's comfy-env is the right version.
+This re-run exists because a peer pins its **own** comfy-env version and may have downgraded ours; reinstalling
+reasserts this pack's pin ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md), the sibling-pin
 hazard).
 
 A peer that is not itself comfy-env'd installs its dependencies straight into
@@ -68,8 +66,8 @@ direction](../roadmap.md) to close.
 
 ### 2. Stale sibling pin check
 
-*Always runs* (`install/__init__.py:84`), independent of `[node_reqs]`. Every
-sibling `requirements.txt` under `custom_nodes/` is scanned for `comfy-env` pins
+*Always runs* (`install/__init__.py:84`).
+Every sibling `requirements.txt` under `custom_nodes/` is scanned for `comfy-env` pins
 that would downgrade the installed version:
 
 | Pin form | Flagged? |
@@ -84,20 +82,10 @@ but comfy-env 0.4.12 is installed. If that pack reinstalls its requirements,
 comfy-env will be DOWNGRADED for every pack -- update ComfyUI-OldPack (or
 relax its pin).
 ```
-
-The shared main env holds exactly one `comfy-env`, and whichever pack reinstalls
-last wins -- so a stale pin in *any* pack silently downgrades it for *every*
-pack on that pack's next update. Warn-only; never fails an install
+Warn-only; never fails an install
 (`check_sibling_comfy_env_pins`, `install/plugin.py`).
 
-### 3. The workspace build
-
-*Always runs*, unless the ComfyUI base directory cannot be located from the
-node's position -- then it is skipped with a warning and steps 1-2 still stand
-(`install/__init__.py:88-89`). The old `COMFY_ENV_INSTALL_ISOLATED` off-switch
-was removed in 0.4.25. Everything below is `install_workspace()`.
-
-## Inside `install_workspace()`
+### 3. The workspace build (`install_workspace()`)
 
 ### Bootstrap and discovery
 
