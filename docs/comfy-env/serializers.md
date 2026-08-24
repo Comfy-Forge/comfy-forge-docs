@@ -36,40 +36,33 @@ tensors, dicts, lists and primitives all the way down.
 
 ## Where that stops working
 
-Group 6 is the exception, and it is the same problem a node author hits with
-their own types.
+Group 6 is the exception. The walker dispatches on type, does not recognise an
+arbitrary class, and falls to its last rung: **the object is pickled into
+shared memory**. It still crosses, and for something small that is fine.
+Otherwise it costs you:
 
-The transport has no branch for an arbitrary class. `MESH` is a class whose
-fields are all tensors, but the walker dispatches on type, sees nothing it
-recognises, and falls to its last rung: **the object is pickled into shared
-memory**. It still crosses, and for something small that is fine. The costs:
+- **Tensors inside get pickled too** -- they never reach the tensor path.
+- **Both sides need the class importable**, or the value arrives as an opaque
+  receipt instead of a real object.
+- **Version skew becomes your problem** -- trimesh 7.x pickling into a
+  trimesh 8.x env.
 
-- **The whole object graph is serialized and rebuilt**, then copied into shm
-  and back out. Tensors inside a pickled object do *not* take the tensor path
-  -- they are pickled with everything else.
-- **Both sides need the class importable.** Pickle stores a module path; if the
-  receiving env lacks the library, the value degrades to an opaque receipt
-  (below) rather than a real object.
-- **Version skew becomes a question you did not intend to ask** -- trimesh 7.x
-  pickling into a trimesh 8.x env.
+comfy-env registers codecs for `MESH`, `VOXEL` and `SPLAT`, so those are
+already handled; other core types may follow. `MODEL`, `CLIP` and `VAE`
+deliberately never will -- weights stay in the worker that owns them.
 
-If pickling fails outright, the transport raises a `TypeError` naming the type
-and the cause. It never silently drops the value.
+!!! note "Pickling never fails silently"
+    If it fails outright, the transport raises a `TypeError` naming the type
+    and the cause. The value is never dropped.
 
-!!! note "ComfyUI's own `MESH`, `VOXEL` and `SPLAT` are handled"
-    They are group-6 classes, so they *would* pickle -- comfy-env registers
-    codecs for all three (`comfy_api.MESH` / `.VOXEL` / `.SPLAT`), decomposing
-    them field by field so their tensors take the tensor path like any other.
-    You do not need to do anything. A pack that wants different handling can
-    override them by registering the same type name.
+## Types from custom node packs
 
-    `MODEL`, `CLIP` and `VAE` are deliberately **not** serializable: see
-    [group 5](#how-comfy-env-moves-the-standard-types) -- weights stay in the
-    worker that owns them.
+Sometimes an author of a nodepack might define their own type:
+`TRIMESH`, `POINTCLOUD`, `SKELETON`...
 
-So: for a type of your own -- `TRIMESH`, `POINTCLOUD`, `SKELETON` -- there is
-no clear serialization method, because the transport has never seen the class
-and cannot guess which of its fields are bulk and which are metadata.
+comfy-env has never seen the class and cannot guess which fields are bulk
+and which are metadata, so these land on the pickle rung above -- and pay
+all three of its costs.
 
 Declaring your wire types ([ADR-0015](adr/0015-declared-wire-types.md),
 mechanism in [ADR-0014](adr/0014-pack-extensible-serializer-registry.md)) is
