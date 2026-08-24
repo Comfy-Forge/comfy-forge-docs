@@ -1,17 +1,48 @@
 # Custom wire types (`[types]` + `serialization.py`)
 
-Nodes in ComfyUI exchange objects between themselves!
-Sometimes these objects are covered by ComfyUI (see ComfyUI background page).
+Nodes in ComfyUI exchange objects along edges. A socket type is
+[just a string](comfyui-background.md#data-types-what-a-socket-type-actually-is),
+and vanilla ComfyUI never looks inside the object — the same instance is handed
+from one node to the next, in one process.
 
-For meshes, point clouds, skeletons, trimeshes with uv and tecture data, these aren't known!
-We do not know how to carry them across env boundaries by standard.
+comfy-env has to move that object **across a process boundary**, and a string
+does not say how to move bytes. For the built-in types it already knows:
+`IMAGE` and `MASK` are tensors, `LATENT` is a dict of them. For `TRIMESH`,
+`POINTCLOUD` or `SKELETON` — names a pack invented — it does not.
 
-By default an unknown type crosses the worker boundary via **pickle**: three copies, coupled to
-library versions across envs, and slow for bulk data. Declaring your
-wire types ([ADR-0015](adr/0015-declared-wire-types.md), mechanism in
-[ADR-0014](adr/0014-pack-extensible-serializer-registry.md)) lets your
-pack teach the transport its own types, decomposing them into
-**schema + arrays** so the bulk rides the shared-memory tensor path.
+## What happens without a serializer
+
+The object still crosses. It falls to the transport's last rung and is
+**pickled into shared memory** (`_ipc_shared.py`, the fallback after every
+tensor path). That works, and for a small object it is fine. The costs:
+
+- **The whole object graph is serialized and rebuilt**, then copied into shm
+  and back out — four passes over the data, none of them zero-copy.
+- **Both sides need the class importable.** Pickle stores a module path. If the
+  receiving env lacks the library, or has a version where the name moved, the
+  value degrades to an opaque receipt (see below) instead of a real object.
+- **Version skew is a coin flip.** trimesh 7.x pickling into a trimesh 8.x env
+  is a compatibility question you did not intend to ask.
+
+If pickling fails outright, the transport raises a `TypeError` naming the type
+and the cause. It never silently drops the value.
+
+Declaring your wire types ([ADR-0015](adr/0015-declared-wire-types.md),
+mechanism in [ADR-0014](adr/0014-pack-extensible-serializer-registry.md)) lets
+your pack teach the transport its own types, decomposing them into
+**schema + arrays** so the bulk rides the shared-memory tensor path and no
+pickle is involved.
+
+!!! note "`[types]` does not route anything"
+    Routing is decided by the **serializer registry**, looked up by Python type
+    at wire time. `[types]` is a *declaration*: comfy-env reads it once at
+    startup and, for every socket marked `"custom"`, refuses to start the pack
+    unless `serialization.py` exists, imports, and registers something. A
+    socket marked `"builtin"` changes no behaviour at all.
+
+    So declaring a type does not make it fast — **registering a serializer
+    does**. The declaration is what stops you shipping a pack whose serializer
+    file quietly went missing.
 
 Worked example: [ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
 moves `trimesh.Trimesh` (the type behind its `TRIMESH` sockets) as
