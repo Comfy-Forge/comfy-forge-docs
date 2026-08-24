@@ -87,7 +87,28 @@ For air-gapped images, verify at build time that no env is on a fallback
 combo (grep the install log, or the stamp's `provenance` field) -- or
 that env will attempt network access forever.
 
-### 5. Nothing self-heals at runtime
+### 5. Point the wheel index at your own mirror
+
+`COMFY_ENV_CUDA_WHEELS_INDEX` overrides the base URL of the
+[cuda-wheels index](../cuda-wheels/index.md). Behind a proxy or in a
+bandwidth-limited site, mirror that directory listing and set the variable at
+build time:
+
+```dockerfile
+ENV COMFY_ENV_CUDA_WHEELS_INDEX=https://mirror.internal/cuda-wheels/v2/
+```
+
+The index is plain static directory listings, so any web server can host a
+copy. A missing trailing slash is added for you. Combined with trap 4, a
+mirror also removes the "fallback env phones home forever" hazard's blast
+radius -- the call still happens, it just stays inside your network.
+
+**It is a trust boundary**: wheels are installed with
+`uv pip install --no-deps` against direct links and are not hash-verified by
+comfy-env, so whatever that host serves executes inside the isolated env
+([ADR-0026](adr/0026-trust-and-supply-chain.md)).
+
+### 6. Nothing self-heals at runtime
 
 There is no lazy env materialization: if the build stage did not produce an
 env, the runtime will not create one. The pack falls back to in-process
