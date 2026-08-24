@@ -1,22 +1,24 @@
 # ComfyUI background, for newcomers
 
-*How vanilla ComfyUI loads a node pack -- the contract comfy-env has to
-honour. If you already know what `NODE_CLASS_MAPPINGS` is and when
+*How vanilla ComfyUI loads a node pack, which is the contract comfy-env has to
+honour.
+If you already know what `NODE_CLASS_MAPPINGS` is and when
 `prestartup_script.py` runs, skip to the
 [architecture overview](index.md).*
 
 Vanilla ComfyUI loads every custom node pack into
-one shared Python process with one shared environment. A node pack is a
-directory under `custom_nodes/` whose `__init__.py` exports
+one shared Python process with one shared environment.
+
+A node pack is a directory under `custom_nodes/` whose `__init__.py` exports
 `NODE_CLASS_MAPPINGS`.
 
 At install time, the standard installation flow (ComfyUI-Manager, nowadays
-bundled with ComfyUI -- at least the Desktop version):
+bundled with Desktop ComfyUI):
 
 - first pip-installs the pack's `requirements.txt`, if present
 - then runs its `install.py`, if present
 
-At startup time there is also a per-pack hook: ComfyUI itself executes each
+When we start ComfyUI there is also a per-pack pre-startup hook: ComfyUI itself executes each
 pack's `prestartup_script.py`, if present, before the server boots.
 
 ### Anatomy of a node pack
@@ -37,7 +39,9 @@ ComfyUI/custom_nodes/
     |   +-- curve_nodes.py, mask_nodes.py, batchcrop_nodes.py, ...
     +-- web/                    <- JS extensions served to the browser UI
     |                              (pointed at by WEB_DIRECTORY = "./web")
-    +-- fonts/, docs/, example_workflows/, kjweb_async/   <- assets
+    +-- example_workflows/      <- .json workflows the UI offers as templates
+    |                              (scanned by the server -- see below)
+    +-- fonts/, docs/, kjweb_async/                       <- misc
 ```
 
 At startup ComfyUI `import`s each pack's `__init__.py` and takes several
@@ -82,6 +86,8 @@ core `nodes.py` `load_custom_node`):
    isolated** the way the Python can be -- there is no per-pack browser
    boundary to isolate at, only one shared origin; deferred with the
    reasoning in [ADR-0031](adr/0031-frontend-javascript-isolation.md).)
+   The exact scan rules are below -- they decide what does and does not
+   end up in that shared realm.
 3. **Whatever the import *did*** -- running `__init__.py` fires every
    side effect it contains. The most common one: **API route
    registration**, where the pack hangs its own HTTP endpoints off
@@ -164,3 +170,99 @@ Real packs cover the whole spectrum of these hooks:
   [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) ships one too.
   This hook exists precisely because it runs *before* anything imports --
   the only moment you can still fix the environment.
+
+### Frontend JavaScript: what gets auto-imported
+
+Registration is Python-side; execution is browser-side. Both halves matter.
+
+**Registration** happens in `load_custom_node` (`nodes.py`), and there are
+**two independent paths**, which write to the same dict under *different keys*:
+
+| Declared as | Key used | Line |
+|---|---|---|
+| `[tool.comfy] web` in `pyproject.toml` | the **Registry project name** (`project.name`) | `nodes.py:2280` |
+| `WEB_DIRECTORY` in `__init__.py` | the **module/directory name** | `nodes.py:2289` |
+
+Both are guarded by `os.path.isdir()`, and they are **separate `if` blocks**,
+not a fallback chain.
+
+!!! danger "Declaring both registers the directory twice"
+    `project.name` and the directory name are rarely identical
+    (`comfyui-geometrypack` vs `ComfyUI-GeometryPack`). If a pack declares
+    `[tool.comfy] web` *and* `WEB_DIRECTORY`, and both paths resolve to real
+    directories, `EXTENSION_WEB_DIRS` gets **two entries pointing at the same
+    folder**. Every file is then listed twice under two URLs, the browser
+    imports each one twice, and `app.registerExtension` is called twice with
+    the same name -- the collision case. Pick one declaration.
+
+**Serving** is a static route per registered directory,
+`/extensions/<name>` → the folder (`server.py:1243-1244`).
+
+**Auto-import** is driven by `GET /extensions` (`server.py:357-368`), which
+returns a flat JSON list of URLs the browser then imports. For each registered
+directory:
+
+```python
+files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
+```
+
+Two properties of that one line govern everything:
+
+- **`recursive=True`** -- the scan reaches *every* depth. There is no way to
+  keep a `.js` file out of the shared realm by burying it in a subfolder;
+  `web/js/vendor/three/build/three.js` is imported exactly like a top-level
+  widget.
+- **`.js` only** -- `.mjs`, `.json`, `.css`, `.html` are still **served**
+  statically, they are simply never *listed* for auto-import.
+
+That second property is the only lever a pack has. A viewer bundle renamed
+`viewer-bundle.js` → `viewer-bundle.mjs` disappears from the auto-import list
+while remaining fetchable, so an `<iframe>` or an explicit
+`import "./viewer-bundle.mjs"` still loads it -- inside the iframe's realm
+rather than ComfyUI's. Everything left as `.js` under the web dir shares one
+global scope with every other installed pack: one `window`, one `document`,
+one extension-name namespace.
+
+### Workflow templates
+
+A pack can ship example workflows that appear in the UI's template browser.
+This is **not** part of the `__init__.py` import -- like
+`prestartup_script.py`, it is a separate thing the server does, which is why
+no attribute controls it. It is a directory scan, and the rules are in
+`app/custom_node_manager.py`.
+
+**Five folder names are accepted** (`:94`), first match wins per pack:
+
+```python
+example_workflow_folder_names = ["example_workflows", "example", "examples",
+                                 "workflow", "workflows"]
+```
+
+`example_workflows` is the preferred spelling; the other four still work and
+merely log a nudge -- at `logging.debug`, so nobody sees it at ComfyUI's
+default level. A pack using `workflows/` is fine and does not need renaming.
+
+!!! warning "The scan is exactly one level deep"
+    The glob is `os.path.join(folder, f"*/{folder_name}/*.json")` (`:104`) --
+    `custom_nodes/<pack>/<folder>/*.json` and **no deeper**. A workflow at
+    `workflows/basic/foo.json` is never found, and nothing warns: it simply
+    does not appear. Organising templates into subfolders is the one mistake
+    this feature invites.
+
+The **filename is the display name** --
+`os.path.splitext(os.path.basename(file))[0]` (`:114`). There is no title
+field and no ordering control, so naming is the only lever you have.
+
+Two separate mechanisms back the feature, and they disagree about which packs
+count:
+
+| | endpoint | source of truth |
+|---|---|---|
+| **Listing** | `GET /workflow_templates` (`:96-119`) | globs the **filesystem**, every `custom_nodes` path |
+| **Serving** | static `/api/workflow_templates/<module_name>` (`:121-137`) | iterates `loadedModules` -- only packs that **imported successfully** |
+
+So a pack that fails to load can still be *listed* while its templates 404 on
+open. That is worth knowing for an isolated pack specifically: a missing env
+sends it down the in-process import fallback, and if that fails hard the pack
+is absent from `loadedModules` -- its workflows stay advertised and become
+unfetchable.
