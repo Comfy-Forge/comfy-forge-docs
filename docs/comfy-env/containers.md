@@ -32,6 +32,12 @@ ENV COMFY_ENV_ROOT=/opt/comfy-env   # SAME root for the runtime user
 # entrypoint: boot ComfyUI directly; do NOT re-run install.py
 ```
 
+!!! tip "When the build stage fails, read `<workspace>/install.log`"
+    Every workspace install tees its full output there (`workspace.py:680`) --
+    discovery, the resolved combo, and each `pixi install` with its output. In a
+    container the console output is often truncated or interleaved; the log file
+    is not. Copy it out of the build stage before the layer is discarded.
+
 ## The traps, in order of how often they bite
 
 ### 1. The workspace root is `$HOME`-dependent
@@ -81,11 +87,14 @@ For air-gapped images, verify at build time that no env is on a fallback
 combo (grep the install log, or the stamp's `provenance` field) -- or
 that env will attempt network access forever.
 
-### 5. Keep `COMFY_ENV_AUTO_INSTALL` off (it is off by default)
+### 5. Nothing self-heals at runtime
 
-Auto-install at `register_nodes()` time is the one path that can start a
-multi-minute pixi install during server boot. Its default is off; do not
-turn it on in a container.
+There is no lazy env materialization: if the build stage did not produce an
+env, the runtime will not create one. The pack falls back to in-process
+import and its nodes misbehave. Build every env in the build stage and verify
+before freezing. (`COMFY_ENV_AUTO_INSTALL` used to do this and was removed in
+0.4.25 -- setting it now fails the import loudly rather than silently doing
+nothing.)
 
 ## What about running without isolation?
 

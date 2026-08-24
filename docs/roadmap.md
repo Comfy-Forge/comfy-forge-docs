@@ -34,6 +34,15 @@ stay listed (struck) so the list doubles as a change record.
     `platforms:` beyond the pilot is a build-capacity decision
     ([CW-ADR-0015](cuda-wheels/adr/0015-linux-aarch64-opt-in.md)).
 
+0. **Forbid non-comfy-env'd `[node_reqs]` peers.** A peer that is not itself
+   comfy-env'd installs its own `requirements.txt` straight into the shared host
+   env -- exactly what the host-env principle
+   ([ADR-0003](comfy-env/adr/0003-two-config-files-with-two-roles.md)) forbids,
+   done on our behalf. The intent is that every peer either carries its own
+   isolated env or is not a peer. **Permitted for now**: the ecosystem is not
+   there yet, and refusing today would make `[node_reqs]` unusable for most real
+   packs (a pack depending on KJNodes, say, gets its five deps in the host env).
+   Treat it as a known, temporary leak rather than a supported pattern.
 0. *Unscheduled thought (2026-08, not a commitment):* if the host env can be
    detected as conda-managed already, installing a pack's deps into that
    existing env might one day be acceptable -- recorded from the
