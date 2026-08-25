@@ -8,6 +8,7 @@ dev_addr: 0.0.0.0:8001
 
 theme:
   name: material
+  custom_dir: overrides
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -33,6 +34,7 @@ extra_javascript:
 
 extra_css:
   - stylesheets/mermaid-zoom.css
+  - stylesheets/forge-bar.css
 
 markdown_extensions:
   - admonition

@@ -1,0 +1,62 @@
+/* Back-to-site bar, rendered into Material's `announce` block by
+   overrides/main.html. Colours are taken from the comfy-forge.org header
+   (#0d0f13 ground, #4caf6f accent) so the two sites read as one product. */
+
+.md-announce { background: #0d0f13; }
+
+.cf-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 61rem;
+  margin: 0 auto;
+  padding: .45rem .8rem;
+  font-size: .72rem;
+  line-height: 1.4;
+}
+
+.cf-brand {
+  color: #e6e8ec;
+  font-weight: 500;
+  letter-spacing: .01em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cf-brand b { color: #4caf6f; font-weight: 700; }
+.cf-brand:hover { color: #fff; }
+
+.cf-links {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.cf-links a {
+  color: #b9bfc9;
+  text-decoration: none;
+  padding: .28rem .6rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: background-color .15s, color .15s;
+}
+.cf-links a:hover { background: #1b1f27; color: #fff; }
+
+/* the page you are already on: readable, not clickable-looking */
+.cf-links .cf-here {
+  background: #1b1f27;
+  color: #4caf6f;
+  cursor: default;
+}
+.cf-links .cf-here:hover { background: #1b1f27; color: #4caf6f; }
+
+.cf-links .cf-discord { color: #98a4f0; }
+.cf-links .cf-discord:hover { background: #2b2f52; color: #fff; }
+
+/* Narrow screens: drop the wordmark, keep the links reachable. */
+@media screen and (max-width: 44.9375em) {
+  .cf-brand { display: none; }
+  .cf-links { margin-left: 0; justify-content: center; width: 100%; }
+  .cf-bar { padding: .4rem .5rem; }
+}

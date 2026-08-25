@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{#
+  A persistent bar linking back to comfy-forge.org.
+
+  The docs are a separate site on their own domain, so without this there is no
+  way back to the nodepack browser except the browser's back button -- clicking
+  "Docs" on comfy-forge.org felt like leaving the product.
+
+  `announce` is Material's documented extension point and is a small, stable
+  block, so this survives theme upgrades. Overriding partials/header.html would
+  mean vendoring the whole partial and re-merging it on every update.
+#}
+{% block announce %}
+  <nav class="cf-bar" aria-label="Comfy-Forge">
+    <a class="cf-brand" href="https://comfy-forge.org/">Comfy<b>Forge</b></a>
+    <span class="cf-links">
+      <a href="https://comfy-forge.org/">🏠 Home</a>
+      <a href="https://comfy-forge.org/nodepacks">📦 Nodepacks</a>
+      <a class="cf-here" aria-current="page">📄 Docs</a>
+      <a class="cf-discord" href="https://discord.gg/9KxkBrPyw" target="_blank" rel="noopener">Discord</a>
+    </span>
+  </nav>
+{% endblock %}
