@@ -21,21 +21,46 @@ checks are worth knowing about because they need no install and no server.
 
 Runs the [levels](levels.md) against a pack.
 
-```bash
-comfy-test run                       # the pack in the current directory
-comfy-test run owner/repo            # GitHub shorthand -- cloned to a tempdir
-comfy-test run https://github.com/…  # full git URL
-comfy-test run ../ComfyUI-MyPack     # a local path
-```
+### Naming the pack
+
+Four forms, resolved in this order:
+
+| Form | What happens |
+|---|---|
+| `comfy-test run` | the pack in the current directory |
+| `comfy-test run ../ComfyUI-MyPack` | an **existing local directory** -- used in place, never cloned |
+| `comfy-test run owner/repo` | GitHub shorthand -- expanded to `https://github.com/owner/repo.git`, shallow-cloned to a tempdir |
+| `comfy-test run https://github.com/…` | any git URL -- shallow-cloned |
+
+Two edges worth knowing, because both produce a confusing error rather than an
+obvious one:
+
+- **The path check runs first.** A local directory literally named `foo/bar`
+  wins over the GitHub reading of the same string.
+- **The shorthand needs exactly one `/`.** `owner/repo/subdir` has two, so it
+  is treated as a URL and fails in `git clone`.
+
+Whatever the form, the directory must contain an **`__init__.py`** -- that is
+what ComfyUI imports to load a pack, so without it nothing can register. This
+is checked before any environment is built, rather than several minutes later.
 
 **Selection**
 
 | Flag | |
 |---|---|
-| `--config`, `-c` | config file path (default: auto-discover `comfy-test.toml`) |
 | `--level`, `-l` | run only up to this level; for the four terminal levels it *replaces* the configured terminal ([ADR-0012](adr/0012-level-flag-swaps-terminals.md)) |
 | `--workflow`, `-W` | run a single workflow |
-| `--branch`, `-b` | git branch; also becomes the branch folder in the output path |
+| `--branch`, `-b` | branch to **clone**. Remote forms only -- see below |
+
+!!! warning "`--branch` is a clone argument, not a label"
+    It also names the branch folder in the output path, and that is the trap:
+    on a **local** checkout nothing gets checked out, but the results would
+    still be filed under the branch you named. Publish those and you overwrite
+    the real results for that branch with a run of different code.
+
+    So `--branch` on a local path is now an error. The branch is detected from
+    the checkout automatically -- real branch, else the short SHA on a detached
+    HEAD, else `local`.
 
 **Where and how it runs**
 
@@ -47,6 +72,12 @@ comfy-test run ../ComfyUI-MyPack     # a local path
 | `--server-url` | attach to a server CI already booted, instead of building one |
 | `--comfyui-version` | ComfyUI ref. **Tag or branch only** -- the clone is `--depth 1 --branch`, so a SHA fails |
 | `--torch-version` | override the pinned torch triple |
+
+**Escape hatches**
+
+| Flag | |
+|---|---|
+| `--config`, `-c` | path to `comfy-test.toml` when it is not at the pack root. Plumbed from `test-matrix.yml`'s `config-file` input; you should not normally need it |
 | `--force` | overwrite an existing workspace directory |
 
 **Diagnostics**

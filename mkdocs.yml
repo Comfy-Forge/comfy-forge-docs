@@ -145,6 +145,7 @@ nav:
           - Lanes: comfy-test/lanes.md
           - "comfy-test.toml reference": comfy-test/config.md
           - Settings reference: comfy-test/settings.md
+          - torch, torchvision, torchaudio: comfy-test/torch-triple.md
       - Operations:
           - Reproducibility: comfy-test/reproducibility.md
       - Decision records:

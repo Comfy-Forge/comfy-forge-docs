@@ -63,7 +63,10 @@ comfy-test run owner/repo --branch dev  # remote forms take --branch
 ```
 
 An existing local directory is used in place and never cloned, so `--branch`
-does not apply to it. Private repos work: the clone URL picks up `NODE_PAT` /
+is **rejected** for it -- the branch is detected from the checkout instead.
+(Passing it would have filed the results under a branch whose code was not
+what ran.) The directory must contain an `__init__.py`, which is checked
+before any environment is built. Private repos work: the clone URL picks up `NODE_PAT` /
 `GH_TOKEN` / `GITHUB_TOKEN` when set, and the un-tokenised URL is what gets
 logged, so the PAT never reaches CI output.
 

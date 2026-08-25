@@ -12,9 +12,12 @@ order:
    otherwise.
 2. **Pin the torch family first** -- `torch`, `torchvision` and `torchaudio`
    installed as a known-aligned triple, from the CPU index or the CUDA backend
-   index. This happens *before* anything else so the later requirements
-   installs see it satisfied and never try to upgrade it. Doing it in the other
-   order produced a real skew (torch 2.12+cu130 against torchaudio 2.11+cu128).
+   index. ComfyUI asks for all three by bare name with no version, and the
+   three are ABI-coupled, so this has to be decided rather than resolved. It
+   happens *before* anything else so the later requirements installs see it
+   satisfied and never upgrade it -- the other order produced a real skew
+   (torch 2.12+cu130 against torchaudio 2.11+cu128). Full reasoning:
+   [torch, torchvision and torchaudio](torch-triple.md).
 3. **`git clone --depth 1` ComfyUI**, at `comfyui_version` if you pinned a tag
    or branch, else HEAD.
 4. **Install ComfyUI's own `requirements.txt`** into the venv.

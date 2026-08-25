@@ -24,6 +24,7 @@ cpu = "all"
 | `levels` | list | see below | Which levels to run; a set, not a sequence ([levels](levels.md)). |
 | `comfyui_version` | string | `"latest"` | ComfyUI ref to test against. **Tag or branch only** -- the clone is `--depth 1 --branch`, so a commit SHA will not work. `latest` clones HEAD; the resolved version and commit are recorded in results. |
 | `python_version` | string *or* list | `"3.13"` | A single version pins it; **a list draws one at random per run**. `COMFY_TEST_PYTHON_VERSION` overrides both. Supported: 3.10, 3.11, 3.12, 3.13 -- anything else is a hard error ([ADR-0005](adr/0005-pinned-torch-random-python.md)). |
+| `torch_version` | string | newest complete triple | Pins `torch` + the matching `torchvision`/`torchaudio`. A version, `"latest"` to opt out, or an explicit `"t/tv/ta"` triple. An unavailable triple aborts at config parse -- see [torch, torchvision and torchaudio](torch-triple.md). |
 | `extra_pip_indices` | list | `[]` | Extra pip indexes for the **whole test venv**, added as `--extra-index-url` alongside the PyTorch index and pypi.org. For private mirrors and Artifactory proxies -- see [below](#where-to-declare-a-package-index). |
 | `res` | int | `1080` | Capture resolution (viewport height) for screenshots and video. |
 | `custom` | string | none | Path to a `run(ctx)` hook, **relative to your pack**, for the [`custom`](levels/custom.md) level. Setting it enables that level automatically. |
@@ -93,13 +94,9 @@ where a reproducible red is worth more than coverage.
     a config-supplied name could only ever disagree with reality. Older
     examples showed `name = "..."`; it does nothing, and can be deleted.
 
-!!! warning "`torch_version` is not read"
-    Despite appearing in older versions of this table, `[test] torch_version`
-    is **not parsed** -- the value used is always the built-in default unless
-    overridden by `--torch-version` or `COMFY_TEST_TORCH_VERSION`. Read
-    `provenance.torch_version` in `results.json` for what actually ran.
-    Similarly `[test] timeout` is not read; per-workflow timeout is
-    `[test.workflows] timeout`.
+!!! note "`[test] timeout` is not read"
+    Per-workflow timeout is `[test.workflows] timeout`; the `[test]` key of the
+    same name is a setup timeout that the parser does not consult.
 
 ## `[test.lanes]`
 
