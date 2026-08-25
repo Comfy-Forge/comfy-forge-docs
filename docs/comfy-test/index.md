@@ -14,10 +14,12 @@ It does three things, the way a real user would:
    of each workflow running, plus memory and performance logs (RAM, VRAM, CPU,
    CUDA).
 
-In this way, `example_workflows/` or `workflows/` folders become both
+In this way, `example_workflows/` or `workflows/` folders in custom node packs become both
 documentation and testing.
 
-It can run such tests on every OS ComfyUI runs on:
+## OS/installation method coverage
+
+comfy-test can run on every OS ComfyUI runs on:
 
 - **Windows**
 - **Linux**
@@ -32,9 +34,7 @@ And across every officially supported ComfyUI installation type:
 ![The results gallery for GeometryPack: per-lane tabs, each workflow card
 carrying a video of the run plus RAM and VRAM logs](img/test_gallery_example_geometrypack.png)
 
-For the anatomy of a single run --
-what gets built, what lands on disk, and which checks run -- see
-[What a run does](what-a-run-does.md).
+For the anatomy of a single run: [What a run does](what-a-run-does.md).
 
 ## Supported usage methods
 
@@ -47,8 +47,9 @@ comfy-test can be pointed at a custom nodepack in **four different ways**.
 | **Central dispatcher ([comfy-ci](https://github.com/PozzettiAndrea/comfy-ci))** | a developer with **several nodes** who has local GitHub runners and doesn't want to open a GitHub org (GitHub won't let you register the same GPU machine to multiple repos) | automated GitHub Actions on a central repo with write access to the node repos | pushed back to **each node's own repo** |
 | **Registry gate (comfy-forge)** | the **comfy-forge** registry | the registry, on ingest | kept by the registry as a **verdict / badge** |
 
-Each is expanded, along with what you need to add to your pack, in
-[Using comfy-test](using.md). 
+Each is expanded in [Using comfy-test](using.md), along with
+[what a pack looks like](using.md#what-a-pack-looks-like) on disk and how to
+turn on gh-pages. 
 
 ## Accelerators
 

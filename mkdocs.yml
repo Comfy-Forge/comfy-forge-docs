@@ -126,6 +126,7 @@ nav:
           - Using comfy-test: comfy-test/using.md
           - What a run does: comfy-test/what-a-run-does.md
           - Commands: comfy-test/commands.md
+          - GitHub workflows: comfy-test/workflows.md
           - Test levels:
               - The ladder: comfy-test/levels.md
               - "1. syntax": comfy-test/levels/syntax.md

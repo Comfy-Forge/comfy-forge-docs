@@ -1,45 +1,46 @@
 # Using comfy-test
 
-What you need to adopt it, and the four different ways people run it.
-
-## What you need to add
-
-The **only** file you need to add to your node pack is **`comfy-test.toml`** --
-every key it accepts is in the [`comfy-test.toml` reference](config.md). With
-just that, `comfy-test run` works.
+To use comfy-test, the **only** file you need to add to your node pack is **`comfy-test.toml`** (see [`comfy-test.toml` reference](config.md)). With just that, `comfy-test run` works.
 
 Everything else is optional and depends on how you use it:
 
 - **`comfy-test.toml`** *(required)* -- the config
   ([full reference](config.md)).
 
-- **An example workflow** *(optional -- only to test execution)* -- a minimal
-  ComfyUI workflow using your nodes, exported from ComfyUI. Skip it if you only
-  test install and registration.
+- **An example workflow** *(optional, only to test execution)*: a minimal
+  ComfyUI workflow using your nodes, exported from ComfyUI.
 
-    comfy-test looks in the same folders ComfyUI itself does, so a pack that
-    already ships example workflows needs no new directory:
+  comfy-test looks for json workflows in the same canonical folders (workflows/, example_workflows/...) that ComfyUI does.
 
-    | Folder | |
-    |---|---|
-    | `example_workflows/` | **canonical** -- the name ComfyUI recommends |
-    | `example/`, `examples/`, `workflow/`, `workflows/` | tolerated aliases |
+## What a pack looks like
 
-    That list is copied verbatim from core's `example_workflow_folder_names`
-    (`app/custom_node_manager.py`) -- the same glob ComfyUI uses to build
-    `/workflow_templates`, so the workflows your users can load from the
-    node-library menu are exactly the ones comfy-test runs. A `tests/`
-    subfolder inside any of them holds dev-only workflows.
+Only `comfy-test.toml` is required. Everything else here you probably already
+have:
 
-- **A CI workflow file** *(optional -- only for the CI paths)* -- a one-line
-  `uses:` pointing at the reusable workflow. Not needed to run locally. Which
-  one depends on which of the four ways below you are using.
+```text
+ComfyUI-YourPack/
+├── comfy-test.toml            <- the only file comfy-test requires
+├── pyproject.toml                [project] name -- also the JS namespace
+├── requirements.txt              your deps (and any --extra-index-url)
+├── install.py                    optional; run at install time
+├── __init__.py                   NODE_CLASS_MAPPINGS
+├── nodes/                        your node classes
+├── web/                          frontend JS, if any (the `javascript` level)
+├── example_workflows/         <- workflows: docs for users, tests for you
+│   ├── basic.json
+│   ├── upscale.json
+│   └── tests/                    dev-only workflows, not shown to users
+│       └── regression.json
+└── .github/
+    └── workflows/
+        └── test-install.yml   <- one line; only for the CI paths
+```
+
+`example_workflows/` is the canonical name, and four aliases are accepted --
+see [below](#what-you-need-to-add). A `tests/` subfolder inside it holds
+workflows you want exercised but not advertised.
 
 ## The four ways
-
-The accelerator (CPU / CUDA / ...) is orthogonal to all of this. What actually
-separates the four is **who drives the run, where the results land, and who
-they are for**.
 
 | | Who it's for | Who drives | Results land |
 |---|---|---|---|
@@ -54,9 +55,17 @@ developer once they outgrow one repo. The fourth is a different thing entirely.
 ### 1. Local
 
 ```bash
-comfy-test run                 # the pack in the current directory
-comfy-test run owner/repo      # or any GitHub pack
+comfy-test run                          # the pack in the current directory
+comfy-test run ../ComfyUI-MyPack        # any local directory, used as-is
+comfy-test run owner/repo               # GitHub shorthand -- shallow-cloned
+comfy-test run https://github.com/…     # any git URL -- shallow-cloned
+comfy-test run owner/repo --branch dev  # remote forms take --branch
 ```
+
+An existing local directory is used in place and never cloned, so `--branch`
+does not apply to it. Private repos work: the clone URL picks up `NODE_PAT` /
+`GH_TOKEN` / `GITHUB_TOKEN` when set, and the un-tokenised URL is what gets
+logged, so the PAT never reaches CI output.
 
 Everything is built on your machine and results land under your logs directory
 ([`comfy-test paths`](commands.md#comfy-test-paths) shows where). This is the
@@ -68,18 +77,58 @@ repo's `gh-pages` exactly as CI would.
 
 ### 2. Self-serve CI
 
-One line in `.github/workflows/test-install.yml`:
+Add one workflow file to your pack, then turn on a `gh-pages` branch to serve
+the results as a website.
 
-```yaml
-uses: PozzettiAndrea/comfy-test/.github/workflows/test-matrix.yml@main
+**1. Add the workflow file.** That is the whole thing -- it calls comfy-test's
+reusable workflow, so there is nothing to keep in sync:
+
+```yaml title=".github/workflows/test-install.yml"
+name: Workflow Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    uses: PozzettiAndrea/comfy-test/.github/workflows/test-matrix.yml@main
 ```
 
-That reusable workflow fans out the **hosted CPU lanes** on push or PR, reads
+That is the only addition to [the layout above](#what-a-pack-looks-like):
+
+```text
+ComfyUI-YourPack/
+├── comfy-test.toml
+├── example_workflows/
+└── .github/
+    └── workflows/
+        └── test-install.yml   <- new
+```
+
+**2. Let Actions write to your repo.** Settings -> Actions -> General ->
+Workflow permissions -> **Read and write permissions**. Without this the
+publish step fails with a 403 when it tries to push.
+
+**3. Push, and let it run once.** You do **not** create the `gh-pages` branch
+by hand -- the first publish creates it if it is missing.
+
+**4. Point Pages at the branch.** Settings -> Pages -> Source:
+**Deploy from a branch**, branch `gh-pages`, folder `/ (root)`. Your dashboard
+is then live at `https://<owner>.github.io/<repo>/`.
+
+!!! warning "Choose 'Deploy from a branch', not 'GitHub Actions'"
+    comfy-test pushes finished HTML to the branch, so Pages should serve that
+    branch directly. The "GitHub Actions" source expects a Pages *build*
+    workflow, which comfy-test does not provide -- pick it and your dashboard
+    silently never appears.
+
+That reusable workflow fans out the **GitHub CPU lanes** on push or PR, reads
 your `comfy-test.toml` to decide which lanes to run, and publishes to your
 repo's `gh-pages`.
 
-It accepts `config-file`, `lane` (run just one), and `node_repo` /
-`node_branch` for targeting a repo other than the caller.
+You do not configure it further -- which lanes run comes from your
+`comfy-test.toml`, not from the workflow call. The reusable workflow does take
+a few inputs, but they exist for the dispatcher case below (calling it on
+behalf of *another* repo) and for packs keeping their config off the default
+path; a consumer repo should not need any of them.
 
 !!! warning "Hosted CPU lanes attach; they do not install"
     These lanes prebuild the environment in YAML behind a cache and hand
@@ -89,6 +138,7 @@ It accepts `config-file`, `lane` (run just one), and `node_repo` /
     `provenance.install_mode`. See
     [ADR-0003](adr/0003-two-install-paths-attach-and-fresh.md) and
     [Reproducibility](reproducibility.md).
+
 
 ### 3. Central dispatcher
 
@@ -140,6 +190,9 @@ thin wrappers around it.
 In `dispatch-test.yml`, publishing is a **separate job** from testing, so a
 flaky push to gh-pages can be re-run without repeating the slow test
 ([ADR-0015](adr/0015-publish-is-a-separate-job.md)).
+
+Each one's inputs, and the internal `_test-*.yml` files behind them, are in
+the [GitHub workflows reference](workflows.md).
 
 ## Which lanes exist
 
