@@ -49,12 +49,10 @@ torch==2.10.0
 and `torchaudio 2.10.0` likewise. An **exact** pin, not a range. So the three
 versions are not independently choosable: picking a torchvision picks a torch.
 
-torchaudio shares torch's exact version number (torch 2.11.0 <-> torchaudio
-2.11.0); torchvision versions independently and declares its torch explicitly.
-
-**comfy-test keeps no table of these.** The mapping is derived from what PyPI
-publishes and cached on disk for a day, so nothing in source needs updating
-when torch ships.
+torchvision declares its torch exactly; torchaudio *usually* shares torch's
+version number. **comfy-test keeps no table of these** -- the mapping is
+derived from the wheel index and cached on disk, so nothing in source needs
+updating when torch ships.
 
 ## Why the exact pin is not enough on its own
 
@@ -80,7 +78,7 @@ resolver.
 
 Install the triple **first**, explicitly, from the correct index:
 
-1. Resolve the triple (`common/torch_triple.py`).
+1. Resolve the triple against this run's index (`common/torch_triple.py`).
 2. `uv pip install torch==<t> torchvision==<tv> torchaudio==<ta>` with
    `--index-url` set to the CPU or CUDA backend index, so all three come from
    **one** index and therefore carry the same local tag.
@@ -117,48 +115,53 @@ Precedence, highest first: `COMFY_TEST_TORCH_VERSION`, then
 
 ### Resolution, and when it aborts
 
-A version you name is resolved in three steps:
+**The triple is resolved against the index the install will actually use** --
+`download.pytorch.org/whl/cpu` or `.../cu128` -- not against PyPI.
 
-1. **torchvision's declared pin**, read from PyPI. `torchvision 0.28.0`
-   requires `torch==2.13.0`, and this is populated for every release -- so the
-   mapping is read, never computed from version numbers.
-2. **torchaudio by version number**, because its metadata cannot be trusted:
-   `torchaudio 2.10.0` declares `torch==2.10.0` but **`torchaudio 2.11.0`
-   declares nothing at all**.
-3. **A hard error**, at config-parse time -- before a venv is built, not
-   twenty minutes into one.
+That distinction is the whole point, and it is easy to get wrong. PyPI already
+publishes torch 2.13.0; the cu128 index tops out at 2.11.0. Resolving against
+PyPI would eventually name a triple that does not exist on the CUDA index, and
+because the install passes `--extra-index-url pypi --index-strategy
+unsafe-best-match`, uv would quietly satisfy all three from **plain PyPI
+wheels on a CUDA lane** -- no CUDA, no error.
 
-Results are cached in `~/.comfy-test/torch_triples.json` for a day. `torch`
-is never the source: it declares nothing about its companions.
+Within that index:
+
+1. **torchvision's declared pin** is read from its metadata. Both spellings are
+   accepted: modern `torch==2.13.0` and the legacy `torch (==2.2.1)` that every
+   torchvision up to 0.17.1 uses.
+2. **torchaudio is paired by version number, then verified.** The convention
+   usually holds, but not always -- `torchaudio 2.0.1` requires `torch==2.0.0`,
+   and `2.0.2` requires `2.0.1`. When it declares a pin, that pin wins and a
+   contradiction is refused. When it declares nothing (`2.11.0` declares no
+   torch dependency at all), the version-number pairing stands.
+3. **A hard error**, at config-parse time -- before a venv is built.
+
+Results cache in `~/.comfy-test/torch_triples.json` for a day, per index
+variant, written atomically so parallel lanes cannot tear it.
 
 !!! danger "Why the resolver cannot be trusted to do this"
     Because torchaudio 2.11.0 declares no torch dependency, asking uv for
     `torch==2.13.0 torchvision torchaudio` resolves **successfully** to
     torchaudio 2.11.0 against torch 2.13.0 -- there is no declared constraint
-    to violate. It installs clean and dies at import. Verified, not
-    hypothetical.
+    to violate. It installs clean and dies at import. Verified with a dry run,
+    not hypothetical.
 
-The error names precisely what is wrong. Asking for a torch whose companions
-have not shipped yet:
+The error names what is wrong:
 
 ```text
-[test] torch_version = '2.13.0'
+[test] torch_version = '2.12.0'
 
-torch 2.13.0 has no complete triple yet: torchvision 0.28.0 exists, but no
-matching torchaudio has been published.
-
-The three do not release together -- torch lands first and torchaudio follows,
-so a just-released torch is not installable as a set.
+torch 2.12.0 is not published on the cu128 index, or ships neither companion.
 
 Use the newest complete triple instead:
     torch_version = "2.11.0"
-or, if you know a torchaudio that works, state it explicitly:
-    torch_version = "2.13.0/<torchvision>/<torchaudio>"
+Or state the triple explicitly:
+    torch_version = "2.12.0/<torchvision>/<torchaudio>"
 ```
 
-"Not published" and "could not check" are deliberately different messages -- an
-offline run says PyPI was unreachable rather than claiming the version does not
-exist.
+"Not published" and "index unreachable" are deliberately different messages --
+an offline run must not claim a version does not exist.
 
 ## What actually ran
 
