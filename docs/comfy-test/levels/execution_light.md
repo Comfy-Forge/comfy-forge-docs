@@ -41,24 +41,53 @@ That trade is the whole level: pick it per lane, not per pack
 The results gallery still gets a card per workflow; it just shows a still
 where the video would be.
 
+## How a failure is detected
+
+This is the only level that queues through the API rather than the browser, so
+it listens for ComfyUI's execution events on a WebSocket directly.
+
+That listening is conditional in a way worth knowing about. ComfyUI only sends
+`execution_start`, `execution_error` and `execution_success` when the prompt
+was submitted with a `client_id` -- all three are `broadcast=False`, and
+`PromptExecutor.add_message` gates on
+`client_id is not None or broadcast` (`execution.py:683`). A prompt queued
+without one produces **no terminal event at all**, so a failing workflow and a
+passing one look identical on the wire.
+
+comfy-test sends the `client_id` of the socket it is listening on. As a second
+line of defence it also reads the verdict ComfyUI files in
+`/history/<prompt_id>`: `status.status_str` is `success` or `error`, and the
+`execution_error` payload is replayed in `status.messages`. So a failure is
+reported with the real exception type, message and node whether it was seen
+live or recovered afterwards.
+
+!!! note "This used to be a silent pass"
+    Before that fix, a workflow that raised mid-graph produced no event, the
+    completion fallback saw a history entry, concluded "done", and reported
+    **passed**. Verified against ComfyUI 0.33.0.
+
 ## Choosing between them
 
-Both are **terminal** levels, so `--level` *replaces* whichever terminal your
-config chose rather than truncating the ladder
-([ADR-0012](../adr/0012-level-flag-swaps-terminals.md)). That is what lets one
-`comfy-test.toml` serve every lane: list `execution` in the config, and have a
-constrained lane pass `--level execution_light` on the command line.
+Both are **terminal** levels: a run ends in one of them, not both. Which one
+is decided by `[test] levels` in your `comfy-test.toml` -- list one or the
+other. There is no command-line override
+([ADR-0012](../adr/0012-level-flag-swaps-terminals.md)).
 
-## Zero workflows is a silent pass
+## Zero workflows is an error
 
-As with `execution`, no configured workflows means the level logs and returns
-PASSED with no `results.json`. See the warning on
-[`execution`](execution.md#zero-workflows-is-a-silent-pass).
+Listing `execution_light` on a pack that ships no workflows now **fails the
+run**. It used to log one line and return PASSED: the level that exists to
+prove your nodes run had nothing to run, and the badge said pass.
+
+Three ways out, depending on what you meant: add a workflow, drop the level
+from `[test] levels`, or set `skip_workflow = true` under `[test.<lane>]` to
+skip workflows on one lane. See the note on
+[`execution`](execution.md#zero-workflows-is-an-error).
 
 ## Config
 
-Opt-in -- it is not in the default set, so it must be listed in `levels` or
-selected with `--level`. Same workflow keys as `execution`:
+Opt-in -- it is not in the default set, so it must be listed in `levels`.
+Same workflow keys as `execution`:
 `[test.workflows] cpu` / `cuda` / `timeout`, and `[test] res` for the
 screenshot.
 

@@ -65,7 +65,7 @@ more machinery than the last:
    kernels), an `arch_override.yml` is both correctness *and* memory relief.
 3. **Shard** (`sharding: N`): torch `cpp_extension` packages only — split
    the translation units across N parallel jobs
-   ([the 6-hour cap](build-process.md#what-if-a-compile-takes-longer-than-6-hours)).
+   ([the 6-hour cap](build-process.md#sequential-and-sharded-compiles)).
 (A fourth rung -- sequential checkpointing -- was removed 2026-08-21
 after measurement showed nothing needed it; see the build-process page.)
 

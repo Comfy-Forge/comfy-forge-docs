@@ -63,10 +63,9 @@ machine happens to have.
 In the default set. It needs `api`, so listing it pulls in `install` and
 `registration`. A run with no workflows logs and returns without error.
 
-It is one of the four **terminal** levels, so `--level validation` replaces
-the configured terminal rather than truncating
-([ADR-0012](../adr/0012-level-flag-swaps-terminals.md)) -- useful for a lane
-that should check coherence but never spend GPU time.
+It is one of the four **terminal** levels: list it in `[test] levels` instead
+of `execution` when a pack should be checked for coherence but never spend GPU
+time ([ADR-0012](../adr/0012-level-flag-swaps-terminals.md)).
 
 ## See also
 

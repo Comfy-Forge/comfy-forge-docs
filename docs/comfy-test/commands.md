@@ -48,7 +48,6 @@ is checked before any environment is built, rather than several minutes later.
 
 | Flag | |
 |---|---|
-| `--level`, `-l` | run only up to this level; for the four terminal levels it *replaces* the configured terminal ([ADR-0012](adr/0012-level-flag-swaps-terminals.md)) |
 | `--workflow`, `-W` | run a single workflow |
 | `--branch`, `-b` | branch to **clone**. Remote forms only -- see below |
 
@@ -97,7 +96,7 @@ is checked before any environment is built, rather than several minutes later.
 
 Exit code is 0 when every level passed. Output goes to
 `<logs>/<pack>-<YYYYMMDD-HHMM>/<branch>/<os>-<install-method>-<backend>/` --
-see [what a run does](index.md#what-a-run-does).
+see [what a run does](what-a-run-does.md).
 
 ## `comfy-test publish`
 
@@ -197,7 +196,7 @@ switcher. This is the `test-matrix.yml` publish path, distinct from
 
 These three manage the hosts that CUDA lanes run on. They are operator tools,
 not something a pack author needs -- see
-[Lanes](lanes.md#gpu-lanes).
+[Lanes](lanes.md#gpu-lanes-docker-vm-and-sandbox).
 
 ### `comfy-test docker`
 

@@ -101,9 +101,12 @@ These are operator concerns; the flags and subcommands are in the
 
 ## Runtime level per lane
 
-Lanes pick their terminal level with `--level`: macOS passes
-`execution_light` because the capture loop kills the Playwright pipe on a
-7 GB runner; Linux and Windows pass `execution`
-([ADR-0011](adr/0011-execution-light-is-a-level.md)). One config file
-serves all of them because `--level` *replaces* the terminal rather than
-truncating ([ADR-0012](adr/0012-level-flag-swaps-terminals.md)).
+The terminal level is the pack's choice, not the lane's: every lane runs what
+`[test] levels` lists, and no lane overrides it
+([ADR-0012](adr/0012-level-flag-swaps-terminals.md)).
+
+`execution_light` exists for constrained runners -- the full capture loop can
+kill the Playwright pipe on a 7 GB macOS runner
+([ADR-0011](adr/0011-execution-light-is-a-level.md)). A pack that hits this
+lists `execution_light` instead of `execution`; per-lane variation is
+`skip_workflow` under `[test.<lane>]`.

@@ -185,4 +185,4 @@ needs and the engine pulls in whatever provides them.
 | 13 | [`custom`](levels/custom.md) | no | your own hook |
 
 Full detail -- the resource model, what each level can and cannot catch, and
-how `--level` selects them -- is in [the ladder](levels.md).
+how `[test] levels` selects them -- is in [the ladder](levels.md).

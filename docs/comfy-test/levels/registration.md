@@ -41,26 +41,37 @@ In attach mode the log comes from the workflow's `server.log` under
   missing model file, a network fetch during import.
 - **Name collisions** -- two packs claiming the same node id.
 
-## What it misses
+## Imported fine, registered nothing
 
-The scan matches ComfyUI's failure strings, so it catches packs that *fail*.
-It does not catch the pack that **imports cleanly and registers nothing** --
-core logs that case separately:
+A clean import is not a registration, and this is the level that says so.
 
-```
-Skip <pack> module for custom nodes due to the lack of
-NODE_CLASS_MAPPINGS or comfy_entrypoint (need one).
-```
+ComfyUI's own loader will not tell you. `load_custom_node` takes the V1 branch
+on any `NODE_CLASS_MAPPINGS` that is not `None` -- **an empty dict included** --
+iterates nothing, and returns `True` (`nodes.py:2292-2301`). No warning is
+logged, because from core's point of view nothing went wrong. (The
+`Skip <pack> module ... lack of NODE_CLASS_MAPPINGS or comfy_entrypoint`
+message covers a different case: neither symbol present at all.)
 
-A pack in that state produces zero nodes in `/object_info` and still passes
-this level unless it declares expected node names. Worth knowing if you
-register through V3's `comfy_entrypoint()` alone.
+So the level counts the nodes that are **yours**, using upstream's own
+attribution: every `/object_info` entry carries `python_module`
+(`server.py:765`), set from `RELATIVE_PYTHON_MODULE` as `custom_nodes.<dir>`
+(`nodes.py:2296`), where `<dir>` is your pack's directory under
+`custom_nodes/`. Zero entries attributed to your pack **fails the level**.
 
-!!! warning "On attach lanes this proves less than it looks"
-    Hosted Linux and macOS lanes install `requirements.txt` and `install.py`
-    in YAML with `|| true`, so **install errors are suppressed** before this
-    level ever runs. "Catches missing requirements" is a fresh-lane property.
-    Check `provenance.install_mode` before concluding anything.
+The usual causes: `__init__.py` does not export `NODE_CLASS_MAPPINGS`, exports
+it empty, or builds it under a condition that was false on this lane -- an
+optional dependency that did not install, an accelerator check.
+
+!!! note "A server that reports no attribution is not a failure"
+    If *no* entry in `/object_info` carries `python_module` -- a ComfyUI
+    predating that field -- the level logs a warning and moves on. Unknown
+    attribution is not the same as zero nodes.
+
+## What it still misses
+
+The log scan matches ComfyUI's failure strings, so it catches packs that
+*fail* to import. It cannot see a node that registers but is broken: that is
+what [`instantiation`](instantiation.md) and the execution levels are for.
 
 ## Config
 

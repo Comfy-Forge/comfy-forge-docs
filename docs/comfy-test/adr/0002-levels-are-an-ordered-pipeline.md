@@ -21,8 +21,8 @@ level scans a `web/` directory that some packs only materialise once the
 server has run prestartup. Any "suite" abstraction would have to re-derive
 that ordering at runtime anyway.
 
-Making the order intrinsic buys three things: `--level X` means "everything
-up to X" without a scheduler; a failure attributes to a named stage rather
+Making the order intrinsic buys three things: a level list resolves to a run
+order without a scheduler; a failure attributes to a named stage rather
 than to whichever test happened to run first; and adding a check forces the
 question *where in the pipeline does this belong?* -- which is how the
 JAVASCRIPT level ended up after REGISTRATION rather than beside SYNTAX.
@@ -46,7 +46,7 @@ JAVASCRIPT level ended up after REGISTRATION rather than beside SYNTAX.
   registration hook. Deliberate -- the ordering is the design, so it should
   be edited in one visible place.
 - Enum order is a compatibility surface: inserting a level between two
-  others changes what `--level X` runs for everyone.
+  others changes the order every run executes in.
 - `DEFAULT_LEVELS` is a *subset* of the enum, so opt-in levels (COVERAGE,
   JAVASCRIPT, CUSTOM) exist in the ladder without running by default.
 - The ordering also determines what a partial run proves: a green

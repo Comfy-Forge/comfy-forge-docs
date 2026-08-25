@@ -57,17 +57,21 @@ ignore it.
 levels = ["syntax", "install", "registration", "javascript", "execution"]
 ```
 
-On the command line, `--level X` **truncates** the ladder at X -- except for
-the four *terminal* levels (`static_capture`, `validation`, `execution_light`,
-`execution`), where it **replaces** whichever terminal the config chose. That
-asymmetry is how one config serves lanes needing different runtime levels
-([ADR-0012](adr/0012-level-flag-swaps-terminals.md)).
+**That list is the whole story.** There is no command-line override: every
+lane, local or hosted, runs exactly what your `comfy-test.toml` says. What ran
+is recorded in `results.json` under `provenance.levels`, and it always agrees
+with the config.
 
-!!! warning "`--level` still truncates above the terminal"
-    Swapping terminals does not disable the truncation. `--level execution`
-    (enum index 11) drops [`custom`](levels/custom.md) (index 12), and every
-    hosted CI lane passes exactly that. What actually ran is recorded in
-    `results.json` under `provenance.levels` -- read it rather than assuming.
+!!! note "`--level` was removed"
+    A `--level X` flag used to let a lane override this list, truncating the
+    ladder at X and swapping the terminal level. Every hosted lane passed the
+    same `--level execution`, so it varied nothing -- while silently dropping
+    [`custom`](levels/custom.md), which sits above `execution` in the enum.
+    It is gone ([ADR-0012](adr/0012-level-flag-swaps-terminals.md)).
+
+    To run static checks alone, without an environment or a server, use
+    [`comfy-test lint`](commands.md) and `comfy-test coverage` rather than a
+    level selector.
 
 ## Cheapest useful set
 

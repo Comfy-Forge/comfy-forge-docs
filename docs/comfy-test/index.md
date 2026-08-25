@@ -47,9 +47,7 @@ comfy-test can be pointed at a custom nodepack in **four different ways**.
 | **Central dispatcher ([comfy-ci](https://github.com/PozzettiAndrea/comfy-ci))** | a developer with **several nodes** who has local GitHub runners and doesn't want to open a GitHub org (GitHub won't let you register the same GPU machine to multiple repos) | automated GitHub Actions on a central repo with write access to the node repos | pushed back to **each node's own repo** |
 | **Registry gate (comfy-forge)** | the **comfy-forge** registry | the registry, on ingest | kept by the registry as a **verdict / badge** |
 
-Each is expanded in [Using comfy-test](using.md), along with
-[what a pack looks like](using.md#what-a-pack-looks-like) on disk and how to
-turn on gh-pages. 
+Each is expanded in [Using comfy-test](using.md).
 
 ## Accelerators
 

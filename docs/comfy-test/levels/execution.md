@@ -43,7 +43,7 @@ logs/<workflow>_resources.csv         RAM/VRAM/CPU samples
 ```
 
 Per-workflow status, duration and RAM/VRAM peaks go into `results.json`. See
-[what a run does](../index.md#what-a-run-does) for the full tree.
+[what a run does](../what-a-run-does.md) for the full tree.
 
 ## What it catches
 
@@ -52,18 +52,26 @@ OOM under real allocation, models that fail to load, nodes that produce
 black images or empty outputs, and the actual wall-clock cost of your graph on
 each lane.
 
-## Zero workflows is a silent pass
+## Zero workflows is an error
 
-If no workflows are configured, or `skip_workflow = true` is set for the
-lane, the level logs and returns **PASSED** -- with no `results.json`
-written at all.
+A pack that ships **no workflows at all** fails the run. It used to log one
+line and return **PASSED** with no `results.json` written -- a green badge for
+a level that executed nothing.
 
-!!! warning "Check your workflows are discovered"
-    A pack whose example workflows live somewhere comfy-test does not look
-    contributes nothing and goes green. Confirm the folder is one of the names
-    ComfyUI itself recognises -- see
-    [what a run does](../index.md#using-comfy-test). Contrast
-    [`coverage`](coverage.md), which refuses to pass a vacuous 0/0.
+This is the discovery bug it was hiding: a pack whose example workflows live
+in a folder comfy-test does not scan contributes nothing and went green.
+Confirm the folder is one of the names ComfyUI itself recognises -- see
+[what a pack looks like](../using.md#what-a-pack-looks-like). `execution` now behaves like
+[`coverage`](coverage.md), which has always refused to pass a vacuous 0/0.
+
+Say it deliberately when you mean it:
+
+- `skip_workflow = true` under `[test.<lane>]` -- run the pipeline but not the
+  workflows, on that lane only
+- drop `execution` from `[test] levels` -- stop asking for it at all
+
+An **empty per-accelerator selection** (`cpu = []`) is not affected: this
+checks that workflows were discovered, not which ones a given lane selected.
 
 ## Config
 
@@ -74,9 +82,11 @@ written at all.
 | `[test] res` | capture resolution (viewport height), default 1080 |
 | `[test.<lane>] skip_workflow` | run the pipeline but not the workflows |
 
-In the default set, and a **terminal** level: `--level execution` replaces
-whichever terminal your config chose
+In the default set, and a **terminal** level: a run ends in exactly one of
+`static_capture`, `validation`, `execution_light` and `execution`, chosen by
+what you list in `[test] levels`
 ([ADR-0012](../adr/0012-level-flag-swaps-terminals.md)).
+
 
 ## See also
 

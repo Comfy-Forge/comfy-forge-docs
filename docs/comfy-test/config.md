@@ -21,8 +21,8 @@ cpu = "all"
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `levels` | list | see below | Which levels to run; a set, not a sequence ([levels](levels.md)). |
-| `comfyui_version` | string | `"latest"` | ComfyUI ref to test against. **Tag or branch only** -- the clone is `--depth 1 --branch`, so a commit SHA will not work. `latest` clones HEAD; the resolved version and commit are recorded in results. |
+| `levels` | list | see below | Which levels to run; a set, not a sequence ([levels](levels.md)). **The only thing that decides what a run does** -- no lane and no flag overrides it. Listing `execution` or `execution_light` on a pack with no workflows is an error. |
+| `comfyui_version` | string | `"latest"` | ComfyUI ref to test against: `latest` (the default branch's HEAD), a tag, a branch, or a **full 40-character commit SHA**. The resolved version and commit are both recorded in results -- see [pinning to a commit](#pinning-comfyui-to-a-commit). |
 | `python_version` | string *or* list | `"3.13"` | A single version pins it; **a list draws one at random per run**. `COMFY_TEST_PYTHON_VERSION` overrides both. Supported: 3.10, 3.11, 3.12, 3.13 -- anything else is a hard error ([ADR-0005](adr/0005-pinned-torch-random-python.md)). |
 | `torch_version` | string | newest complete triple | Pins `torch` + the matching `torchvision`/`torchaudio`. A version, `"latest"` to opt out, or an explicit `"t/tv/ta"` triple. An unavailable triple aborts at config parse -- see [torch, torchvision and torchaudio](torch-triple.md). |
 | `extra_pip_indices` | list | `[]` | Extra pip indexes for the **whole test venv**, added as `--extra-index-url` alongside the PyTorch index and pypi.org. For private mirrors and Artifactory proxies -- see [below](#where-to-declare-a-package-index). |
@@ -33,6 +33,36 @@ Default `levels`: `syntax`, `install`, `registration`, `instantiation`,
 `static_capture`, `validation`, `execution`. The opt-in levels --
 `coverage`, `warnings`, `hazards`, `javascript`, `execution_light` and
 `custom` -- must be listed explicitly (except `custom`, above).
+
+### Pinning ComfyUI to a commit
+
+```toml
+[test]
+comfyui_version = "latest"                                     # default branch HEAD
+comfyui_version = "v0.3.60"                                    # a tag
+comfyui_version = "master"                                     # a branch
+comfyui_version = "37ac9ff44ffd1e4cc4b481cee550ced67608ec3a"   # a commit
+```
+
+All four are fetched the same way and cost the same -- one commit over the
+wire. A SHA is the only one of them that cannot move: ComfyUI's version string
+bumps only on releases, so many different HEADs report the same
+`0.33.0`, and `latest` is a different commit every day.
+
+!!! warning "An abbreviated SHA is rejected"
+    `comfyui_version = "37ac9ff"` fails at config parse. This is a git
+    limitation, not a comfy-test one: abbreviations are expanded against
+    objects you already have, and a fresh clone has none -- so the remote is
+    asked for a ref literally named `37ac9ff`, which does not exist. Paste the
+    full 40 characters.
+
+    Six hex characters or fewer are treated as a branch name, since that is
+    below the length git itself would accept as an abbreviation.
+
+!!! note "Pinning ComfyUI does not pin its frontend"
+    `comfyui_version` fixes the ComfyUI source tree. It does not by itself fix
+    everything that tree installs at runtime -- see
+    [ComfyUI versioning](comfyui-versioning.md).
 
 ### Where to declare a package index
 
@@ -120,7 +150,7 @@ skip_workflow = true
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
 | `enabled` | bool | `true` | Off switch for a listed lane. |
-| `skip_workflow` | bool | `false` | Run the pipeline but not the workflows. |
+| `skip_workflow` | bool | `false` | Run the pipeline but not the workflows. The supported way to keep `execution` in `levels` while a particular lane runs none. |
 | `comfyui_portable_version` | string | none | Pin the portable bundle (portable kinds only). |
 
 ## `[test.workflows]`

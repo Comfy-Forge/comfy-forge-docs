@@ -36,9 +36,12 @@ ComfyUI-YourPack/
         └── test-install.yml   <- one line; only for the CI paths
 ```
 
-`example_workflows/` is the canonical name, and four aliases are accepted --
-see [below](#what-you-need-to-add). A `tests/` subfolder inside it holds
-workflows you want exercised but not advertised.
+`example_workflows/` is the canonical name; four aliases are also accepted --
+`example/`, `examples/`, `workflow/`, `workflows/`. That list and its order
+come from ComfyUI itself (`app/custom_node_manager.py`,
+`example_workflow_folder_names`), which serves the same folders at
+`/api/workflow_templates` and nudges you to rename the other four. A `tests/`
+subfolder inside it holds workflows you want exercised but not advertised.
 
 ## The four ways
 

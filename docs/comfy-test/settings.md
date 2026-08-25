@@ -25,7 +25,7 @@ including `0`, `false`, and any typo -- reads as off.
 
 | Env var | default | meaning |
 |---|---|---|
-| `COMFY_TEST_RUN_CONSUMER` | **on** | Discover the pack's user-facing workflows (`example_workflows/` and its aliases -- see [What a run does](index.md#using-comfy-test)). Turning this off makes those workflows invisible to the run. |
+| `COMFY_TEST_RUN_CONSUMER` | **on** | Discover the pack's user-facing workflows (`example_workflows/` and its aliases -- see [what a pack looks like](using.md#what-a-pack-looks-like)). Turning this off makes those workflows invisible to the run. |
 | `COMFY_TEST_RUN_DEV` | **on** | Discover dev-only workflows from the `tests/` subfolder of any workflow directory. |
 | `COMFY_TEST_VERBOSE` | off | Echo every ComfyUI server line, not just the interesting ones. |
 | `COMFY_TEST_SHOW_CONSOLE_ERRORS` | off | Surface browser console **errors** in the run output. |

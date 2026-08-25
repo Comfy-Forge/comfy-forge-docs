@@ -49,9 +49,12 @@ If Playwright is not installed the level logs and skips rather than failing.
 A pack with no workflows configured also logs and returns without error.
 
 !!! warning "No workflows means a silent pass"
-    Like the execution levels, this reports success when there is nothing to
-    capture. Check that your workflows are actually discovered -- see
-    [what a run does](../index.md#using-comfy-test) for the folder names
+    This level reports success when there is nothing to capture. Unlike
+    [`execution`](execution.md) and [`execution_light`](execution_light.md),
+    which now fail on a pack with no workflows, `static_capture` still passes
+    -- it is a screenshot of the graph, so an empty run is not obviously
+    wrong. Check that your workflows are actually discovered -- see
+    [what a pack looks like](../using.md#what-a-pack-looks-like) for the folder names
     ComfyUI and comfy-test recognise.
 
 ## Config
@@ -64,9 +67,9 @@ A pack with no workflows configured also logs and returns without error.
 In the default set. It needs `server`, so listing it pulls in `install` and
 `registration`.
 
-It is also one of the four **terminal** levels, so `--level static_capture`
-replaces whichever terminal your config chose rather than truncating the
-ladder ([ADR-0012](../adr/0012-level-flag-swaps-terminals.md)).
+It is also one of the four **terminal** levels: a run ends in exactly one of
+them, chosen by what `[test] levels` lists
+([ADR-0012](../adr/0012-level-flag-swaps-terminals.md)).
 
 ## See also
 

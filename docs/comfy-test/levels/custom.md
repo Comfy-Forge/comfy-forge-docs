@@ -66,11 +66,15 @@ finding:
 Although `custom` is not in the default set, **setting `[test] custom`
 adds the level automatically** -- you do not also have to list it in `levels`.
 
-!!! warning "`--level` can silently drop it"
-    `custom` is the last member of the level enum, so a `--level execution`
-    (index 9) truncates it away (index 10). Every hosted CI lane passes
-    `--level execution`, which means a configured hook does not run there.
-    Check `provenance.levels` for what actually ran.
+!!! note "It used to be dropped silently in CI"
+    `custom` is the last member of the level enum, and the old `--level` flag
+    truncated everything above whatever it was given. Every hosted lane passed
+    `--level execution`, one index below `custom`, so a configured hook simply
+    did not run there -- without a word.
+
+    `--level` is gone ([ADR-0012](../adr/0012-level-flag-swaps-terminals.md)),
+    nothing truncates the list any more, and a configured hook runs on every
+    lane. `provenance.levels` still records what actually ran.
 
 ## Trust
 
