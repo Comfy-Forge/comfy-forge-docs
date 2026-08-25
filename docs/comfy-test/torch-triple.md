@@ -104,6 +104,10 @@ Install the triple **first**, explicitly, from the correct index:
 3. Only then install ComfyUI's `requirements.txt`, which now sees its bare
    `torch` / `torchvision` / `torchaudio` already satisfied and leaves them
    alone.
+4. **Import all three and check they agree**, before any level runs. A pin is a
+   claim about what *should* be installed; this is the only step that observes
+   what actually is. It fails the run naming the versions, rather than letting
+   an undefined symbol surface three levels later inside your node's code.
 
 The ordering is load-bearing. These are two separate resolver invocations, and
 the second one has no view of what the first decided beyond what is already
@@ -163,8 +167,19 @@ variant, written atomically so parallel lanes cannot tear it.
     Because torchaudio 2.11.0 declares no torch dependency, asking uv for
     `torch==2.13.0 torchvision torchaudio` resolves **successfully** to
     torchaudio 2.11.0 against torch 2.13.0 -- there is no declared constraint
-    to violate. It installs clean and dies at import. Verified with a dry run,
-    not hypothetical.
+    to violate, so nothing in the resolution reflects that the pair was never
+    built or tested together.
+
+    Whether that *breaks* is a separate question, and the honest answer is
+    "sometimes". Installed for real on a CPU lane, those exact three import
+    cleanly and run compiled ops -- `torchvision.ops.nms` and
+    `torchaudio.functional.resample` both work. The ABI break is real but it is
+    version- and variant-dependent, not guaranteed.
+
+    That is the argument for pinning, not against it. An unconstrained resolve
+    gives you a combination nobody validated, which happens to work today and
+    carries no guarantee about tomorrow -- and when it does break, it breaks as
+    an undefined symbol at import rather than as a version conflict at install.
 
 The error names what is wrong:
 
