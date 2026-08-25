@@ -95,9 +95,9 @@ that strands the other two.
 
 ```toml
 [test]
-torch_version = "2.10.0"          # a key in the table above
+torch_version = "2.10.0"          # any version on this run's index
 torch_version = "latest"          # opt out; let uv resolve freely
-torch_version = "2.13.0/0.28.0/2.13.0"   # explicit triple, not yet in the table
+torch_version = "2.13.0/0.28.0/2.13.0"   # explicit triple, checked by nobody
 ```
 
 The slash form is the escape hatch for a torch released after your comfy-test
@@ -107,8 +107,8 @@ lands first. Until the matching torchvision and torchaudio appear, that torch
 has no valid triple, and `"latest"` will either resolve to the previous
 complete set or produce a conflict.
 
-An unknown version is a hard error naming the known keys, rather than a silent
-fallback.
+An unresolvable version is a hard error that suggests the newest complete
+triple, rather than a silent fallback.
 
 Precedence, highest first: `COMFY_TEST_TORCH_VERSION`, then
 `--torch-version`, then `[test] torch_version`, then the built-in default.
