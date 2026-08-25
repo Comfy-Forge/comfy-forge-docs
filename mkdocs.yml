@@ -1,8 +1,8 @@
 site_name: comfy-forge documentation
-site_description: Architecture docs and decision records for comfy-env, comfy-test, and cuda-wheels
-site_url: https://pozzettiandrea.github.io/comfy-forge-docs/
-repo_url: https://github.com/PozzettiAndrea/comfy-forge-docs
-repo_name: PozzettiAndrea/comfy-forge-docs
+site_description: Architecture docs and decision records for comfy-env, comfy-test, cuda-wheels and the Comfy-Forge registry
+site_url: https://docs.comfy-forge.org/
+repo_url: https://github.com/Comfy-Forge/comfy-forge-docs
+repo_name: Comfy-Forge/comfy-forge-docs
 edit_uri: edit/main/docs/
 dev_addr: 0.0.0.0:8001
 

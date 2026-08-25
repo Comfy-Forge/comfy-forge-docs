@@ -39,21 +39,91 @@ proportion of it works.
 No VPS, no always-on server. The whole backend is edge functions plus two
 storage primitives:
 
-| piece | what it holds |
+| piece | role |
 |---|---|
-| **Cloudflare Worker** | the API and the dashboard — all the logic |
-| **D1** (SQLite) | nodes, versions, per-(ComfyUI version, lane) verdicts |
-| **R2** `comfy-forge-artifacts` | the tested zips themselves, `artifacts/<id>/<tag>.zip` |
-| **R2** `comfy-forge-reports` | report bundles, and the icons authors upload |
-
-**D1 stores pointers, never bytes.** A row carries a `sha256`, a `report_url`
-and a download path; the payloads live in R2. The database stays small enough to
-answer a client query at the edge, which is the only thing it is on the critical
-path for.
+| **Cloudflare Worker** | the whole API — routing, auth, ingest, downloads |
+| **D1** (SQLite) | the facts: nodes, versions, verdicts |
+| **R2** ×2 | the bytes: tested zips, and report bundles |
 
 Public source, secrets live in Worker secrets. The reason for this shape is
 mundane and load-bearing: a registry that costs money to keep running is a
 registry that eventually stops running. This one idles at zero.
+
+The **website is not here.** `comfy-forge.org` is a separate static site
+([comfy-forge-site](https://github.com/Comfy-Forge/comfy-forge-site), Cloudflare
+Pages); this Worker is `api.comfy-forge.org` and does one job. They used to be
+one deployment, which meant a copy change redeployed the API.
+
+Exactly what goes in which store is [below](#storage-what-lives-where).
+
+## Storage: what lives where
+
+Three stores, and the split is deliberate: **D1 holds facts, R2 holds bytes.**
+
+| store | holds | keyed by |
+|---|---|---|
+| **D1** | nodes, versions, verdicts | relational |
+| **R2** `comfy-forge-artifacts` | the tested zips | `artifacts/<id>/<tag>.zip` |
+| **R2** `comfy-forge-reports` | report bundles, author icons | `reports/<node>/<ver>/<lane>/`, `icons/<id>.png` |
+
+A D1 row never contains a payload — it carries a `sha256`, a `report_url`, and
+enough identity to construct a download path. The database stays small enough to
+answer a client query at the edge, which is the only thing on the critical path
+of an install.
+
+### How a zip gets in, and out
+
+```mermaid
+sequenceDiagram
+    participant CI as comfy-forge-ci
+    participant W as Worker
+    participant R2 as R2 artifacts
+    participant C as ForgeManager
+    CI->>W: PUT /internal/artifact/:id/:tag<br/>Bearer INGEST_TOKEN, X-Sha256
+    W->>R2: put(key, body, {sha256})
+    R2-->>W: rejects if bytes != hash
+    W-->>CI: { url, size, sha256 }
+    CI->>W: POST /internal/result (verdict + that url)
+    Note over C,W: later, on a user's machine
+    C->>W: GET /download/:id/:tag
+    W->>R2: get(key)
+    W-->>C: zip
+    C->>C: verify sha256 again
+```
+
+**The hash is enforced twice, on opposite sides.** On write, the Worker passes
+the declared hash to R2 as `opts.sha256`, and R2 refuses the PUT if the streamed
+bytes disagree — so a corrupted or substituted upload never becomes a servable
+artifact. On read, the client checks the same hash after download, covering the
+path between R2 and the user. Neither check alone would be enough: the first
+cannot see transport corruption, the second is running on a machine you do not
+control.
+
+CI records **the URL the registry returns**, never one it assembles itself. That
+sounds pedantic until the two sides disagree about where artifacts live — which
+is exactly what happened when the zips moved from GitHub Releases to R2 and the
+workflow kept writing `releases/download/...` URLs into verdict rows.
+
+### Why the registry hosts the bytes at all
+
+It would be cheaper to point at someone else's storage. Two reasons not to:
+
+**Revocation has to be enforceable.** `versions.revoked` is a kill switch. If the
+bytes sit behind a public URL the registry does not control, revoking a version
+removes it from listings while the URL keeps serving — and anything holding that
+link keeps installing the thing you pulled. Serving through `/download/:id/:tag`
+is what makes the flag mean *stop*, rather than *hide*.
+
+**The hash chain needs a chokepoint.** Enforcing "what was tested is what is
+served" requires a moment where the bytes are checked against a hash by something
+neither the author nor the user controls. The PUT is that moment.
+
+!!! note "cuda-wheels makes the opposite call, on purpose"
+    [cuda-wheels](../cuda-wheels/index.md) stores wheels as GitHub Release
+    assets, and that is right *there*: ~14k artifacts at hundreds of MB, served
+    over a free CDN, with a wheel filename that is already a precise identity —
+    no revocation story to lose. Node pack zips are megabytes and do need
+    revoking. Same operator, different payload, different answer.
 
 ## The data model
 
@@ -120,21 +190,6 @@ and **how ComfyUI was installed**, which is what a lane encodes.
 installs is byte-identical to the artifact that passed, or it is not the same
 artifact. Testing a tree and then shipping a different tree is the failure mode
 this column exists to make impossible.
-
-### The hash is enforced twice
-
-The sha256 is not decoration, and it is not only checked by the client. When CI
-uploads a zip, the Worker hands R2 the declared hash:
-
-```js
-opts.sha256 = sha;   // R2 rejects the PUT if the streamed bytes don't match.
-```
-
-R2 refuses the write if the bytes disagree, so a corrupted or substituted upload
-never becomes a servable artifact in the first place. The client verifying the
-same hash after download is the *second* line, covering the path between R2 and
-the user rather than being the only check in the system.
-
 
 **`revoked` is a kill switch, not a delete.** An author can yank a bad version,
 and an operator can too. History is preserved — the verdict still says it passed,

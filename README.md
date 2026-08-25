@@ -12,7 +12,7 @@ Documentation site for the **comfy-forge** tool family:
 Built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/);
 diagrams are Mermaid, so they also render directly on GitHub.
 
-Live site: https://pozzettiandrea.github.io/comfy-forge-docs/
+Live site: https://docs.comfy-forge.org/
 
 ## Serve locally
 

@@ -148,16 +148,12 @@ gh workflow run test-and-publish.yml -R Comfy-Forge/comfy-forge-ci \
 | report bundles | R2 `comfy-forge-reports` | large, rarely read, cheap to keep |
 | verdicts | registry D1 | small, queried on every client request |
 
-!!! warning "The workflow has not caught up with this"
-    `test-and-publish.yml` still uploads to `Comfy-Forge/artifacts` **GitHub
-    Releases** (`ARTIFACTS_REPO`, `ARTIFACTS_PAT`, and an `asset_url` of
-    `releases/download/<tag>/node.zip`), which is the older design. The registry
-    has since grown an `ARTIFACTS` R2 binding and a `PUT /internal/artifact`
-    route, and serves downloads itself.
-
-    Until the workflow is switched over, the two halves disagree about where a
-    tested zip lives — and the `Comfy-Forge/artifacts` repo is empty, which is
-    consistent with nothing having gone through the old path recently.
+!!! note "This changed on 2026-08-25"
+    The workflow used to upload to `Comfy-Forge/artifacts` **GitHub Releases**,
+    which is why that repo exists and is empty. It now `PUT`s to the registry
+    instead, and `ARTIFACTS_PAT` is gone — this workflow no longer needs write
+    access to any GitHub repo. `INGEST_TOKEN` authorises both the artifact
+    upload and the verdict.
 
 Note that this is a **different call from [cuda-wheels](../cuda-wheels/index.md)**,
 which does use Releases-as-storage. That is the right answer there: ~14k wheels at
