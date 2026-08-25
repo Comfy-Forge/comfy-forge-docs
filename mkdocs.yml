@@ -144,10 +144,13 @@ nav:
               - "13. custom": comfy-test/levels/custom.md
           - Lanes: comfy-test/lanes.md
           - "comfy-test.toml reference": comfy-test/config.md
+          - ComfyUI versioning: comfy-test/comfyui-versioning.md
           - Settings reference: comfy-test/settings.md
           - torch, torchvision, torchaudio: comfy-test/torch-triple.md
       - Operations:
           - Reproducibility: comfy-test/reproducibility.md
+      - Internals:
+          - Code breakdown: comfy-test/code-breakdown.md
       - Decision records:
           - Index: comfy-test/adr/index.md
           - "0001: Real installs are the unit of test": comfy-test/adr/0001-real-installs-are-the-unit-of-test.md
@@ -166,6 +169,12 @@ nav:
           - "0014: Frontend isolation is enforced statically": comfy-test/adr/0014-javascript-isolation-is-static.md
           - "0015: Publish is a separate job": comfy-test/adr/0015-publish-is-a-separate-job.md
           - "0016: The branch level is never dropped": comfy-test/adr/0016-run-output-is-namespaced-run-branch-lane.md
+  - comfy-forge-registry:
+      - Overview: comfy-forge-registry/index.md
+  - comfy-forge-ci:
+      - Overview: comfy-forge-ci/index.md
+  - ComfyUI-ForgeManager:
+      - Overview: comfyui-forgemanager/index.md
   - cuda-wheels:
       - Overview: cuda-wheels/index.md
       - "Wheel my wheel run?": cuda-wheels/wheel-compatibility.md
