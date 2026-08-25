@@ -4,34 +4,25 @@ Every run installs these three as a **known-aligned triple**, before anything
 else. This page is why that is necessary, where the triple comes from, and what
 happens when it is wrong.
 
-## ComfyUI does not pin them
+## What ComfyUI pins, and what it does not
 
-ComfyUI's own `requirements.txt` asks for them by bare name:
+ComfyUI's own `requirements.txt` is mostly unpinned. Of its 35 requirements
+(ComfyUI 0.33.0):
 
-```text
-torch
-torchsde
-torchvision
-torchaudio
-```
+| Form | Count | Examples |
+|---|---|---|
+| Exact `==` | 5 | `comfyui-frontend-package==1.49.6`, `comfy-kitchen==0.2.31` |
+| Floor `>=` | 11 | `numpy>=1.25.0`, `transformers>=4.50.3`, `av>=16.0.0` |
+| Compatible `~=` | 2 | `pydantic~=2.0` |
+| **Bare name** | **17** | `torch`, `torchsde`, `torchvision`, `torchaudio`, `scipy`, `Pillow`, `requests`, `spandrel` |
 
-No version, no floor, no ceiling. Whatever the resolver picks on the day is
-what you get -- which is correct for ComfyUI (it wants to run on whatever the
-user has) and useless for a test harness (a run must be reproducible, and a
-green result must mean something specific).
+That is the right choice for ComfyUI -- it wants to run on whatever the user
+already has -- and it means most of the environment under test floats. The five
+exact pins ride along with the ref you clone, so setting `comfyui_version` also
+pins the frontend, the workflow templates and the embedded docs.
 
-That is the gap comfy-test fills. Note what ComfyUI *does* pin exactly:
-
-```text
-comfyui-frontend-package==1.49.6
-comfyui-workflow-templates==0.11.41
-comfyui-embedded-docs==0.5.10
-comfy-kitchen==0.2.31
-comfy-aimdo==0.4.13
-```
-
-So the **frontend is already pinned by the ComfyUI ref you clone** -- pinning
-`comfyui_version` pins the UI too. The torch stack is the part left floating.
+comfy-test pins **three** of those seventeen bare names. Not because the other
+fourteen are unpinned, but because of what happens below.
 
 ## The three are ABI-coupled
 
@@ -53,6 +44,34 @@ torchvision declares its torch exactly; torchaudio *usually* shares torch's
 version number. **comfy-test keeps no table of these** -- the mapping is
 derived from the wheel index and cached on disk, so nothing in source needs
 updating when torch ships.
+
+### Why not torchsde, kornia or spandrel
+
+They sit beside torch in the same file and read like the same family. They are
+not, and the distinguishing test is mechanical: **does the package ship a
+binary linked against `libtorch`?**
+
+| Package | Wheel | Declares | Coupled? |
+|---|---|---|---|
+| `torchvision` | `cp310-cp310-...` | `torch==2.13.0` | **yes** |
+| `torchaudio` | `cp310-cp310-...` | *(nothing)* | **yes** |
+| `torchsde` | `py3-none-any` | `torch>=1.6.0` | no |
+| `kornia` | `py3-none-any` | `torch>=2.0.0` | no |
+| `spandrel` | `py3-none-any` | `torch`, `torchvision` | no |
+
+torchsde is an SDE solver written in Python against torch's *public* API. No
+compiled extension, so no C++ ABI to break -- and its own requirement is a
+floor rather than an exact pin precisely because it does work across torch
+releases. Adding it to the triple would be pinning for symmetry.
+
+The same test clears ComfyUI's compiled dependencies. `comfy-kitchen`,
+`comfy-aimdo` and `comfy-angle` ship native code, but scanning their wheels for
+`libtorch`/`libc10` references finds none -- they are not torch extensions.
+`scipy`, `av` and `blake3` are compiled against their own libraries.
+
+So **torchvision and torchaudio are the only two packages in ComfyUI's
+requirements that moving torch can break**, and that is the whole membership
+rule for the triple.
 
 ## Why the exact pin is not enough on its own
 
@@ -162,6 +181,98 @@ Or state the triple explicitly:
 
 "Not published" and "index unreachable" are deliberately different messages --
 an offline run must not claim a version does not exist.
+
+## Why not pin the other fourteen too
+
+`einops`, `pyyaml`, `Pillow`, `scipy`, `tqdm` and `psutil` are exactly as
+unpinned as torch is. They are not pinned because they fail in a different
+way, and only one of the two failure modes is the installer's fault.
+
+### Class A -- a set that cannot be resolved one package at a time
+
+The torch family breaks even when **every declared constraint is satisfied**.
+Upstream [#14384](https://github.com/Comfy-Org/ComfyUI/issues/14384):
+
+```text
+RuntimeError: Detected that PyTorch and TorchAudio were compiled with
+different CUDA versions. PyTorch has CUDA version 13.0 whereas TorchAudio
+has CUDA version 12.8.
+```
+
+`torch 2.12.0+cu130` with `torchaudio 2.12.0+cu128` -- the public versions
+agree, every pin is honoured, and it refuses to start. The disagreement lives
+in the local segment, which no specifier mentions.
+[#11093](https://github.com/Comfy-Org/ComfyUI/issues/11093) is the same class
+one layer out: `undefined symbol: _ZN3c104cuda9SetDeviceEa` -- `c10` is
+torch's own C++ namespace, so that is a binary linked against a different
+libtorch. And [#14232](https://github.com/Comfy-Org/ComfyUI/issues/14232) is
+the availability half: torchaudio has no stable wheel for `cu132`, so on that
+index **no correct triple exists at all** and the only honest move is to say
+so before building anything.
+
+No newer version fixes any of these. There is no version of torchaudio that is
+correct on its own -- only a *set* is correct, and the constraint that defines
+the set is invisible to the resolver.
+
+### Class B -- ordinary version drift
+
+The other fourteen fail the normal way: an API moved, and you get a legible
+traceback naming the symbol. Upstream
+[#13036](https://github.com/Comfy-Org/ComfyUI/issues/13036) is the archetype --
+`ImportError: cannot import name 'mapped_column'` on SQLAlchemy 1.x, fixed by
+raising the floor to `>=2.0`.
+
+Three things are true of Class B and false of Class A:
+
+- some version is always correct **on its own**, and it is usually the newest;
+- the break is legible -- a named symbol, not an undefined one;
+- **the break is true.** A user installing your pack today hits precisely the
+  same failure.
+
+That last point is the reason. Pinning Class B would not prevent breakage, it
+would *hide* breakage your users are already having -- turning a nightly run
+from an early-warning system into a museum. Class A is different because the
+failure is manufactured by the install procedure itself, not by upstream
+shipping something new.
+
+!!! warning "Class A is not strictly unique to torch"
+    `numpy>=1.25.0` has no ceiling, and numpy 2.0 broke the C ABI -- a wheel
+    compiled against numpy 1.x fails against 2.x for structurally the same
+    reason. comfy-test does not address that today. It is a narrower risk (one
+    package rather than a three-way set, and no invisible local segment), but
+    it is a real gap rather than a solved problem.
+
+### Upstream is not going to pin them either
+
+Worth knowing before filing an issue about it. Across 360 commits to
+`requirements.txt`:
+
+- **No upper bound has ever shipped.** Not one `<` on any dependency, ever;
+  the only bounded specs are `pydantic~=2.0` and `pydantic-settings~=2.0`.
+- **Constraints are floors, added reactively** after a specific breakage --
+  SQLAlchemy after #13036, `aiohttp>=3.11.8` after "crash caused by outdated
+  incompatible aiohttp", `safetensors>=0.4.2` "for fp8 support".
+- **Exact pins get removed.** Commit `9a151b7d`, *"Fix issue and unpin spandrel
+  package"*, changes the calling code to suit the new spandrel rather than
+  holding the old one back.
+- **Every `==` in the file is a Comfy-Org package.** They pin what they ship
+  and nothing they do not.
+- **Nobody has proposed a lockfile.** Zero issues or PRs.
+
+So the floating environment is a deliberate upstream position, not an
+oversight, and a test harness that locked it would be testing a configuration
+no user runs.
+
+There is no config lever that freezes the rest, either. `extra_pip_indices`
+adds `--extra-index-url` entries, so it widens the search rather than
+restricting it -- aiming it at a frozen mirror does not stop uv reaching
+pypi.org. The only real lever is pinning in **your own `requirements.txt`**,
+which is installed after ComfyUI's and does take precedence -- at the cost
+that your pins are also what every user gets, and a pack that pins
+`transformers` exactly will collide with the next pack that does.
+
+See [Reproducibility](reproducibility.md) for the full list of what does and
+does not hold still.
 
 ## What actually ran
 
