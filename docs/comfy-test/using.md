@@ -126,6 +126,21 @@ publishing a dashboard to anyone's repository.
 
 The developer is not in the loop; the artifact is the verdict.
 
+## How the workflows fit together
+
+The heavy lifting all lives in the Python package; the GitHub workflows are
+thin wrappers around it.
+
+| Workflow | Role |
+|---|---|
+| `test-matrix.yml` | The reusable workflow consumer repos call. Fans out the hosted CPU lanes on push/PR. |
+| `dispatch-test.yml` | One reusable workflow for *every* lane, including the self-hosted GPU ones. Test jobs `pip install --upgrade comfy-test`, invoke `comfy-test run`, and upload the results artifact. |
+| [comfy-ci](https://github.com/PozzettiAndrea/comfy-ci) | A thin dispatcher repo whose only job is to be the entry point self-hosted GPU runners are enrolled against. Its `test-cpu.yml` / `test-cuda.yml` are `workflow_dispatch` shims calling `dispatch-test.yml` by tag. |
+
+In `dispatch-test.yml`, publishing is a **separate job** from testing, so a
+flaky push to gh-pages can be re-run without repeating the slow test
+([ADR-0015](adr/0015-publish-is-a-separate-job.md)).
+
 ## Which lanes exist
 
 Every mode draws from the same lane table -- ten lanes across three

@@ -74,20 +74,30 @@ Two consequences worth internalising:
 2. If you want proof of installability, run a CUDA/dispatch lane, or run
    comfy-test locally -- both take the fresh path.
 
-## GPU lanes
+## GPU lanes: docker, VM, and Sandbox
 
-CUDA lanes are dispatch-only and run on self-hosted hardware. Three host
-mechanisms exist, chosen by what the lane needs:
+CUDA testing needs real GPUs, so those lanes are dispatch-only on
+self-hosted runners:
 
-- **docker** -- Linux CUDA. Cheapest and most reproducible.
-- **VM (Hyper-V)** -- `windows-desktop-cuda`. A container cannot run an
-  interactive Electron app with a GPU attached, so the lane provisions a VM
-  with device assignment.
-- **Windows Sandbox** -- lightweight disposable Windows runs where a full VM
-  is unnecessary.
+- **linux-cuda / windows-cuda / windows-portable-cuda** run inside
+  containers (`comfy-test docker run`): NVIDIA Container Toolkit on Linux,
+  process-isolation with GPU device mapping on Windows.
+- **windows-desktop-cuda** is the hard one: Electron needs an interactive
+  desktop session *and* CUDA -- Windows containers can provide neither
+  (Session 0 isolation; no `--device` under Hyper-V isolation). The answer
+  is a **Hyper-V baseline VM** with the GPU DDA-attached: restore a clean
+  snapshot, run the test via a GHA runner registered inside the VM, revert
+  -- "same isolation contract as `docker run --rm`, ~60s overhead", the same
+  pattern Comfy-Org's own desktop E2E tests use. The `comfy-test vm`
+  subcommand formalizes the lifecycle: `build` (one-time host setup, optionally
+  fully unattended Windows install), `snapshot`, `restore`, `gpu attach/detach`,
+  `share` (SMB share that survives snapshot restores).
+- **Windows Sandbox** (`comfy-test sandbox`) is the emerging successor for
+  that lane: GPU-PV maps the host driver store into a pristine disposable
+  guest -- no image build, no snapshots, no GPU dismount.
 
-These are operator concerns; the `comfy-test docker|vm|sandbox` subcommands
-manage their lifecycles.
+These are operator concerns; the flags and subcommands are in the
+[commands reference](commands.md#gpu-lane-operations).
 
 ## Runtime level per lane
 
