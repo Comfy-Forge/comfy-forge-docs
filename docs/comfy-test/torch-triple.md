@@ -49,18 +49,12 @@ torch==2.10.0
 and `torchaudio 2.10.0` likewise. An **exact** pin, not a range. So the three
 versions are not independently choosable: picking a torchvision picks a torch.
 
-The correspondence is offset, because torchvision versions independently:
+torchaudio shares torch's exact version number (torch 2.11.0 <-> torchaudio
+2.11.0); torchvision versions independently and declares its torch explicitly.
 
-| torch | torchvision | torchaudio |
-|---|---|---|
-| 2.11.0 | 0.26.0 | 2.11.0 |
-| 2.10.0 | 0.25.0 | 2.10.0 |
-| 2.9.1 | 0.24.1 | 2.9.1 |
-| 2.9.0 | 0.24.0 | 2.9.0 |
-| 2.8.0 | 0.23.0 | 2.8.0 |
-
-torchaudio tracks torch's number; torchvision is roughly `0.(minor+15)`. Do not
-rely on the arithmetic -- the table is the source of truth.
+**comfy-test keeps no table of these.** The mapping is derived from what PyPI
+publishes and cached on disk for a day, so nothing in source needs updating
+when torch ships.
 
 ## Why the exact pin is not enough on its own
 
@@ -86,7 +80,7 @@ resolver.
 
 Install the triple **first**, explicitly, from the correct index:
 
-1. Resolve the triple from `TORCH_TRIPLES` (`common/config.py`).
+1. Resolve the triple (`common/torch_triple.py`).
 2. `uv pip install torch==<t> torchvision==<tv> torchaudio==<ta>` with
    `--index-url` set to the CPU or CUDA backend index, so all three come from
    **one** index and therefore carry the same local tag.
@@ -125,13 +119,24 @@ Precedence, highest first: `COMFY_TEST_TORCH_VERSION`, then
 
 A version you name is resolved in three steps:
 
-1. **The checked-in table** above -- offline, instant.
-2. **PyPI metadata**, if it is not in the table, so a torch released after your
-   comfy-test still works without a code change. The lookup reads
-   `torchvision` and `torchaudio`'s `requires_dist` and inverts it; `torch`
-   itself declares nothing about them, so it cannot be the source.
+1. **torchvision's declared pin**, read from PyPI. `torchvision 0.28.0`
+   requires `torch==2.13.0`, and this is populated for every release -- so the
+   mapping is read, never computed from version numbers.
+2. **torchaudio by version number**, because its metadata cannot be trusted:
+   `torchaudio 2.10.0` declares `torch==2.10.0` but **`torchaudio 2.11.0`
+   declares nothing at all**.
 3. **A hard error**, at config-parse time -- before a venv is built, not
    twenty minutes into one.
+
+Results are cached in `~/.comfy-test/torch_triples.json` for a day. `torch`
+is never the source: it declares nothing about its companions.
+
+!!! danger "Why the resolver cannot be trusted to do this"
+    Because torchaudio 2.11.0 declares no torch dependency, asking uv for
+    `torch==2.13.0 torchvision torchaudio` resolves **successfully** to
+    torchaudio 2.11.0 against torch 2.13.0 -- there is no declared constraint
+    to violate. It installs clean and dies at import. Verified, not
+    hypothetical.
 
 The error names precisely what is wrong. Asking for a torch whose companions
 have not shipped yet:
