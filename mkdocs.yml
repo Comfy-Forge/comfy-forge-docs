@@ -123,9 +123,27 @@ nav:
   - comfy-test:
       - Overview: comfy-test/index.md
       - Adopter reference:
-          - Test levels: comfy-test/levels.md
-          - Platforms and lanes: comfy-test/lanes.md
+          - Using comfy-test: comfy-test/using.md
+          - What a run does: comfy-test/what-a-run-does.md
+          - Commands: comfy-test/commands.md
+          - Test levels:
+              - The ladder: comfy-test/levels.md
+              - "1. syntax": comfy-test/levels/syntax.md
+              - "2. coverage": comfy-test/levels/coverage.md
+              - "3. warnings": comfy-test/levels/warnings.md
+              - "4. hazards": comfy-test/levels/hazards.md
+              - "5. install": comfy-test/levels/install.md
+              - "6. registration": comfy-test/levels/registration.md
+              - "7. javascript": comfy-test/levels/javascript.md
+              - "8. instantiation": comfy-test/levels/instantiation.md
+              - "9. static_capture": comfy-test/levels/static_capture.md
+              - "10. validation": comfy-test/levels/validation.md
+              - "11. execution_light": comfy-test/levels/execution_light.md
+              - "12. execution": comfy-test/levels/execution.md
+              - "13. custom": comfy-test/levels/custom.md
+          - Lanes: comfy-test/lanes.md
           - "comfy-test.toml reference": comfy-test/config.md
+          - Settings reference: comfy-test/settings.md
       - Operations:
           - Reproducibility: comfy-test/reproducibility.md
       - Decision records:
@@ -136,8 +154,8 @@ nav:
           - "0004: Mocking is earned by probing": comfy-test/adr/0004-mocking-is-earned-by-probing.md
           - "0005: Pinned torch, random Python": comfy-test/adr/0005-pinned-torch-random-python.md
           - "0006: Config is a hard-fail allowlist": comfy-test/adr/0006-config-is-a-hard-fail-allowlist.md
-          - "0007: The platform registry is the source of truth": comfy-test/adr/0007-platform-registry-is-the-source-of-truth.md
-          - "0008: Platforms are an opt-in allowlist": comfy-test/adr/0008-platforms-are-opt-in.md
+          - "0007: The lane registry is the source of truth": comfy-test/adr/0007-lane-registry-is-the-source-of-truth.md
+          - "0008: Lanes are an opt-in allowlist": comfy-test/adr/0008-lanes-are-opt-in.md
           - "0009: A helper pack is injected into every env": comfy-test/adr/0009-a-helper-pack-is-injected.md
           - "0010: Capture drives a real browser": comfy-test/adr/0010-capture-drives-a-real-browser.md
           - "0011: execution_light is a level": comfy-test/adr/0011-execution-light-is-a-level.md
@@ -145,7 +163,7 @@ nav:
           - "0013: Desktop is driven over CDP": comfy-test/adr/0013-desktop-is-driven-over-cdp.md
           - "0014: Frontend isolation is enforced statically": comfy-test/adr/0014-javascript-isolation-is-static.md
           - "0015: Publish is a separate job": comfy-test/adr/0015-publish-is-a-separate-job.md
-          - "0016: The branch level is never dropped": comfy-test/adr/0016-run-output-is-namespaced-run-branch-platform.md
+          - "0016: The branch level is never dropped": comfy-test/adr/0016-run-output-is-namespaced-run-branch-lane.md
   - cuda-wheels:
       - Overview: cuda-wheels/index.md
       - "Wheel my wheel run?": cuda-wheels/wheel-compatibility.md

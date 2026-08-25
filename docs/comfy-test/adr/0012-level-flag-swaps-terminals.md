@@ -21,8 +21,8 @@ ends in exactly one runtime level. `static_capture`, `validation`,
 `execution_light` and `execution` are four answers to "how thoroughly do we
 exercise this at the end", not four things you want in a row.
 
-Per-platform CI needs to vary that ending without maintaining a separate
-`comfy-test.toml` per platform: macOS must pick `execution_light`
+Per-lane CI needs to vary that ending without maintaining a separate
+`comfy-test.toml` per lane: macOS must pick `execution_light`
 ([ADR-0011](0011-execution-light-is-a-level.md)), Linux and Windows want
 `execution`. One config, one flag per lane.
 
@@ -35,7 +35,7 @@ correct -- but truncation at `execution` on a config listing
 
 - **Plain truncation ("run up to N").** Runs two runtime levels when the
   config's terminal sits below the flag; doubles the slowest stage.
-- **A separate `comfy-test.toml` per platform.** Multiplies the file that
+- **A separate `comfy-test.toml` per lane.** Multiplies the file that
   [ADR-0006](0006-config-is-a-hard-fail-allowlist.md) already treats as
   safety-critical, and guarantees drift between copies.
 - **A dedicated `--runtime-level` flag** distinct from `--level`. Honest,

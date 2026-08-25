@@ -51,6 +51,6 @@ the expected time-to-detection is short and the cost is 1x, not 4x.
   ([ADR-0003](0003-two-install-paths-attach-and-fresh.md)) inherit whatever
   their cached environment was built with, so those lanes do not exercise
   this decision at all -- another reason `install_mode` is recorded.
-- Python is sampled *per run*, not per lane, so different platforms in one
+- Python is sampled *per run*, not per lane, so different lanes in one
   matrix may test different interpreters. The dashboard cell tells you
   which.

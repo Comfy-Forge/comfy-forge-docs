@@ -4,7 +4,7 @@
 
 ## Decision
 
-> **Run output is always `{logs}/{node}-{HHMM}/{branch}/{platform}-{backend}/`
+> **Run output is always `{logs}/{node}-{HHMM}/{branch}/{lane}-{backend}/`
 > -- the branch level is never omitted.** When `--branch` is not passed it
 > defaults to the node repo's checked-out git branch (detached HEAD -> short
 > SHA; not a git repo -> `local`), flattened to one path segment. Consumers
@@ -14,18 +14,18 @@
 ## Context
 
 The output tree is namespaced this way because a run is a **matrix**: one pack,
-tested across `{branch} x {platform}-{backend}` cells that the publish step
+tested across `{branch} x {lane}-{backend}` cells that the publish step
 aggregates into one gh-pages dashboard
 ([ADR-0015](0015-publish-is-a-separate-job.md)). `publish.py` walks
-`(branch, platform, results_dir)` tuples and the dashboard has a per-branch
+`(branch, lane, results_dir)` tuples and the dashboard has a per-branch
 index -- the branch level is part of the contract.
 
-The defect this fixes: `run.py` wrote `run/branch/platform` only when
-`--branch` was passed, and `run/platform` otherwise -- and git branch was never
+The defect this fixes: `run.py` wrote `run/branch/lane` only when
+`--branch` was passed, and `run/lane` otherwise -- and git branch was never
 auto-detected. So a run without `--branch` produced `CADabra-1424/windows-cpu/`,
 which `publish`, the dashboard, and the external `cds show` tool all reject
 with "No branch folders found -- expected
-`{run}/{branch}/{platform}/results.json`". A shape with a level that can
+`{run}/{branch}/{lane}/results.json`". A shape with a level that can
 silently vanish is not a shape. The branch the run tested is already
 knowable -- one `git rev-parse --abbrev-ref HEAD` on the node dir -- so the
 level can always be filled without a required flag.
@@ -46,7 +46,7 @@ level can always be filled without a required flag.
   *override* of the detected default, not the toggle for the level's existence.
   For a local-dir run `--branch` is only a label -- it does not check out or
   fetch that branch, so the honest default is the branch actually checked out.
-- `publish`, the dashboard, and `cds show` can assume `{run}/{branch}/{platform}`
+- `publish`, the dashboard, and `cds show` can assume `{run}/{branch}/{lane}`
   unconditionally.
 - The run-id stamp is `{node}-{YYYYMMDD-HHMM}` -- a date plus hour:minute, **no
   seconds** (by request: readable, not a wall of digits). The date kills the

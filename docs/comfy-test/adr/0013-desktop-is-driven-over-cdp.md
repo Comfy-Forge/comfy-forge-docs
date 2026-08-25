@@ -6,10 +6,10 @@ packs.
 
 ## Decision
 
-> **The ComfyUI Desktop platform is tested as the Electron application it
+> **The ComfyUI Desktop lane is tested as the Electron application it
 > is:** download the real installer, launch the app, attach over the Chrome
 > DevTools Protocol, and drive the first-run wizard, installation and
-> workflow execution from inside it (`platforms/desktop/cdp_driver.py`).
+> workflow execution from inside it (`lanes/desktop/cdp_driver.py`).
 > **The pack is installed by git clone + pip + `install.py`, executed inside
 > the app's own environment -- not through ComfyUI-Manager.**
 
@@ -42,7 +42,7 @@ way.
   cannot import ComfyUI from outside the bundled app. (The dead steps were
   removed from both desktop lanes in 2026-08 because "disabled while we
   iterate" wrongly implied pending work.)
-- **Treating Desktop as another venv platform.** Would test a configuration
+- **Treating Desktop as another venv lane.** Would test a configuration
   no Desktop user has, and skip the wizard, the bundled interpreter and the
   app's own install path -- i.e. everything specific to Desktop.
 - **Skipping Desktop.** It is a first-class distribution channel; packs

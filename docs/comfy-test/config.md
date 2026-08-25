@@ -1,55 +1,118 @@
 # `comfy-test.toml` reference
 
-The config file lives at the root of your node pack. **Unknown keys are a
-hard error** -- the run aborts before building anything
-([ADR-0006](adr/0006-config-is-a-hard-fail-allowlist.md)), because a
-silently-ignored key once produced a plausible green result for a run that
-tested the wrong thing.
+The config file lives at the root of your node pack (custom_nodes/ComfyUI-MyPack/comfy-test.toml)
+
+**Unknown keys are a hard error**.
 
 ## Minimal file
 
 ```toml
 [test]
-name = "ComfyUI-YourPack"
 levels = ["syntax", "install", "registration", "execution"]
 
-[test.platforms]
-platforms = ["linux-cpu", "windows-cpu"]
+[test.lanes]
+lanes = ["linux-cpu", "windows-cpu"]
 
 [test.workflows]
-workflows = ["all"]
+cpu = "all"
 ```
 
 ## `[test]`
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `name` | string | **required** | Your pack's directory name (as installed under `custom_nodes/`). |
 | `levels` | list | see below | Which levels to run; a set, not a sequence ([levels](levels.md)). |
-| `comfyui_version` | string | `"latest"` | ComfyUI ref to test against. `latest` clones HEAD -- the resolved version and commit are recorded in results. |
-| `python_version` | string | *random* | Drawn from 3.10-3.13 per run unless set ([ADR-0005](adr/0005-pinned-torch-random-python.md)). |
-| `torch_version` | string | `"2.10.0"` | Key into the pinned torch triple table, or `"latest"` to opt out of pinning. |
-| `extra_pip_indices` | list | `[]` | Additional pip index URLs (e.g. a CUDA wheel index). |
-| `timeout` | int | `600` | Per-level timeout, seconds. |
+| `comfyui_version` | string | `"latest"` | ComfyUI ref to test against. **Tag or branch only** -- the clone is `--depth 1 --branch`, so a commit SHA will not work. `latest` clones HEAD; the resolved version and commit are recorded in results. |
+| `python_version` | string *or* list | `"3.13"` | A single version pins it; **a list draws one at random per run**. `COMFY_TEST_PYTHON_VERSION` overrides both. Supported: 3.10, 3.11, 3.12, 3.13 -- anything else is a hard error ([ADR-0005](adr/0005-pinned-torch-random-python.md)). |
+| `extra_pip_indices` | list | `[]` | Extra pip indexes for the **whole test venv**, added as `--extra-index-url` alongside the PyTorch index and pypi.org. For private mirrors and Artifactory proxies -- see [below](#where-to-declare-a-package-index). |
 | `res` | int | `1080` | Capture resolution (viewport height) for screenshots and video. |
-| `custom` | string | none | Import path of a `run(ctx)` hook for the `custom` level. |
+| `custom` | string | none | Path to a `run(ctx)` hook, **relative to your pack**, for the [`custom`](levels/custom.md) level. Setting it enables that level automatically. |
 
 Default `levels`: `syntax`, `install`, `registration`, `instantiation`,
 `static_capture`, `validation`, `execution`. The opt-in levels --
-`coverage`, `javascript`, `custom` -- must be listed explicitly.
+`coverage`, `warnings`, `hazards`, `javascript`, `execution_light` and
+`custom` -- must be listed explicitly (except `custom`, above).
 
-## `[test.platforms]`
+### Where to declare a package index
+
+Three files can point pip at an index, and they cover **different
+environments**. Picking the wrong one produces a test that passes while real
+installs fail.
+
+| Declare it in | Applies to | Reaches your users? |
+|---|---|---|
+| `requirements.txt` (`--extra-index-url` line) | ComfyUI's main venv | **yes** -- Manager installs this file on a real install |
+| `comfy-env.toml` `[pypi-options] extra-index-urls` | comfy-env's isolated pixi envs | yes, on a real install |
+| `comfy-test.toml` `extra_pip_indices` | the test venv only | **no** |
+
+**Your pack's own dependencies belong in `requirements.txt`.** A
+`--extra-index-url` line there is honoured by uv and by every real user
+installing through ComfyUI-Manager. Putting that index only in
+`comfy-test.toml` means comfy-test resolves the dependency and your users
+cannot -- a green run that proves the opposite of what it looks like.
+
+`extra_pip_indices` exists for the installs that **cannot read a
+`requirements.txt`**, and it is the only lever for them:
+
+- the **pinned torch triple**, installed before any requirements file exists
+- **ComfyUI's own `requirements.txt`**, which is not yours to edit
+- **peer packs** pulled in via comfy-env's `[node_packs]`, which are other
+  repositories' files
+
+That is why it is described as infrastructure: a mirror for the whole
+environment, not a place to declare where your package comes from.
+
+!!! note "macOS resolves pack requirements differently"
+    The macOS lane overrides the index-routed install path with plain uv, so
+    extra indexes may not reach your pack's own requirements there. Verify on
+    that lane before depending on it.
+
+### Choosing interpreters
 
 ```toml
-[test.platforms]
-platforms = ["linux-cpu", "windows-cuda", "macos-desktop"]
+[test]
+python_version = "3.12"                    # pin one
+python_version = ["3.10", "3.13"]          # draw one at random per run
 ```
 
-An allowlist of ids from the [platform table](lanes.md); unknown tokens are
-an error, and there are no per-platform booleans
-([ADR-0008](adr/0008-platforms-are-opt-in.md)).
+The default is a **fixed 3.13**, not a draw. An unpinned random interpreter
+meant a re-run could go green with no fix -- the single most confusing
+behaviour the tool had. Widening is now a deliberate act: give a list and you
+opt into the variance, and `provenance.python_version` records which one ran.
 
-Per-platform overrides use the platform's config key:
+A list is the right choice for a nightly or dispatch lane, where sampling the
+matrix over many runs is the point. Pin a single version for pre-merge CI,
+where a reproducible red is worth more than coverage.
+
+!!! note "There is no `name` key"
+    Your pack is always identified by its **directory name** as installed
+    under `custom_nodes/` -- `config_file.py` sets it from the directory
+    unconditionally and never reads a `name` from the TOML.
+
+    This is deliberate: ComfyUI itself identifies a pack by that directory, so
+    a config-supplied name could only ever disagree with reality. Older
+    examples showed `name = "..."`; it does nothing, and can be deleted.
+
+!!! warning "`torch_version` is not read"
+    Despite appearing in older versions of this table, `[test] torch_version`
+    is **not parsed** -- the value used is always the built-in default unless
+    overridden by `--torch-version` or `COMFY_TEST_TORCH_VERSION`. Read
+    `provenance.torch_version` in `results.json` for what actually ran.
+    Similarly `[test] timeout` is not read; per-workflow timeout is
+    `[test.workflows] timeout`.
+
+## `[test.lanes]`
+
+```toml
+[test.lanes]
+lanes = ["linux-cpu", "windows-cuda", "macos-desktop"]
+```
+
+An allowlist of ids from the [lane table](lanes.md); unknown tokens are
+an error, and there are no per-lane booleans
+([ADR-0008](adr/0008-lanes-are-opt-in.md)).
+
+Per-lane overrides use the lane's config key:
 
 ```toml
 [test.windows_portable]
@@ -59,7 +122,7 @@ skip_workflow = true
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `enabled` | bool | `true` | Off switch for a listed platform. |
+| `enabled` | bool | `true` | Off switch for a listed lane. |
 | `skip_workflow` | bool | `false` | Run the pipeline but not the workflows. |
 | `comfyui_portable_version` | string | none | Pin the portable bundle (portable kinds only). |
 
@@ -67,25 +130,68 @@ skip_workflow = true
 
 ```toml
 [test.workflows]
-workflows = ["all"]          # or explicit names, or "!exclude_this"
-cpu = ["light_workflow"]     # backend-specific subsets
-cuda = ["all"]
+cpu = { exclude = ["heavy"] }   # selection is always per accelerator
+cuda = "all"
 timeout = 3600
 ```
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `workflows` | list | `[]` | Which workflows to run. `"all"` selects everything in `workflows/`; a `"!name"` entry excludes. |
-| `cpu` / `cuda` / `rocm` | list | `[]` | Backend-specific selection; overrides `workflows` on that backend. |
+| `cpu` / `cuda` / `rocm` | `"all"`, list, or `{ exclude = [...] }` | `[]` | Which workflows run on that accelerator. |
 | `timeout` | int | `3600` | Per-workflow timeout, seconds. |
 
-An empty list means *nothing runs* -- it is not a synonym for "all". The
-`gpu` key does not exist and is specifically diagnosed in the error message,
-because it is the typo that caused the incident behind
-[ADR-0006](adr/0006-config-is-a-hard-fail-allowlist.md).
+!!! warning "There is no `workflows` key"
+    Selection is **always** per accelerator. Workflows themselves are
+    auto-discovered from the folders ComfyUI recognises -- there is no key that
+    lists them. A `workflows = [...]` entry is an unknown key and aborts the
+    run before anything is built.
 
-**Deprecated** (`run`, `screenshot`, `files`, `file`): migrated silently for
-now, will become unknown keys -- do not use them in new configs.
+    The `gpu` key does not exist either, and is specifically diagnosed in the
+    error message: it is the typo behind
+    [ADR-0006](adr/0006-config-is-a-hard-fail-allowlist.md).
+
+### Selecting workflows
+
+Three forms, per accelerator:
+
+```toml
+[test.workflows]
+cuda = "all"                              # everything discovered
+cpu  = ["basic", "upscale"]               # exactly these two
+cpu  = { exclude = ["heavy_sdxl"] }       # everything except these
+```
+
+The `.json` suffix is optional -- `"basic"` and `"basic.json"` are the same
+thing.
+
+The usual shape is a CUDA lane running the lot and a CPU lane skipping what
+needs a GPU:
+
+```toml
+[test.workflows]
+cuda = "all"
+cpu  = { exclude = ["flux_full", "video_interpolation", "sdxl_refiner"] }
+timeout = 3600
+```
+
+!!! warning "`!name` was removed -- there is one way to exclude"
+    The older per-item spelling is now a hard error:
+
+    ```toml
+    cpu = ["basic", "!heavy"]   # rejected
+    ```
+
+    It looked like "run basic, skip heavy" and never meant that: a single `!`
+    entry switched the whole list to *everything except*, the include was
+    dropped on the floor, and you got **every** workflow on a CPU lane.
+
+    A table cannot express that mistake -- a selection names either what to run
+    or what to skip, never both. The error prints the replacement for you.
+
+An **empty list means nothing runs** on that accelerator -- it is not a synonym
+for `"all"`. But omitting *both* `cpu` and `cuda` is different again: with
+neither configured the skip filter is disabled entirely and **every discovered
+workflow runs**.
 
 ## `[test.coverage]`
 
@@ -97,15 +203,13 @@ inputs = { GeomPackLoadMesh = { file_path = "3d/cube.glb" } }
 Declares inputs so the `coverage` level can account for nodes that need
 values to be exercised.
 
-## `[test.javascript]`
+!!! note "There is no `[test.javascript]` section"
+    The [`javascript`](levels/javascript.md) level takes no configuration. Your
+    pack gets **one** namespace, derived from its published identity in
+    `pyproject.toml` -- `[tool.comfy] DisplayName` if present, otherwise
+    `[project] name` with any `comfyui-` prefix stripped. Nothing is declared in
+    `comfy-test.toml`.
 
-```toml
-[test.javascript]
-namespaces = ["geometrypack"]
-```
-
-Extra allowed namespace prefixes for the isolation lint. Normally
-unnecessary: the required namespace is derived from your pack's
-`[tool.comfy] DisplayName`, lowercased. Declare only if your pack
-legitimately ships more than one
-([ADR-0014](adr/0014-javascript-isolation-is-static.md)).
+    A pack that ships several namespaces (usually vendored JS that kept its old
+    prefix) must rename that JS. There is no longer an escape hatch for it
+    ([ADR-0014](adr/0014-javascript-isolation-is-static.md)).

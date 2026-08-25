@@ -16,16 +16,17 @@ own determinism is worse than one that has none.
 
 ## What floats
 
-- **The Python interpreter is drawn at random per run** from 3.10-3.13.
-  A re-run may pick a different one and go green without a fix. This is the
-  single most confusing behaviour in the tool. Check
-  `provenance.python_version` before concluding anything.
+- **The Python interpreter is 3.13 by default**, and only varies if you
+  ask it to: `[test] python_version` accepts a list, and a list draws one at
+  random per run. When you do widen it, a re-run may pick a different
+  interpreter and go green without a fix -- check `provenance.python_version`
+  before concluding anything.
 - **ComfyUI is a shallow clone of HEAD** by default (`comfyui_version =
   "latest"`). The version string only moves on releases, so
   `provenance.comfyui_commit` -- the SHA -- is the field that identifies
   what ran.
 - **Hosted lane caches are effectively immortal.** The key is only
-  (platform, Python version), so ComfyUI and torch stay frozen at whatever
+  (lane, Python version), so ComfyUI and torch stay frozen at whatever
   HEAD first populated it until GitHub evicts. Two runs a month apart on the
   same attach lane may test very different ComfyUI code with identical
   metadata.
@@ -67,7 +68,7 @@ Desktop app brings its own).
 2. Recreate locally with the same interpreter and ComfyUI ref:
 
     ```bash
-    comfy-test run --platform linux-cpu --level execution
+    comfy-test run --lane linux-cpu --level execution
     ```
 
     with `python_version` and `comfyui_version` pinned in your

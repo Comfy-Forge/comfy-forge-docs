@@ -4,11 +4,11 @@
 
 ## Decision
 
-> **An unrecognised key or platform token in `comfy-test.toml` aborts the
+> **An unrecognised key or lane token in `comfy-test.toml` aborts the
 > run with a named error.** Not a warning, not a silent default -- the run
 > does not start.
 
-Enforced in `common/config_file.py`: unknown platform tokens
+Enforced in `common/config_file.py`: unknown lane tokens
 (`load_config`), unknown keys under `[test.workflows]`, and unknown keys
 under the sub-tables, which are dataclasses that reject surplus fields.
 
@@ -56,4 +56,4 @@ test harness it manufactures false confidence.
   closes they become unknown keys and inherit the hard failure.
 - Config that parses is not config that is *correct* -- an allowlist cannot
   catch a valid key with a wrong value. See
-  [ADR-0008](0008-platforms-are-opt-in.md) for the platform half.
+  [ADR-0008](0008-lanes-are-opt-in.md) for the lane half.

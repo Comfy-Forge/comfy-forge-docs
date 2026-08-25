@@ -4,7 +4,7 @@
 
 ## Decision
 
-> **Test jobs only upload a `results-<platform>` artifact. A separate job
+> **Test jobs only upload a `results-<lane>` artifact. A separate job
 > collects the artifacts and pushes a static dashboard to the consuming
 > repository's own gh-pages.** comfy-test hosts nothing.
 
@@ -35,8 +35,8 @@ permissions.
 - **A hosted comfy-test dashboard service.** Requires running a service,
   storing other people's results, and answering for uptime and access
   control. Rejected as a scope explosion for a CI tool.
-- **Artifacts only, no dashboard.** Honest and unusable: a multi-platform
-  matrix produces a dozen zip files with no cross-platform view, which is
+- **Artifacts only, no dashboard.** Honest and unusable: a multi-lane
+  matrix produces a dozen zip files with no cross-lane view, which is
   the entire point of running a matrix.
 
 ## Consequences

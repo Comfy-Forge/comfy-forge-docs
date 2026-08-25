@@ -1,25 +1,36 @@
 # comfy-test
 
 [comfy-test](https://github.com/PozzettiAndrea/comfy-test) is **installation
-testing infrastructure for ComfyUI custom nodes**. It does three things, the
-way a real user would:
+and execution testing infrastructure for ComfyUI custom node packs**.
 
-1. **Installs the node pack** in one of three ways, depending on the lane:
-     - **git-cloned ComfyUI** -- a fresh venv with a real server (`main.py`),
-     - the **portable bundle** -- the official embedded-Python Windows build, or
-     - the **Desktop app** -- the Electron app, driven over CDP.
-2. **Drives real workflows against it** -- queues your workflow JSON on the
+It does four things, the way a real user would:
+
+1. **Installs the node pack on every OS ComfyUI runs on**: Windows, Linux, macOS.
+
+2. **Across every officially supported ComfyUI installation type:**
+
+    - **git-cloned ComfyUI** (all three) -- a fresh venv with a real server (`main.py`)
+    - the **portable bundle** (Windows only) -- the official embedded-Python build
+    - the **Desktop app** (Windows and macOS) -- the Electron app, driven over CDP
+
+3. **Drives real workflows against it** -- queues actual workflow JSONs on the
    running server and checks it actually executes.
-3. **Produces a results gallery** -- an HTML report with a per-platform video
+
+4. **Produces a results gallery** -- an HTML report with a per-lane video
    of each workflow running, plus memory and performance logs (RAM, VRAM, CPU,
-   CUDA) -- so you see it working, not just a green check.
+   CUDA).
+
+In this way, `example_workflows/` or `workflows/` folders become both
+documentation and testing.
+
+![The results gallery for GeometryPack: per-lane tabs, each workflow card
+carrying a video of the run plus RAM and VRAM logs](img/test_gallery_example_geometrypack.png)
 
 ## Intended uses
 
-The package has been created to help ComfyUI node creators, who can point it at
-their node in **four different ways**. The accelerator (CPU / CUDA / ...) is
-orthogonal; what actually separates the four is **who drives the run, where the
-results land, and who they're for**:
+The package has been created to help ComfyUI node pack creators test their nodes on different hardware/operating systems/installation types.
+
+comfy-test can be pointed at a custom nodepack in **four different ways**.
 
 | Intent | Who it's for | Who drives | Results land |
 |---|---|---|---|
@@ -28,16 +39,19 @@ results land, and who they're for**:
 | **Central dispatcher ([comfy-ci](https://github.com/PozzettiAndrea/comfy-ci))** | a developer with **several nodes** who has local GitHub runners and doesn't want to open a GitHub org (GitHub won't let you register the same GPU machine to multiple repos) | automated GitHub Actions on a central repo with write access to the node repos | pushed back to **each node's own repo** |
 | **Registry gate (comfy-forge)** | the **comfy-forge** registry | the registry, on ingest | kept by the registry as a **verdict / badge** |
 
-- The **first two** are the same single-node developer -- offline vs in CI.
-- The **third** is that developer once they have more than one node and want a
-  shared GPU fleet in one place.
-- The **fourth** is a different thing entirely: the registry gating what it
-  accepts.
+Each is expanded, along with what you need to add to your pack, in
+[Using comfy-test](using.md). For the anatomy of a single run --
+what gets built, what lands on disk, and which checks run -- see
+[What a run does](what-a-run-does.md).
 
-## Platform capability matrix
+## Accelerators
 
-comfy-test aims to cover all the OSes ComfyUI users run, each of which has
-different ways to install ComfyUI:
+comfy-test aims to cover all the OSes ComfyUI users run, for all installation types and for all avaialble accelerators!
+
+This means that we want to allow node creators to test their nodes on and across CUDA/ROCm/MPS/XPU accelerators eventually.
+Currently we support only CUDA because the maintainer only has CUDA GPUs.
+
+Therefore the following lanes are available as of 0.5.0:
 
 | Install method | Linux | macOS | Windows |
 |---|---|---|---|
@@ -45,101 +59,20 @@ different ways to install ComfyUI:
 | **Portable** (embedded Python bundle) | X | X | CPU · CUDA |
 | **Desktop** (Electron app) | X | CPU | CPU · CUDA |
 
-Ten lanes in all. **X** marks a combination that isn't a real way to run
-ComfyUI: no Linux Portable or Desktop, and no macOS CUDA (Apple Silicon has
-none -- the server lane uses MPS instead). Accelerators are named concretely:
-**CPU** and **CUDA** today, with **ROCm** and other accelerators reserved in
-the registry for when runners are wired. See
-[Platforms and lanes](lanes.md) for the full per-lane breakdown.
+Ten lanes in all.
+See [Lanes](lanes.md) for the full per-lane breakdown.
 
-## Using comfy-test
+## Commands besides `comfy-test run`
 
-The **only** file you need to adopt comfy-test is **`comfy-test.toml`** -- the
-config (which platforms and levels to test). With just that, `comfy-test run`
-works. Everything else is optional and depends on how you use it:
+Besides the basic "comfy-test run" command, there's a few more commands like "publish" or "lint".
+You can find the full reference here: [commands reference](commands.md).
 
-- **`comfy-test.toml`** *(required)* -- the config.
-- `workflows/test.json` *(optional -- only to test execution)* -- a minimal
-  ComfyUI workflow using your nodes, exported from ComfyUI. Skip it if you only
-  test install / registration.
-- `.github/workflows/test-install.yml` *(optional -- only for the CI paths)* --
-  a one-line `uses:
-  PozzettiAndrea/comfy-test/.github/workflows/test-matrix.yml@main` that wires
-  the run into GitHub Actions. Not needed to run locally.
+## The lane matrix
 
-## What a run does
+The single source of truth is `lanes/registry.py`: a lane is an
+**(os x accelerator x install method)** target.
 
-`comfy-test run <owner/repo>` (a GitHub link) on a Linux **server** lane does
-what a real user does, from scratch -- build a clean environment, install a real
-ComfyUI and your node into it, boot the real server, drive your workflows
-against it, and report:
-
-```mermaid
-flowchart TD
-    subgraph setup["Install"]
-        venv["uv venv<br/>(random Python 3.10-3.13)"]
-        torch["pinned torch/vision/audio<br/>(cpu index or CUDA backend index)"]
-        comfy["git clone ComfyUI<br/>+ requirements"]
-        node["copy node into custom_nodes/<br/>requirements.txt + install.py"]
-        venv --> torch --> comfy --> node
-    end
-    subgraph drive["Drive"]
-        server["launch ComfyUI server"]
-        rest["REST + WebSocket<br/>(object_info, prompt, progress)"]
-        server --> rest
-    end
-    subgraph out["Report"]
-        results["results.json + logs +<br/>screenshots + videos"]
-        publish["comfy-test publish<br/>-> gh-pages dashboard"]
-        results --> publish
-    end
-    node --> server
-    rest --> results
-```
-
-Tests are **levels**, each depending on the previous. The default set is
-1, 3-4, 6-8, 10; levels 2, 5 and 11 are opt-in. Full detail, including
-what each level can and cannot catch, is in
-[Test levels](levels.md).
-
-| # | Level | What it checks |
-|---|-------|----------------|
-| 1 | `syntax` | Project structure, CP1252 compatibility, forbidden patterns (static) |
-| 2 | `coverage` (opt-in) | Every registered node is used by at least one bundled workflow (static) |
-| 3 | `install` | The full uv-venv + ComfyUI + node install above |
-| 4 | `registration` | Server starts; no import errors; nodes appear in `/object_info` |
-| 5 | `javascript` (opt-in) | Frontend JS touches nothing it does not own ([ADR-0014](adr/0014-javascript-isolation-is-static.md)) |
-| 6 | `instantiation` | Each node's constructor runs |
-| 7 | `static_capture` | Workflows screenshot without executing |
-| 8 | `validation` | Three tiers: schema, graph, introspection |
-| 9 | `execution_light` | Full workflow execution, one screenshot each, no per-frame video |
-| 10 | `execution` | Full workflow execution + outputs + per-frame video |
-| 11 | `custom` (opt-in) | Node-supplied hook (`[test] custom = "tests/my_check.py"`) against the live server |
-
-Results land as `results.json` (per-workflow status, durations, RAM/VRAM
-peaks, hardware, a deep-link back to the GHA run, and a **provenance** block
-recording what actually produced the run) plus session/server logs,
-screenshots, and videos. `comfy-test publish` pushes them to the node repo's
-`gh-pages` as a **dashboard**: branch switcher -> platform tabs ->
-per-workflow cards with media and logs
-([ADR-0015](adr/0015-publish-is-a-separate-job.md)).
-
-!!! warning "A green cell does not always mean 'installs cleanly'"
-
-    Hosted CPU lanes **attach** to an environment the CI workflow prebuilt
-    and cached; on those lanes the `install` level is effectively a no-op.
-    CUDA lanes, local runs and Desktop lanes build fresh. Each run records
-    which path it took in `provenance.install_mode` -- see
-    [ADR-0003](adr/0003-two-install-paths-attach-and-fresh.md) and
-    [Reproducibility](reproducibility.md), which also covers the randomly
-    sampled Python version and the unpinned ComfyUI clone.
-
-## The platform matrix
-
-The single source of truth is `platforms/registry.py`: a platform is an
-**(os x backend x kind)** target.
-
-| id | kind | runs on |
+| id | install method | runs on |
 |----|------|---------|
 | linux-cpu, windows-cpu, macos-cpu | server | GitHub-hosted runners |
 | windows-portable-cpu | portable | GitHub-hosted |
@@ -190,7 +123,7 @@ thin:
 
 - `test-matrix.yml` -- reusable workflow consumer repos call; fans out the
   hosted CPU lanes on push/PR.
-- `dispatch-test.yml` -- one reusable workflow for *every* platform,
+- `dispatch-test.yml` -- one reusable workflow for *every* lane,
   including the self-hosted GPU lanes; test jobs just
   `pip install --upgrade comfy-test`, invoke `comfy-test run`, and upload
   the results artifact; a separate `publish` job pushes to gh-pages (so a

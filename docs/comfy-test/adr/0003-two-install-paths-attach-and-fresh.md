@@ -52,7 +52,7 @@ badge is making.
 - `results.json` carries `provenance.install_mode` (`attach` | `fresh` |
   `desktop`). Any dashboard, badge or rollup that treats all green cells as
   equivalent is overstating attach lanes.
-- The hosted cache key includes only platform and Python version, so ComfyUI
+- The hosted cache key includes only lane and Python version, so ComfyUI
   and the torch family stay frozen at whatever HEAD populated the key until
   GitHub evicts it. An attach lane therefore does **not** exercise the
   pinning described in [ADR-0005](0005-pinned-torch-random-python.md).
@@ -61,4 +61,4 @@ badge is making.
   it contained.
 - If you want a lane that genuinely proves installability, run a dispatch
   (fresh) lane. Documented in
-  [Platforms and lanes](../lanes.md).
+  [Lanes](../lanes.md).

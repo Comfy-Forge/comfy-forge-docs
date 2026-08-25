@@ -44,8 +44,14 @@ shared realm. The rule rewards the real fix.
   a fact about the shared realm".
 - **Config-declared namespaces as the primary source.** Makes the check
   opt-in and lets a pack declare itself compliant. Deriving from
-  `DisplayName` means the pack's published identity *is* the namespace;
-  declared namespaces remain as an escape hatch for multi-namespace packs.
+  `DisplayName` means the pack's published identity *is* the namespace.
+  **Amended 2026-08:** the `[test.javascript] namespaces` escape hatch is
+  removed. Its only use was grandfathering packs that had absorbed other
+  packs and kept their JS prefixes -- which is exactly the collision this
+  ADR exists to prevent, so those packs must rename rather than declare.
+  With one namespace always derivable, a pack that declares **no**
+  identity is now a hard failure instead of a guessed prefix with the
+  naming rules downgraded to warnings.
 - **Runtime realm diffing** (load the page, snapshot `window`, install the
   pack, diff). Strictly more truthful and strictly more expensive; deferred,
   not rejected -- it is the only thing that can catch aliased writes.

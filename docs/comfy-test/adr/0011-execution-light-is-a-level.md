@@ -36,7 +36,7 @@ visible in `provenance.levels` and in the lane definition.
 - **Retry the capture.** Does not address the cause (the runner cannot
   sustain the loop) and doubles the slowest stage.
 - **Drop video capture entirely** and always take one screenshot. Cheaper,
-  but loses the per-frame record on the platforms that *can* afford it --
+  but loses the per-frame record on the lanes that *can* afford it --
   and that record is what catches progressive rendering bugs.
 - **A `capture = "light" | "full"` option inside EXECUTION.** Equivalent in
   power, worse in reporting: the level list is what the dashboard and

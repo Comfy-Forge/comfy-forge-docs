@@ -1,11 +1,18 @@
-# Platforms and lanes
+# Lanes
 
-A **platform** is an (os x backend x kind) target. A **lane** is one CI job
-running one platform. The taxonomy lives in `platforms/registry.py` and
-everything else derives from it
-([ADR-0007](adr/0007-platform-registry-is-the-source-of-truth.md)).
+A **lane** is one combination of **operating system x accelerator x ComfyUI
+install method** -- `linux-cuda`, `windows-portable-cpu`, `macos-desktop`. Ten
+of them. One CI job runs one lane.
 
-## The platforms
+The taxonomy lives in `lanes/registry.py` and everything else derives from it
+([ADR-0007](adr/0007-lane-registry-is-the-source-of-truth.md)).
+
+!!! note "Why not `platform`"
+    `platform` is reserved for what `sys.platform` and wheel tags
+    (`win_amd64`, `manylinux_2_35_x86_64`) mean -- which is only *one
+    component* of a lane id.
+
+## The lanes
 
 | id | OS | Backend | Kind | Runner | Install path |
 |----|----|---------|------|--------|--------------|
@@ -21,11 +28,11 @@ everything else derives from it
 | `windows-desktop-cuda` | windows | cuda | desktop | self-hosted (VM) | desktop |
 
 Select them explicitly -- listing is opt-in and an unknown token is a hard
-error ([ADR-0008](adr/0008-platforms-are-opt-in.md)):
+error ([ADR-0008](adr/0008-lanes-are-opt-in.md)):
 
 ```toml
-[test.platforms]
-platforms = ["linux-cpu", "windows-cuda", "macos-desktop"]
+[test.lanes]
+lanes = ["linux-cpu", "windows-cuda", "macos-desktop"]
 ```
 
 ## Kinds
@@ -60,7 +67,7 @@ The mode is recorded per run in `results.json` as
 
 Two consequences worth internalising:
 
-1. The hosted cache key is only (platform, Python version). ComfyUI and the
+1. The hosted cache key is only (lane, Python version). ComfyUI and the
    torch family stay frozen at whatever HEAD first populated it, until
    GitHub evicts. Attach lanes therefore do **not** exercise the torch pin
    from [ADR-0005](adr/0005-pinned-torch-random-python.md).
