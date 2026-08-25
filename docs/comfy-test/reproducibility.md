@@ -68,11 +68,18 @@ Desktop app brings its own).
 2. Recreate locally with the same interpreter and ComfyUI ref:
 
     ```bash
-    comfy-test run --lane linux-cpu --level execution
+    comfy-test run
     ```
 
     with `python_version` and `comfyui_version` pinned in your
     `comfy-test.toml` to the recorded values.
+
+    There is no `--lane` flag, and `COMFY_TEST_LANE` will not stand in for one
+    -- it validates against config keys (`linux`, `macos`, `windows`,
+    `windows_portable`), not lane ids, and CI sets it to match the host. **The
+    lane follows the machine you run on**: a Linux box reproduces `linux-cpu`,
+    and `linux-cuda` needs a CUDA host (or `comfy-test docker run`). See
+    [Commands](commands.md).
 3. Note that a local run is always **fresh**, so a failure that only
    reproduces on an attach lane is a property of that lane's cache, not of
    your pack.
