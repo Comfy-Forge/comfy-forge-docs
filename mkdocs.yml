@@ -56,7 +56,10 @@ nav:
   - Roadmap: roadmap.md
   - comfy-env:
       - Architecture: comfy-env/index.md
-      - ComfyUI background: comfy-env/comfyui-background.md
+      - Upstream ComfyUI:
+          - ComfyUI background: comfy-env/comfyui-background.md
+          - How ComfyUI manages memory: comfy-env/comfyui-memory.md
+          - Import-time side effects in the wild: comfy-env/import-side-effects.md
       - Nodepack Author Reference:
           - The three calls:
               - "install()": comfy-env/install.md
@@ -68,9 +71,7 @@ nav:
           - System footprint: comfy-env/system-footprint.md
           - Custom wire types: comfy-env/serializers.md
       - Internals:
-          - Import-time side effects in the wild: comfy-env/import-side-effects.md
           - The two-system problem: comfy-env/two-system-problem.md
-          - How ComfyUI manages memory: comfy-env/comfyui-memory.md
           - Sharing one GPU: comfy-env/sharing-one-gpu.md
           - The process boundary: comfy-env/process-boundary.md
           - Zero-copy CUDA transfer: comfy-env/zero-copy-ipc.md
