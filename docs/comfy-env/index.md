@@ -13,19 +13,15 @@ management and automatic CUDA wheel resolution for ComfyUI custom nodes
     That is the whole point: **node packs should behave like real software**
     ([the aim](../aims.md)).
 
-Several things stand between a node pack and that promise. comfy-env removes
-two of them outright:
+[Several things](../aims.md#what-stands-between-the-current-system-and-that-promise) stand between the current status of ComfyUI and that promise.
+
+comfy-env addresses two of them:
 
 1. **Environment isolation**: Vanilla ComfyUI loads every pack into one shared environment, so two packs that need
    incompatible versions of the same library cannot coexist. When one installs a custom node, they never know if they are about to damage the existing setup.
 2. **CUDA / prebuilt wheels / conda packages**: dependencies pip alone
    cannot deliver (compiled CUDA extensions, conda-only native libraries),
    can take a long time and manual work to find or compile for the user's exact machine and operating system.
-
-comfy-env removes those two, and no more. Frontend JavaScript, whatever a
-pack's `__init__.py` does on the way in, model weights, and cross-pack name
-collisions are all out of its reach --
-[what stands between the current system and that promise](../aims.md#what-stands-between-the-current-system-and-that-promise).
 
 ## ComfyUI background
 
@@ -42,11 +38,12 @@ The rest of this page assumes that the user is already familiar with this crucia
 
 One shared environment for every pack breaks in predictable ways:
 
-- **Conflicting Python deps** -- node A pins `numpy<2` (it has an
-  extension compiled against the numpy 1.x ABI), node B needs `numpy>=2`;
-  pip installs into one shared env, so whichever lands last wins and the
-  other crashes on import.
-- **Conflicting native libraries** -- the classic is the **duplicate
+- **Conflicting Python deps**: pip installs into one shared env, so
+  whichever lands last wins and the other crashes on import.
+    - Node A pins `numpy<2` -- it has an extension compiled against the
+      numpy 1.x ABI.
+    - Node B needs `numpy>=2`.
+- **Conflicting native libraries**: the classic is the **duplicate
   OpenMP runtime**: torch bundles one (`libiomp5`), another package
   bundles another (`libomp`/`libgomp`), and loading both into one process
   aborts with `OMP: Error #15` or silently corrupts numerics. (comfy-env
