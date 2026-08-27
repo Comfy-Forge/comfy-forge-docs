@@ -5,16 +5,16 @@ management and automatic CUDA wheel resolution for ComfyUI custom nodes
 ([~13,000 lines of Python](code-breakdown.md) under `src/comfy_env/`).
 
 !!! abstract "The promise"
-    *You click the install button for a node pack in ComfyUI Manager, and it just runs.*
+    *You click the install button for a node pack in ComfyUI Manager, and it just runs, without breaking any other pre existing node pack.*
 
     No build tools. No CUDA toolkit. No hunting for the one torch version that
-    satisfies everything. **No PhD in dependency management**.
+    satisfies everything. **No PhD in dependency management**. 100% certainty that installing a node pack from ComfyUI Manager won't destroy your existing setup.
 
     That is the whole point: **node packs should behave like real software**
     ([the aim](../aims.md)).
 
-Two things stand between a node pack and that promise -- three, if you count
-the one comfy-env cannot remove. It exists to remove the first two:
+Several things stand between a node pack and that promise. comfy-env removes
+two of them outright:
 
 1. **Environment isolation**: Vanilla ComfyUI loads every pack into one shared environment, so two packs that need
    incompatible versions of the same library cannot coexist. When one installs a custom node, they never know if they are about to damage the existing setup.
@@ -22,20 +22,29 @@ the one comfy-env cannot remove. It exists to remove the first two:
    cannot deliver (compiled CUDA extensions, conda-only native libraries),
    can take a long time and manual work to find or compile for the user's exact machine and operating system.
 
-!!! info "And the third problem, which comfy-env does not solve"
+!!! info "And two it does not remove"
 
     <small markdown>
-    *Isolation stops at the process boundary. A pack's **frontend JavaScript**
-    still runs in one shared browser origin -- one `window`, one `document`, one
-    extension-name namespace -- because ComfyUI serves every pack's scripts into
-    the same page and there is no per-pack boundary to isolate at. What ships
-    instead is containment rather than isolation: comfy-test's `javascript`
-    level lints for collisions, and iframe-only bundles stay out of the shared
-    realm by being named `.mjs`, which ComfyUI's `**/*.js` scan does not pick
-    up. The reasoning is
+    *__Frontend JavaScript.__ Isolation stops at the process boundary. A pack's
+    JS still runs in one shared browser origin -- one `window`, one `document`,
+    one extension-name namespace -- because ComfyUI serves every pack's scripts
+    into the same page and there is no per-pack boundary to isolate at. What
+    ships instead is containment rather than isolation: comfy-test's
+    `javascript` level lints for collisions, and iframe-only bundles stay out of
+    the shared realm by being named `.mjs`, which ComfyUI's `**/*.js` scan does
+    not pick up. The reasoning is
     [ADR-0031](adr/0031-frontend-javascript-isolation.md); what would have to
-    change upstream before real isolation is possible is
+    change upstream is
     [Frontend JavaScript isolation](../roadmap.md#frontend-javascript-isolation).*
+
+    *__Whatever a pack's `__init__.py` does on the way in.__ ComfyUI does not
+    sandbox that file, and neither can comfy-env: `register_nodes()` is called
+    **from** it, so the module still executes in ComfyUI's process and only the
+    node code moves to a worker. Anything the import does first still lands on
+    everybody -- 9% of the top-500 packs mutate `sys.path`, two `pip install`
+    into the shared env, one replaces `PromptServer.start`. Isolation makes
+    those side effects local for node code, not for the module that registers
+    it: [Import-time side effects in the wild](import-side-effects.md).*
     </small>
 
 ## ComfyUI background
