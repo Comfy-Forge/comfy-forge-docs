@@ -318,4 +318,4 @@ cubin and cannot be covered by its neighbours.
 4. Will `_ensure_ptx_on_highest_base` put a `+PTX` tail on an `a` token?
 5. After the build, read C7's `data` block — `expected` / `sass` / `ptx` /
    `source`. `source: none` means nothing was measured. See
-   [Checking my claims](checking-claims.md).
+   [Step 5 -- the gate](#step-5-the-gate-and-why-it-is-not-the-safety-net-you-think).

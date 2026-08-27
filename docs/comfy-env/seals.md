@@ -1,5 +1,7 @@
 # The three seals
 
+## Definitions
+
 Two words carry the whole page, so they are defined first. The **inputs**
 are the facts which an env config is computed *from*:
 

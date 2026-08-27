@@ -10,7 +10,7 @@ The **launch-time** entry point. ComfyUI core executes each pack's
 any node imports.
 
 Precisely: `main.py:225`, before ComfyUI imports torch, `folder_paths` or
-`comfy.model_management` -- which is why process-wide hygiene belongs here and
+`comfy.model_management`, which is why process-wide hygiene belongs here and
 nowhere else. [`register_nodes()`](register-nodes.md) runs much later, at
 custom-node import time; both finish before the server binds a port.
 

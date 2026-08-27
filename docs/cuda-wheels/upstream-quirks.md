@@ -157,7 +157,6 @@ package, only torch can answer it; the farm adds a floor via the `CL`
 environment variable (which prepends, so it cannot override a real choice)
 for the translation units that never pass through `cpp_extension`.
 
-See [Host compilers, toolkit bugs, and the patch policy](toolchain-and-patching.md).
 
 **CUDA 13.2's CCCL 3.x removed CUB's 4-argument in-place overloads.**
 `DeviceScan::ExclusiveSum(d_temp, bytes, d_data, num)` no longer exists;
