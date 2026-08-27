@@ -13,10 +13,10 @@ A node pack is a directory under `custom_nodes/` whose `__init__.py` exports
 `NODE_CLASS_MAPPINGS`.
 
 At install time, the standard installation flow (ComfyUI-Manager, nowadays
-bundled with Desktop ComfyUI):
+bundled with Desktop ComfyUI) is:
 
-- first pip-installs the pack's `requirements.txt`, if present
-- then runs its `install.py`, if present
+- `pip install -r requirements.txt`, if the `requirements.txt` file is present
+- `python install.py`, if `install.py` is present
 
 When we start ComfyUI there is also a per-pack pre-startup hook: ComfyUI itself executes each
 pack's `prestartup_script.py`, if present, before the server boots.
@@ -59,7 +59,19 @@ __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 ```
 
 Exactly what ComfyUI takes from the imported module (verified against
-core `nodes.py` `load_custom_node`):
+core `nodes.py` `load_custom_node`). It reads **four** named attributes and
+nothing else:
+
+| Attribute | Required | What it is |
+|---|---|---|
+| `NODE_CLASS_MAPPINGS` | one of these two | `id -> class` (`nodes.py:2293`) |
+| `comfy_entrypoint` | one of these two | V3 alternative, taken only if the dict is absent (`:2302`) |
+| `NODE_DISPLAY_NAME_MAPPINGS` | no | `id -> pretty name` (`:2298`) |
+| `WEB_DIRECTORY` | no | frontend JS directory (`:2286`) |
+
+Everything else the loader does is a side effect of the import, not a lookup.
+Nothing named `__all__` is consulted -- listing an attribute there changes
+nothing; leaving it out hides nothing.
 
 1. **The nodes** -- one of two ways:
     - **V1 (the common one):** the `NODE_CLASS_MAPPINGS` dict (`id -> class`,
@@ -104,6 +116,21 @@ core `nodes.py` `load_custom_node`):
     -- plus any monkeypatching or global setup the pack does at import
     time. ComfyUI reads no named attribute for any of this; it just runs
     the module, and the side effects happen.
+
+Two things go the other way -- ComfyUI writes to the pack rather than reading
+from it:
+
+- **`RELATIVE_PYTHON_MODULE` is set on every registered class**
+  (`nodes.py:2296`, and again on the V3 path at `:2324`). Core mutates your
+  classes on the way in; the frontend uses it to attribute a node to its pack.
+  Setting it yourself is pointless -- it is overwritten.
+- **The pack's directory is recorded** in `LOADED_MODULE_DIRS` (`:2265`),
+  keyed by module name. That table is `loadedModules`, and it is why a pack
+  that fails to import can still be *listed* under workflow templates yet 404
+  when opened (see below).
+
+There is also an `ignore` set parameter (`:2294`): a caller can name node ids
+to skip. Core passes it when loading its own nodes, not for custom packs.
 
 Plus two things that are *not* part of the `__init__.py` import at all,
 covered in the lifecycle table below: `prestartup_script.py` (run **before**
