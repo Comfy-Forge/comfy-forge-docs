@@ -22,7 +22,7 @@ two of them outright:
    cannot deliver (compiled CUDA extensions, conda-only native libraries),
    can take a long time and manual work to find or compile for the user's exact machine and operating system.
 
-!!! info "And two it does not remove"
+!!! info "And the ones it does not remove"
 
     <small markdown>
     *__Frontend JavaScript.__ Isolation stops at the process boundary. A pack's
@@ -45,6 +45,20 @@ two of them outright:
     into the shared env, one replaces `PromptServer.start`. Isolation makes
     those side effects local for node code, not for the module that registers
     it: [Import-time side effects in the wild](import-side-effects.md).*
+
+    *__Model weights.__ A pack only runs once its checkpoints are on disk, and
+    nothing installs them. `pyproject.toml` even has a `Models` field carrying
+    `location` and `model_url` -- but `load_custom_node` never reads it. That
+    field is Registry metadata for comfy.org, not an instruction to the running
+    server, and comfy-env does not fetch weights either. Between "the install
+    succeeded" and "the workflow runs", this is usually what is missing.*
+
+    *__Name collisions between packs.__ Node ids and socket type names are open,
+    string-keyed global registries. Two packs that both pick `MESH`, or both
+    claim the same node id, are the same thing as far as ComfyUI is concerned,
+    and the winner is whichever loaded last. comfy-env cannot fix this -- its
+    proxies register into that same dict -- though comfy-test's
+    [registration level](../comfy-test/levels/registration.md) detects it.*
     </small>
 
 ## ComfyUI background
