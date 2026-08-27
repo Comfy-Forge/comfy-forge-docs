@@ -68,8 +68,8 @@ Installing a comfy-env pack currently means trusting:
    rollout checklist with a date.
 4. **The pickle rung** stays as-is until the sandbox milestone
    ([ADR-0011](0011-isolation-before-sandboxing.md)), per the
-   instrument-then-flip ruling: rung-5 hits get counted (doctor
-   surfaces them), and opt-in-per-pack pickle is a precondition
+   instrument-then-flip ruling: rung-5 hits get counted (the
+   `SERIALIZE` debug category logs them), and opt-in-per-pack pickle is a precondition
    written into the sandbox work, because a sandboxed worker that can
    still hand the parent a pickle owns the parent.
 

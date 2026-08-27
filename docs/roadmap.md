@@ -223,7 +223,7 @@ Ranked by value-per-effort as currently understood:
    measured ~157 MB shared per same-build CUDA worker. Host venvs on D:
    and the workspace on C: get zero sharing between ComfyUI-main and
    workers despite identical builds (hardlinks cannot cross volumes).
-   Candidate: a `comfy-env doctor` advisory when host env and workspace
+   Candidate: an install-time advisory when host env and workspace
    volumes differ.
 2. **Idle worker reaper** (already proposed in ADR-0001). Each env the
    user stopped touching holds ~550 MB host + ~150 MB VRAM (CUDA context);

@@ -90,7 +90,7 @@ exactly `comfy-env`. Remaining host-env stragglers in existing packs (e.g.
   now. The separate file's *presence* is load-bearing signal: free
   "uses comfy-env" detection (`test -f`, `ls`), a clean ecosystem adoption
   metric via filename search, and decoupling from Registry-metadata merge
-  traffic. Its lack of validation is closable with a `doctor` check.
+  traffic. Its lack of validation is closable with a `comfy-test lint` check.
 - **Env identity from pyproject `[project].name`** -- superseded by a
   simpler idea: an optional declared `name` key in comfy-env's own files.
   Declared identity beats path-derived identity, and a name inside

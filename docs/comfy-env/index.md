@@ -207,7 +207,7 @@ full graph, the invariants, and the CI contracts that check them are in
 
 **Nodepack User Reference** -- the machine it runs on:
 
-- [Commands](commands.md): `install`, `info`, `doctor`, `gc`, ...
+- [Commands](commands.md): `install`, `info`, `gc`, ...
 - [Settings reference](settings.md): machine-global env vars
 - [System footprint](system-footprint.md): exactly what comfy-env writes
   outside the ComfyUI folder, why, and how to remove it

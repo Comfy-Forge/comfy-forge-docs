@@ -70,7 +70,7 @@ prestartup time is the entire application.
 - Failures can hide: a node silently running in-process, or tensors silently
   taking the slow CPU path, look like success. Counterweights: the startup
   banner prints per-env `[OK]` / `[<pack>: MISSING -- run `comfy-env install --dir <pack>`]`, and
-  `comfy-env doctor` / the `debug` categories expose what path is active.
+  the `debug` categories expose what path is active.
 - *2026-08 amendment:* this hiding cost is accepted only where the
   fallback is **correct** (slower, but right). Where no correct fallback
   exists -- a payload that cannot be serialized, a transport tier that
