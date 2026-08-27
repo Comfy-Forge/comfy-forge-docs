@@ -21,7 +21,7 @@ bundled with Desktop ComfyUI) is:
 When we start ComfyUI there is also a per-pack pre-startup hook: ComfyUI itself executes each
 pack's `prestartup_script.py`, if present, before the server boots.
 
-### Anatomy of a node pack
+## Anatomy of a node pack
 
 Using [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) (a popular
 real-world pack) as the example:
@@ -46,6 +46,10 @@ ComfyUI/custom_nodes/
     +-- fonts/, docs/, kjweb_async/                       <- misc
 ```
 
+## What ComfyUI reads from `__init__.py`
+
+### The four attributes
+
 At startup ComfyUI `import`s each pack's `__init__.py`:
 
 ```python
@@ -67,6 +71,8 @@ nothing else:
 | `comfy_entrypoint` | one of these two | V3 alternative, taken only if the dict is absent |
 | `NODE_DISPLAY_NAME_MAPPINGS` | no | `id -> pretty name` |
 | `WEB_DIRECTORY` | no | frontend JS directory |
+
+### Everything else the import does
 
 - But the ComfyUI loader takes several more things from the custom node pack as a side effect of the import:
 
@@ -97,7 +103,7 @@ nothing else:
     4. **[`pyproject.toml`](#what-core-actually-reads-from-pyprojecttoml)**: the
        project name -- your JS URL.
 
-### Data types: what a socket type actually is
+## Data types: what a socket type actually is
 
 A socket type in ComfyUI is **a string**, and nothing more. `RETURN_TYPES =
 ("INT",)` and `INPUT_TYPES` returning `{"required": {"mesh": ("TRIMESH",)}}`
@@ -141,7 +147,7 @@ same type — the string is the whole contract.
     a string does not say how to move bytes. That is the gap
     [custom wire types](serializers.md) fills.
 
-### Lifecycle hooks and who runs them
+## Lifecycle hooks and who runs them
 
 Every file besides `__init__.py` is optional, and different actors run them
 at different times:
@@ -182,7 +188,7 @@ Real packs cover the whole spectrum of these hooks:
   This hook exists precisely because it runs *before* anything imports --
   the only moment you can still fix the environment.
 
-### Frontend JavaScript: what gets auto-imported
+## Frontend JavaScript: what gets auto-imported
 
 Registration is Python-side; execution is browser-side. Both halves matter.
 
@@ -233,6 +239,11 @@ while remaining fetchable, so an `<iframe>` or an explicit
 rather than ComfyUI's. Everything left as `.js` under the web dir shares one
 global scope with every other installed pack: one `window`, one `document`,
 one extension-name namespace.
+
+## Scanned from disk, no import needed
+
+The three below are read straight off the filesystem by the server. A pack that
+fails to import still contributes them, and no attribute controls any of it.
 
 ### Workflow templates
 
@@ -322,7 +333,7 @@ Served at `GET /i18n`. Two properties follow from *how* they are combined
   `JSONDecodeError` and returns `{}`, so a stray trailing comma costs you the
   translations with no message anywhere.
 
-### What core actually reads from `pyproject.toml`
+## What core actually reads from `pyproject.toml`
 
 The file carries a lot of Registry metadata, but `load_custom_node` touches
 exactly two fields (`nodes.py:2270-2281`):
