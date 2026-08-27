@@ -288,9 +288,10 @@ Notes:
   additionally ABI-qualified (`sam3-nodes-py313-torch2-10-cu128`) so
   different stacks never share an env
   ([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)).
-- `[cuda]` packages are **not** written into `pixi.toml` -- they install in
-  a post-pixi `uv pip install --no-deps` pass (pixi cannot express no-deps;
-  see [install()](install.md)). They also define the package list for the
+- `[cuda]` packages resolve to wheel URLs at install time and are written
+  into `pixi.toml` as direct-URL pypi-dependencies (0.4.31) -- inside
+  `pixi.lock`, no second install system (see [install()](install.md)). They
+  also define the package list for the
   [accelerator import rule](accelerators.md).
 - One pack can mix modes: `nodes/main/` with no config imports in-process,
   `nodes/cgal/` with a config gets its own env.

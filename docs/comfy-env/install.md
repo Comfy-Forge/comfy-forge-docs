@@ -152,23 +152,23 @@ of the x86 one -- the reasoning is the wheel farm's, and lives in
 
 The work is **phase-major, not env-major**: every env goes through a phase
 before any env goes through the next. Manifests are written for all of them,
-then all installs run, then the wheel pass, then stamps, then hash files. That
-ordering is deliberate and produces three behaviours worth knowing:
+then all installs run, then stamps, then hash files. That ordering is
+deliberate and produces three behaviours worth knowing:
 
 - **One `pixi install` per manifest**, so a broken manifest cannot poison another
   env's scan or install.
-- **`pixi` failures are collected and raised at the end** (`workspace.py:854`),
-  so one run surfaces *every* broken env rather than stopping at the first. The
-  CUDA wheel pass is the exception -- it raises immediately
-  (`workspace.py:908`).
-- **Hash files are written last** (`workspace.py:944`), after that raise point.
+- **`pixi` failures are collected and raised at the end** (`workspace.py:856`),
+  so one run surfaces *every* broken env rather than stopping at the first.
+- **Hash files are written last** (`workspace.py:966`), after that raise point.
   So if any env fails, the run leaves no hash bookkeeping for the envs that
   succeeded alongside it, and they are re-derived next time.
 
-The CUDA wheels stay out of the generated manifest and install afterwards with
-`uv pip install --no-deps` against their direct URLs; why they bypass the
-resolver, and how that ends, is [the two-system
-problem](two-system-problem.md).
+The CUDA wheels are **inside** the generated manifest, as direct-URL
+pypi-dependencies (0.4.31): they land in `pixi.lock`, hash-verified when the
+index anchor carries a `#sha256=` fragment, and there is no second install
+system. The out-of-band `uv pip install --no-deps` pass this replaced, and
+why it existed, is [the two-system problem](two-system-problem.md) -- now
+historical.
 
 ## When it fails
 
@@ -179,7 +179,6 @@ problem](two-system-problem.md).
 | Two configs derive one env name | **`ValueError`** -- rename a directory |
 | No cuda-wheels combo covers a package | **`RuntimeError`** naming package + index URL |
 | `pixi install` fails for an env | collected; **`RuntimeError`** at the end listing every failure |
-| CUDA wheel pass fails | **`RuntimeError`** immediately |
 | An env ends up unbuilt | marked `[MISSING]` at next launch by [`setup_env()`](setup-env.md); ComfyUI still boots and those nodes fall back to in-process import at [`register_nodes()`](register-nodes.md) time ([ADR-0008](adr/0008-graceful-degradation-everywhere.md)) |
 
 **Start here when debugging:** every workspace install tees its full output to

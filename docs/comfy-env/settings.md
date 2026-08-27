@@ -25,14 +25,15 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 | Env var | default | meaning |
 |---|---|---|
 | `COMFY_ENV_ROOT` | `%LOCALAPPDATA%\Programs\comfy-env` (Windows), `~/.ce` (Unix) | Override the machine-wide workspace root where envs materialize (ADR-0007). |
-| `COMFY_ENV_CUDA_WHEELS_INDEX` | `https://pozzettiandrea.github.io/cuda-wheels/v2/` | Base URL of the [cuda-wheels index](../cuda-wheels/index.md). Point it at a mirror you host. A missing trailing slash is added for you. **This is a trust boundary** -- see the warning below. |
+| `COMFY_ENV_CUDA_WHEELS_INDEX` | `https://comfy-forge.github.io/cuda-wheels/` | Base URL of the [cuda-wheels index](../cuda-wheels/index.md). Point it at a mirror you host. A missing trailing slash is added for you. **This is a trust boundary** -- see the warning below. |
 
 !!! danger "The wheel index is a trust boundary"
-    Wheels resolved from `COMFY_ENV_CUDA_WHEELS_INDEX` are installed with
-    `uv pip install --no-deps` against direct links, and are **not**
-    hash-verified by comfy-env. Whatever that host serves executes at import
-    time inside the isolated env. Point it only at an index you control, or
-    trust as much as the default
+    Wheels resolved from `COMFY_ENV_CUDA_WHEELS_INDEX` are inlined into the
+    generated manifest as direct-URL dependencies. They are hash-verified
+    **only when the index anchor carries a `#sha256=` fragment** (the default
+    index does); a mirror that omits fragments serves unverified binaries
+    that execute at import time inside the isolated env. Point this only at
+    an index you control, or trust as much as the default
     ([ADR-0026](adr/0026-trust-and-supply-chain.md)).
 
 ## Debug logging

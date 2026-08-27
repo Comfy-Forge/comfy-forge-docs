@@ -1,5 +1,15 @@
 # The two-system problem and its exit paths
 
+!!! success "Resolved in comfy-env 0.4.31 -- by a third path"
+    The split described below ended, and by neither exit path: the farm
+    **blanked in-wheel Requires-Dist** across every package, which makes a
+    plain direct-URL dependency `--no-deps` by construction -- no pixi
+    feature needed. The wheels are inlined into the generated manifests,
+    live inside `pixi.lock`, and are hash-verified via `#sha256=` fragments
+    on the index anchors. The uv side-channel is deleted. The page stays as
+    the record of why the split existed and what the upstream exits would
+    have bought.
+
 comfy-env currently runs **two package systems in one environment**: pixi
 resolves the conda + ordinary PyPI layer into `pixi.lock`, and a separate
 post-pixi `uv pip install --no-deps` pass installs the CUDA wheels --
