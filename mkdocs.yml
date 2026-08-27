@@ -69,6 +69,7 @@ nav:
           - Accelerator declarations: comfy-env/accelerators.md
           - Custom wire types: comfy-env/serializers.md
       - Nodepack User Reference:
+          - Commands: comfy-env/commands.md
           - Settings reference: comfy-env/settings.md
           - System footprint: comfy-env/system-footprint.md
       - Internals:
