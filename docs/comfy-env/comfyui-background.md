@@ -108,7 +108,10 @@ But the ComfyUI loader takes several things from the custom node pack as a side 
 
     -- plus any monkeypatching or global setup the pack does at import
     time. ComfyUI reads no named attribute for any of this; it just runs
-    the module, and the side effects happen.
+    the module, and the side effects happen. What packs in the wild
+    actually do with that freedom -- measured across 491 of them, from
+    `sys.path` mutation to `git pull` at startup -- is
+    [Import-time side effects in the wild](import-side-effects.md).
 
     Two things about those endpoints are easy to get wrong:
 
