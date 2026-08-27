@@ -6,22 +6,11 @@ env safe for the runtime that is about to bind it?". Conflating them is how
 the [install() flowchart](install.md) ended up with two gates that looked
 identical -- this page is the disambiguation.*
 
-| # | Seal | Lives in | Question | When it is consulted |
-|---|---|---|---|---|
-| 1 | **fast key** | `install.hash`, line 2 (`fastkey:<sha256>`) | did any *local input* change? | every `install()`, first thing, per env |
-| 2 | **identity** | `install.hash`, line 1 (`v2:<sha256>`) | did the *derived output* change? | only when seal 1 missed (or the env is on a fallback combo) |
-| 3 | **stamp** | `env.stamp.json` | was this env built for *this* stack? | at runtime, by `register_nodes()`, before binding a worker |
-
-Both files sit in the env's manifest directory
-(`<workspace>/envs/<name>-<abi>/`), next to the generated `pixi.toml`.
-
-## Seal 1 -- the fast key (`_fast_key`, `install/workspace.py`)
-
-A sha256 over the **local inputs** -- the facts on this machine that the
-derivation would be computed *from*. Exactly these:
+Two words carry the whole page, so they are defined first. The **inputs**
+are the facts on this machine that a derivation is computed *from*:
 
 1. the raw **bytes of this env's `comfy-env.toml`** (bytes, not meaning --
-   a comment edit changes the key)
+   a comment edit changes them)
 2. the declared **`[cuda]` package names**, across every discovered env
 3. the requested **python version** per env (`python = "..."` or "host")
 4. the host **ABI tag** (python + torch + cuda stack of the bootstrap
@@ -31,10 +20,25 @@ derivation would be computed *from*. Exactly these:
    writes changes, so an on-disk layout from an older comfy-env cannot
    survive the skip -- added in 0.4.31 for the wheel inlining)
 
-Everything on the list is readable from disk in a millisecond: no network,
-no torch import. When every env's fast key matches (and each env is
-materialized, and none sits on a fallback combo), the whole `install()` run
-exits before torch is even resolved: the cheap N-installs-per-CI-run path.
+The **output** is what the derivation produces from them: the generated
+`pixi.toml` plus the resolved cuda wheel URLs.
+
+| # | Seal | Lives in | Question | When it is consulted |
+|---|---|---|---|---|
+| 1 | **fast key** | `install.hash`, line 2 (`fastkey:<sha256>`) | did any *local input* change? | every `install()`, first thing, per env |
+| 2 | **identity** | `install.hash`, line 1 (`v3:<sha256>`) | did the *derived output* change? | only when seal 1 missed (or the env is on a fallback combo) |
+| 3 | **stamp** | `env.stamp.json` | was this env built for *this* stack? | at runtime, by `register_nodes()`, before binding a worker |
+
+Both files sit in the env's manifest directory
+(`<workspace>/envs/<name>-<abi>/`), next to the generated `pixi.toml`.
+
+## Seal 1 -- the fast key (`_fast_key`, `install/workspace.py`)
+
+A sha256 over the **six inputs listed at the top of the page** -- all
+readable from disk in a millisecond: no network, no torch import. When every
+env's fast key matches (and each env is materialized, and none sits on a
+fallback combo), the whole `install()` run exits before torch is even
+resolved: the cheap N-installs-per-CI-run path.
 
 It is deliberately **pessimistic**: editing a comment in `comfy-env.toml`
 misses the key, because the key hashes bytes, not meaning. That is fine --
