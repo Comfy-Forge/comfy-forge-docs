@@ -1,17 +1,43 @@
 # The three seals
 
-*Three artifacts answer three different questions, at three different
-moments: "did the inputs change?", "did the output change?", and "is this
-env safe for the runtime that is about to bind it?". Conflating them is how
-the [install() flowchart](install.md) ended up with two gates that looked
-identical -- this page is the disambiguation.*
+*After all comfy-env.toml configs are discovered, three artifacts answer three different questions, at three different
+moments: "did the inputs to the env definition change?", "did the env definition change?", and "is this
+env safe for the runtime that is about to bind to it?".
+
+`install()` wants to do **no work when nothing changed** -- but "did anything
+change?" is three different questions, asked at three different prices:
+
+1. **Fast key -- "did anything on this machine change?"** A quick photo of
+   everything the plan gets made *from*: config files, GPU, python/torch.
+   Costs a millisecond, touches no network. Photo matches yesterday's →
+   stop immediately, do nothing. Differs → don't panic, ask question 2.
+2. **Identity -- "something changed, but does the *plan* come out
+   different?"** Actually compute the plan (the generated `pixi.toml` +
+   wheel URLs) and compare it to last time's. Comment edit → photo differs,
+   plan identical → skip the rebuild. Package added → plan differs →
+   rebuild.
+3. **Stamp -- "is this env the right one for the machine about to *use*
+   it?"** A different moment entirely: launch time, not install time. A
+   label on the finished env ("built for py3.13 + torch2.8 + cu128") that
+   `register_nodes()` reads before binding a worker. Wrong stack → refuse
+   and fall back, because a worker on a different torch than the parent
+   does not fail cleanly -- it corrupts tensors crossing the boundary.
+
+Seal 1 makes *skipping* cheap, seal 2 makes *rebuilding* rare, seal 3 makes
+*using* safe.
 
 Two words carry the whole page, so they are defined first. The **inputs**
-are the facts on this machine that a derivation is computed *from*:
+are the facts which an env config is computed *from*:
 
-1. the raw **bytes of this env's `comfy-env.toml`** (bytes, not meaning --
+1. the raw **bytes of an env's `comfy-env.toml`** (bytes, not meaning --
    a comment edit changes them)
-2. the declared **`[cuda]` package names**, across every discovered env
+2. the declared **`[cuda]` package names**, *across every discovered env* --
+   cross-env because the whole machine makes ONE shared wheel-combo
+   decision: the chosen (CUDA x torch) cell must have wheels for every cuda
+   package declared anywhere, so pack A adding `natten` can shift the cell
+   and change pack B's torch pin with zero edits to pack B. Hashing the
+   union means a declaration change anywhere misses everyone's fast key,
+   and seal 2 then decides per env whose plan actually changed.
 3. the requested **python version** per env (`python = "..."` or "host")
 4. the host **ABI tag** (python + torch + cuda stack of the bootstrap
    interpreter)
