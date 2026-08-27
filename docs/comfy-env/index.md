@@ -198,11 +198,26 @@ full graph, the invariants, and the CI contracts that check them are in
 
 ## Where to go next
 
-- [Nodepack Author Reference](install.md): the three calls, config,
-  accelerator declarations, custom wire types -- everything a pack declares
-- [Nodepack User Reference](settings.md): machine-global settings, and what
-  comfy-env puts on your disk
-- [Module inventory](modules.md): what every file under `src/comfy_env/` does
-- [Decision records](adr/index.md): the "why" behind each of these choices
+**Nodepack Author Reference** -- everything a pack declares:
+
+- [The three calls](install.md): `install()`, `setup_env()`, `register_nodes()`
+- [Config reference](config.md): `comfy-env.toml` and `comfy-env-root.toml`
+- [Accelerator declarations](accelerators.md): `ACCELERATOR` and lazy imports
+- [Custom wire types](serializers.md): `[types]` + `serialization.py`
+
+**Nodepack User Reference** -- the machine it runs on:
+
+- [Commands](commands.md): `install`, `info`, `doctor`, `gc`, ...
+- [Settings reference](settings.md): machine-global env vars
 - [System footprint](system-footprint.md): exactly what comfy-env writes
   outside the ComfyUI folder, why, and how to remove it
+
+**Internals** -- how it works underneath:
+
+- [Module inventory](modules.md): what every file under `src/comfy_env/` does
+- [One solver](one-solver.md): the hand-rolled `[cuda]` resolver and the plan
+  for deleting it
+- [The process boundary](process-boundary.md): how tensors cross between
+  parent and worker
+- [The three seals](seals.md): the hashes that decide what rebuilds
+- [Decision records](adr/index.md): the "why" behind each of these choices
