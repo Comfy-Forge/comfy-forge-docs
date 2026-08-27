@@ -24,7 +24,7 @@ stamped and hash-checked. NOT cross-machine reproducibility: packs ship
 `comfy-env.toml`, each machine generates its manifest from host detection
 and solves fresh against the rolling channel, and the CUDA wheels currently
 install outside the lock entirely (the
-[two-system problem](../one-solver.md)). Cross-machine
+two-system problem). Cross-machine
 reproducibility would arrive via CI-pre-solved lockfiles per env x ABI tag
 (deferred; most valuable for the ComfyUI Desktop population).
 
@@ -109,7 +109,7 @@ Alternatives:
 - One manifest and one `pixi.lock` per env cover the conda and ordinary
   PyPI deps; the CUDA wheels remain outside the lock until Requires-Dist
   curation lands and the inlining path revives
-  ([two-system problem](../one-solver.md)).
+  (two-system problem).
 - Env materialization is fast (uv-backed) and deterministic per machine;
   unchanged envs are skipped via install hashes and validated stamps.
 - comfy-env depends on GitHub availability to bootstrap pixi on first run.
@@ -118,4 +118,4 @@ Alternatives:
   instance -- CUDA wheels needing no-deps installs, which pixi cannot
   express -- forces a post-pixi uv side-channel; the exit paths (pixi
   PR #5464, or conda-forge-native publishing once torch coverage allows)
-  are tracked in [One solver](../one-solver.md).
+  are tracked in [Why not just conda?](../why-not-conda.md).

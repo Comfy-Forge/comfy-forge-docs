@@ -18,7 +18,7 @@ wheels automatically (`packages/cuda_wheels.py`):
   **GitHub Pages simple index** (`pozzettiandrea.github.io/cuda-wheels/v2/`)
   for the user's exact combination; the matched wheel URLs install in a
   post-pixi `uv pip install --no-deps` pass, outside `pixi.toml` (the
-  [two-system problem](../one-solver.md) -- inlining them as URL
+  two-system problem -- inlining them as URL
   pypi-dependencies returns once the farm's Requires-Dist curation ships
   in consumers' wheels).
 - The resolver derives **torch family pins** so the chosen wheels and the

@@ -14,7 +14,7 @@ Installing a comfy-env pack currently means trusting:
 2. **The CUDA wheel farm** -- native binaries served from a personal
    GitHub Pages index (Releases API fallback), installed via a
    post-pixi side-channel **outside the lockfile, unhashed, from a
-   mutable index** (`one-solver.md` says this honestly; this
+   mutable index** (the docs said this honestly at the time; this
    ADR makes it a decision surface). Blast radius: arbitrary native
    code on every GPU machine running these packs.
 3. **`[node_packs]` transitive installs** -- cloned repos' `install.py`

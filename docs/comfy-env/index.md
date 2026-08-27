@@ -215,8 +215,8 @@ full graph, the invariants, and the CI contracts that check them are in
 **Internals** -- how it works underneath:
 
 - [Module inventory](modules.md): what every file under `src/comfy_env/` does
-- [One solver](one-solver.md): the hand-rolled `[cuda]` resolver and the plan
-  for deleting it
+- [Why not just conda?](why-not-conda.md): the hand-rolled `[cuda]` resolver
+  and what deleting it would take
 - [The process boundary](process-boundary.md): how tensors cross between
   parent and worker
 - [The three seals](seals.md): the hashes that decide what rebuilds

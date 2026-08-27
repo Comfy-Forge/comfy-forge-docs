@@ -82,78 +82,70 @@ but comfy-env 0.4.12 is installed. If that pack reinstalls its requirements,
 comfy-env will be DOWNGRADED for every pack -- update ComfyUI-OldPack (or
 relax its pin).
 ```
-Warn-only; never fails an install
-(`check_sibling_comfy_env_pins`, `install/plugin.py`).
+Warn-only; never fails an install.
 
 ### 3. The workspace build (`install_workspace()`)
 
 ### Bootstrap and discovery
 
-`ensure_pixi()` runs **first** (`workspace.py:606`), before discovery and before
-any skip gate. It is a no-op when the pinned binary is already present
-(`pixi.py`, early return), which is what makes an unchanged machine cost zero
-network -- but on a **first** install the download happens here, ahead of the
-gate. See [System footprint](system-footprint.md) for what it puts on disk and
-why it is deliberately not `~/.pixi`
-([ADR-0002](adr/0002-pixi-as-environment-manager.md)).
-
-Discovery then walks `custom_nodes/` for bindable configs. Three things are
-skipped silently, and one is fatal:
-
-- directories prefixed `.` or `_`, and those suffixed `.disabled` / `._disabled`
+- We run `ensure_pixi()` **first**
+- Discovery then walks `custom_nodes/` for bindable configs (comfy-env.toml files).
+- Three things are skipped silently, and one is fatal:
+    - directories prefixed `.` or `_`, and those suffixed `.disabled` / `._disabled`
   (the quarantine convention) -- skipped;
-- configs outside `nodes/comfy-env.toml` or `nodes/<subdir>/comfy-env.toml` --
+    - configs outside `nodes/comfy-env.toml` or `nodes/<subdir>/comfy-env.toml` --
   invisible, deliberately, because the runtime binder can only bind those two
   shapes;
-- a config that does not parse -- skipped, and reported in a batch at the end;
-- **two configs deriving the same env name -- `ValueError`**, because they would
+    - a config that does not parse -- skipped, and reported in a batch at the end;
+    - **two configs deriving the same env name -- `ValueError`**, because they would
   share one env directory and rebuild over each other forever
   (`workspace.py:226`).
 
 ### The skip gate
 
-Two hashes decide whether anything is rebuilt: a cheap **fast key** over local
-inputs, and a precise **identity** over what those inputs derive to. The gate is
-all-or-nothing at the top -- the zero-network exit requires *every* env to be
-clean; partial staleness derives only the dirty subset. The full mechanism,
-including why a version bump rebuilds nothing, is
+Two hashes decide whether any environments are rebuilt:
+
+- A cheap **fast key** over inputs (does this machine have a GPU? Is the cpu aarch64 or x86? what is comfy-env.toml saying?)
+- A precise **identity** over what those inputs derive to.
+The full mechanism, including why a version bump rebuilds nothing, is
 [The three seals](seals.md).
 
 ### Torch pin vs wheel combo
 
-These answer different questions and this page is the only place that says so.
-The **pin** is *what ComfyUI itself runs*. The **combo** is *which
-(cuda × torch × python) cell the prebuilt wheels are published for*.
+In this following paragraph, **pin** is used to refer to the (cuda × torch × python) **combo** that *ComfyUI itself runs*.
 
 Usually the [cuda-wheels index](../cuda-wheels/index.md) has every needed wheel
-for the host's own cell and the two coincide. When some package is not built for
-that cell -- say the host runs a torch newer than spconv's newest wheel -- only
-the **cuda envs** drop to a known-good fallback cell, while the comfyui feature
-keeps the host torch. If the fallback also misses, the install fails loudly,
-naming the package and the index URL.
+for the host's own *pin* and we can match it perfectly.
 
-The fallback is **per CPU architecture**: `cu12.8 / torch 2.8` on x86_64,
-`cu13.0 / torch 2.10` on linux aarch64. ARM is its own cell rather than a nudge
-of the x86 one -- the reasoning is the wheel farm's, and lives in
-[cuda-wheels coverage](../cuda-wheels/coverage.md#linux-aarch64).
+When any of the cuda packages is not yet built for
+the host combo (imagine we are using CUDA 13.0, have [cumesh, flash-attn, spconv] as cuda packages in comfy-env.toml and we only have cumesh and flash-attn for CUDA 13.0) the **requested combo** for the cuda wheels drops to a known-good fallback cell.
+
+The fallback is **per CPU architecture**:
+- `cu12.8 / torch 2.8` on x86_64
+- `cu13.0 / torch 2.10` on linux aarch64.
+
+The reasoning is a bit long but can be summarised as follows: very few people use torch aarch64, but if they have a CUDA GPU it is likely to be a DGX Spark or some other late model, while if someone is on x86_64 there's a higher chance they might want Volta/Turing compatibility if they have an old GPU.
 
 !!! warning "No GPU means CPU torch, whatever the host's torch says"
     Portable ComfyUI ships `torch+cu128` inside `python_embeded` even on
     machines with no NVIDIA driver. GPU presence therefore **overrides** the
     torch build (`workspace.py:83-88`): with no GPU detected, envs pin **CPU
-    torch** and `[cuda]` packages are not resolved or installed at all. You will
-    see `cuda-wheels: skipping (no NVIDIA GPU detected)` in the log. Installing
-    cu\* wheels on a driverless machine makes `import torch` die later with
-    `WinError 127` / `libtorch_cuda.so`. Nodes importing a skipped CUDA package
-    get a plain `ImportError` -- comfy-env does not stub them
-    ([accelerator declarations](accelerators.md)).
+    torch** and `[cuda]` packages are not resolved or installed at all.
 
 ### Building each env
 
 The work is **phase-major, not env-major**: every env goes through a phase
-before any env goes through the next. Manifests are written for all of them,
-then all installs run, then stamps, then hash files. That ordering is
-deliberate and produces three behaviours worth knowing:
+before any env goes through the next.
+
+- Manifests are written for each env
+
+- All installs runs
+
+- All stamps are produced
+
+- All hash files are produced
+
+That ordering is deliberate and produces three behaviours worth knowing:
 
 - **One `pixi install` per manifest**, so a broken manifest cannot poison another
   env's scan or install.
@@ -164,10 +156,7 @@ deliberate and produces three behaviours worth knowing:
   succeeded alongside it, and they are re-derived next time.
 
 The CUDA wheels are **inside** the generated manifest, as direct-URL
-pypi-dependencies (0.4.31): they land in `pixi.lock`, hash-verified when the
-index anchor carries a `#sha256=` fragment, and there is no second install
-system. The out-of-band `uv pip install --no-deps` pass this replaced, and
-why it existed, is the history section of [One solver](one-solver.md).
+pypi-dependencies (0.4.31): they land in `pixi.lock`.
 
 ## When it fails
 
