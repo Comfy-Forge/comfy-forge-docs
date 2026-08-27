@@ -22,44 +22,10 @@ two of them outright:
    cannot deliver (compiled CUDA extensions, conda-only native libraries),
    can take a long time and manual work to find or compile for the user's exact machine and operating system.
 
-!!! info "And the ones it does not remove"
-
-    <small markdown>
-    *__Frontend JavaScript.__ Isolation stops at the process boundary. A pack's
-    JS still runs in one shared browser origin -- one `window`, one `document`,
-    one extension-name namespace -- because ComfyUI serves every pack's scripts
-    into the same page and there is no per-pack boundary to isolate at. What
-    ships instead is containment rather than isolation: comfy-test's
-    `javascript` level lints for collisions, and iframe-only bundles stay out of
-    the shared realm by being named `.mjs`, which ComfyUI's `**/*.js` scan does
-    not pick up. The reasoning is
-    [ADR-0031](adr/0031-frontend-javascript-isolation.md); what would have to
-    change upstream is
-    [Frontend JavaScript isolation](../roadmap.md#frontend-javascript-isolation).*
-
-    *__Whatever a pack's `__init__.py` does on the way in.__ ComfyUI does not
-    sandbox that file, and neither can comfy-env: `register_nodes()` is called
-    **from** it, so the module still executes in ComfyUI's process and only the
-    node code moves to a worker. Anything the import does first still lands on
-    everybody -- 9% of the top-500 packs mutate `sys.path`, two `pip install`
-    into the shared env, one replaces `PromptServer.start`. Isolation makes
-    those side effects local for node code, not for the module that registers
-    it: [Import-time side effects in the wild](import-side-effects.md).*
-
-    *__Model weights.__ A pack only runs once its checkpoints are on disk, and
-    nothing installs them. `pyproject.toml` even has a `Models` field carrying
-    `location` and `model_url` -- but `load_custom_node` never reads it. That
-    field is Registry metadata for comfy.org, not an instruction to the running
-    server, and comfy-env does not fetch weights either. Between "the install
-    succeeded" and "the workflow runs", this is usually what is missing.*
-
-    *__Name collisions between packs.__ Node ids and socket type names are open,
-    string-keyed global registries. Two packs that both pick `MESH`, or both
-    claim the same node id, are the same thing as far as ComfyUI is concerned,
-    and the winner is whichever loaded last. comfy-env cannot fix this -- its
-    proxies register into that same dict -- though comfy-test's
-    [registration level](../comfy-test/levels/registration.md) detects it.*
-    </small>
+comfy-env removes those two, and no more. Frontend JavaScript, whatever a
+pack's `__init__.py` does on the way in, model weights, and cross-pack name
+collisions are all out of its reach --
+[what stands between the current system and that promise](../aims.md#what-stands-between-the-current-system-and-that-promise).
 
 ## ComfyUI background
 
