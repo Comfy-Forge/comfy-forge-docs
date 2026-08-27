@@ -68,7 +68,7 @@ nav:
           - System footprint: comfy-env/system-footprint.md
           - Custom wire types: comfy-env/serializers.md
       - Internals:
-          - Import-time side effects: comfy-env/import-side-effects.md
+          - Import-time side effects in the wild: comfy-env/import-side-effects.md
           - The two-system problem: comfy-env/two-system-problem.md
           - How ComfyUI manages memory: comfy-env/comfyui-memory.md
           - Sharing one GPU: comfy-env/sharing-one-gpu.md
