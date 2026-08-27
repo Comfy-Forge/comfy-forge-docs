@@ -144,9 +144,20 @@ tolerates them under `-std=c++17` as extensions, so Linux kept building;
 MSVC and Windows nvcc hard-error (`C7555`, "data member initializer is not
 allowed"). Every package that pins c++17 — or passes no `/std` at all,
 letting cl default even older — broke on Windows at once: cumesh, drtk,
-cubvh, pytorch3d. The fix is mechanical (pin c++20 everywhere; it is valid
-on every CUDA line in the grid) but must be re-applied per package,
-because each hardcodes the standard its own way.
+cubvh, pytorch3d. The farm's fix is the opposite of "pin c++20 everywhere", and the
+difference matters: **delete the package's opinion and let torch's
+`cpp_extension` choose** (`scripts/patch_lib.py`, `strip_std_flags`).
+
+Pinning c++20 everywhere is wrong in both directions. Pinned high, a
+package compiles torch's own headers at a standard the installed libtorch
+was not built with -- drtk shipped exactly that, visible in the objects'
+`DW_AT_producer`. Pinned low, torch >= 2.13's headers fail outright. Since
+the correct standard is a property of the *installed torch*, not of the
+package, only torch can answer it; the farm adds a floor via the `CL`
+environment variable (which prepends, so it cannot override a real choice)
+for the translation units that never pass through `cpp_extension`.
+
+See [Host compilers, toolkit bugs, and the patch policy](toolchain-and-patching.md).
 
 **CUDA 13.2's CCCL 3.x removed CUB's 4-argument in-place overloads.**
 `DeviceScan::ExclusiveSum(d_temp, bytes, d_data, num)` no longer exists;

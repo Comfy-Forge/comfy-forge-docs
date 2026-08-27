@@ -73,7 +73,7 @@ nav:
           - Settings reference: comfy-env/settings.md
           - System footprint: comfy-env/system-footprint.md
       - Internals:
-          - The two-system problem: comfy-env/two-system-problem.md
+          - One solver: comfy-env/one-solver.md
           - Why not just conda?: comfy-env/why-not-conda.md
           - Sharing one GPU: comfy-env/sharing-one-gpu.md
           - The process boundary: comfy-env/process-boundary.md

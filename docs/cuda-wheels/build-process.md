@@ -148,10 +148,15 @@ flashinfer, llama_cpp_python) go overboard. Three escape hatches
 ([CW-ADR-0006](adr/0006-fitting-cuda-compiles-into-hosted-ci.md)):
 
 1. **Disk freeing** -- preinstalled runner images deleted up front.
-2. **Sharding (`sharding: N`)** -- for torch `cpp_extension` builds
-   ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)): translation units are
-   hash-partitioned across N parallel jobs; a link job unions their compiler
-   caches, links one ordinary wheel, and fails below a 90% cache hit rate.
+2. **Sharding (`sharding: N`)** -- translation units are split across N
+   parallel jobs; a link job unions their compiler caches, links one ordinary
+   wheel, and fails below a 100% cache hit rate. Not a `cpp_extension`-only
+   mechanism: there are **two** partitioning schemes selected by
+   `shard_filter`, and the two heaviest sharded packages in the farm are a
+   cmake build (natten) and a pccm build (spconv). Picking the wrong filter is
+   a *silent* slow build, and the shard-stage link is *expected to fail*.
+   [Sharding](sharding.md) is the page; [CW-ADR-0014](adr/0014-zero-shim-sharding.md)
+   is the original decision and now covers only the `seat` half.
 (A third hatch -- a sequential-checkpoint chain -- existed briefly and was
 removed 2026-08-21: measurement showed no package needed it. The
 "multi-hour" compiles were artifacts of bad parallelism settings; at sane
@@ -183,7 +188,9 @@ demonstrates.)
 | `extra_cuda_components` | additional CUDA toolkit packages (cufft, nvtx, ...) |
 | `nvcc_flags` | appended to the nvcc command line (trailing flags win) |
 | `max_jobs` | cap parallel compile jobs — see [nvcc builds](nvcc-builds.md) |
-| `sharding: N` | split one cell's compile across N parallel jobs + a link job ([CW-ADR-0014](adr/0014-zero-shim-sharding.md)); see [the 6-hour section](#sequential-and-sharded-compiles) |
+| `sharding: N` | split one cell's compile across N parallel jobs + a link job -- read [Sharding](sharding.md) before setting it |
+| `shard_filter` | `seat` (default, nvcc-wrapper hash partition) or `source` (the package's own patch deletes out-of-slice TUs). Wrong choice = silent slow build |
+| `sharding_platforms` | restrict sharding to specific lanes |
 | `requires_dist` | curated `Requires-Dist`: REPLACES the wheel's upstream dependency metadata wholesale ([CW-ADR-0004](adr/0004-combo-encoded-versions-and-metadata-patching.md)). PEP 508 strings; `{LOCAL}` expands to the wheel's own local tag, `{VER:<folder>}` to that package's pinned `version` — together they make exact sibling pins (`cumesh==0.0.1+cu128torch2.8`) that only our index can satisfy. Declare it only for packages whose upstream list is wrong (build-tool leakage, sibling mis-pins); the gate's C2 check asserts the wheel carries exactly the expanded list. Never pin `torch==X.Y.Z` — consumer envs pin torch at major.minor deliberately |
 
 **Optional** — in override files (each requires an explaining `README.md`):

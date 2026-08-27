@@ -2,7 +2,7 @@
 
 ## What packages do we compile for?
 
-As of August 2026, 39, see the full list at README.md
+As of August 2026, 42, see the full list at README.md
 
 ## What combos do we compile for?
 
@@ -28,17 +28,23 @@ Two named references define the target:
 What we skip, on purpose: pre-release Pythons, free-threaded builds
 ([CW-ADR-0010](adr/0010-no-free-threaded-builds.md)), and the cells upstream
 never shipped ([CW-ADR-0007](adr/0007-phantom-combos-denylist.md)).
-aarch64 is **opt-in per package** ([CW-ADR-0015](adr/0015-linux-aarch64-opt-in.md));
-see [Linux aarch64](#linux-aarch64) below. On x86 we set the same glibc floor as
-PyTorch (2.28); ARM repairs to `manylinux_2_39`.
+ARM is a **default platform**, not an opt-in. Every package in the farm
+builds `linux_aarch64` unless it opts *out*; the platform was promoted after
+the pilot went 112/112 green. This matters more than it sounds: the ARM lane
+is resolved by a **different function with different inputs** -- it never
+consults a package's x86 `arch_list` / `arch_list_by_cuda` fields and never
+consults the policy's `arch_exceptions` table. A package with a carefully
+reasoned x86 arch floor gets none of it on ARM. See
+[How a cell gets its arch list](arch-selection.md).
 
-The SASS sets match torch's own wheels **exactly**, per CUDA line and per
-platform -- including Maxwell (5.0) on cu124/cu126 and the per-torch sm_70
-drops tracked in `arch_exceptions`. The one deliberate divergence is PTX:
-the farm always ships `+PTX` on the highest arch (forward compat for GPUs
-newer than any SASS in the wheel), while torch's release wheels stopped
-shipping PTX entirely in 2.13 -- a size trade-off that makes sense for a
-250MB libtorch and not for kilobyte extension wheels.
+The arch lists are the farm's **own** policy, not a mirror of torch's
+wheels. That distinction is the whole point of the arch-policy decision:
+mirroring upstream was the previous approach and it was abandoned. The
+`arch_exceptions` table **adds** archs back for specific torch minors (its
+polarity was inverted in August 2026); it does not record drops. And "per
+platform" does not hold either -- the aarch64 table is a separate,
+independently derived policy with no cu12.4 row, and exceptions never apply
+to it.
 
 **Packages can override our build default policy**: for example, sageattention has a kernel floor (sm_80).
 

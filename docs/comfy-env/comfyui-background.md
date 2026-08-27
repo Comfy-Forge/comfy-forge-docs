@@ -71,9 +71,9 @@ nothing else:
 
 ### Everything else
 
-The ComfyUI loader takes several more things from the custom node pack as a side effect of the import:
+The ComfyUI loader takes several more things from the custom node pack as a "side effect" of the import:
 
-- **Whatever the import *did***: running `__init__.py` fires every
+- **Whatever the import *did***: importing `__init__.py` fires every
    side effect it contains. The most common one: **API route
    registration**, where the pack hangs its own HTTP endpoints off
    ComfyUI's shared server:
@@ -87,14 +87,12 @@ The ComfyUI loader takes several more things from the custom node pack as a side
     ```
 
     plus any monkeypatching or global setup the pack does at import
-    time. ComfyUI reads no named attribute for any of this; it just runs
-    the module, and the side effects happen:
-    [Import-time side effects in the wild](import-side-effects.md).
+    time:
+    [import-time "side" effects in the wild](import-side-effects.md).
 
-- **Workflow templates**, found by folder name,
-       and subgraphs likewise.
+- **Workflow templates and subgraphs**, found by folder name.
 
-- Optional **node-name translations**, one folder per
+- Optional **node-name translations in different languages (Spanish, Japanese...)**, one folder per
        locale.
 
 - **`pyproject.toml`**: the
@@ -112,41 +110,16 @@ at different times:
 | `prestartup_script.py` | **ComfyUI core** | every launch, before the server boots | imported and executed (`main.py:execute_prestartup_script`) |
 | `__init__.py` | **ComfyUI core** | every launch | imported; `NODE_CLASS_MAPPINGS` read |
 
-The install-time order is defined in Manager's `execute_install_script`
-(`glob/manager_core.py`):
-
-- if `requirements.txt` exists it is pip-installed first
-- *then* `install.py` is executed, if present
-
-ComfyUI core never runs
-either -- installing by plain `git clone` skips both steps, and the user is
-expected to run them manually (`pip install -r requirements.txt` and/or
-`python install.py`, typically spelled out in the pack's README, or simply
-assumed).
-
-Real packs cover the whole spectrum of these hooks:
-
-- **No `requirements.txt` at all** --
-  [cg-use-everywhere](https://github.com/chrisgoringe/cg-use-everywhere)
-  (the most-downloaded pack on the Comfy Registry, ~1.9M downloads) and
-  [ComfyUI-Custom-Scripts](https://github.com/pythongosssss/ComfyUI-Custom-Scripts)
-  ship only Python-stdlib + frontend JS: nothing to install, nothing that can
-  conflict in the Python environment.
-- **`requirements.txt` only** -- KJNodes, above; the common case.
-- **`prestartup_script.py`** --
-  [ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager) itself uses
-  it to execute its queued ("lazy") install scripts and set up log capture
-  before the server boots;
-  [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) ships one too.
-  This hook exists precisely because it runs *before* anything imports --
-  the only moment you can still fix the environment.
+ComfyUI core never runs `pip install -r requirements.txt` nor
+`python install.py`, and if the user installs a custom node pack by plain `git clone` into custom_nodes/, they are
+expected to run them manually.
 
 ## Frontend JavaScript
 
 Registration is Python-side; execution is browser-side. Both halves matter.
 
 **Registration** happens in `load_custom_node` (`nodes.py`), and there are
-**two independent paths**, which write to the same dict under *different keys*:
+**two independent and reciprocally exclusive paths** to register JS code, which write to the same dict under *different keys*:
 
 | Declared as | Key used | Line |
 |---|---|---|
@@ -156,17 +129,8 @@ Registration is Python-side; execution is browser-side. Both halves matter.
 Both are guarded by `os.path.isdir()`, and they are **separate `if` blocks**,
 not a fallback chain.
 
-!!! danger "Declaring both registers the directory twice"
-    `project.name` and the directory name are rarely identical
-    (`comfyui-geometrypack` vs `ComfyUI-GeometryPack`). If a pack declares
-    `[tool.comfy] web` *and* `WEB_DIRECTORY`, and both paths resolve to real
-    directories, `EXTENSION_WEB_DIRS` gets **two entries pointing at the same
-    folder**. Every file is then listed twice under two URLs, the browser
-    imports each one twice, and `app.registerExtension` is called twice with
-    the same name -- the collision case. Pick one declaration.
-
-**Serving** is a static route per registered directory,
-`/extensions/<name>` → the folder (`server.py:1243-1244`).
+**Serving the JS code** is a static route per registered directory,
+`/extensions/<node_pack_name>` → the node pack's web folder.
 
 **Auto-import** is driven by `GET /extensions` (`server.py:357-368`), which
 returns a flat JSON list of URLs the browser then imports. For each registered
@@ -178,39 +142,27 @@ files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
 
 Two properties of that one line govern everything:
 
-- **`recursive=True`** -- the scan reaches *every* depth. There is no way to
+- **`recursive=True`**: the scan reaches *every* depth of the web folder. There is no way to
   keep a `.js` file out of the shared realm by burying it in a subfolder;
   `web/js/vendor/three/build/three.js` is imported exactly like a top-level
   widget.
-- **`.js` only** -- `.mjs`, `.json`, `.css`, `.html` are still **served**
+- **`.js` only**: `.mjs`, `.json`, `.css`, `.html` are still **served**
   statically, they are simply never *listed* for auto-import.
 
 That second property is the only lever a pack has. A viewer bundle renamed
 `viewer-bundle.js` → `viewer-bundle.mjs` disappears from the auto-import list
 while remaining fetchable, so an `<iframe>` or an explicit
-`import "./viewer-bundle.mjs"` still loads it -- inside the iframe's realm
+`import "./viewer-bundle.mjs"` still loads it, inside the iframe's realm
 rather than ComfyUI's. Everything left as `.js` under the web dir shares one
-global scope with every other installed pack: one `window`, one `document`,
-one extension-name namespace.
-
+global scope with every other installed pack and might come into conflict with other node pack's javascript code, as there can only be one `window`, `document` or `viewer` among all the auto imported .js files.
 
 ## Data types
 
 A socket type in ComfyUI is **a string**, and nothing more. `RETURN_TYPES =
 ("INT",)` and `INPUT_TYPES` returning `{"required": {"mesh": ("TRIMESH",)}}`
-declare the same kind of thing. ComfyUI never inspects the Python object
-flowing along an edge — it compares the two declared strings and, if they
+declare the same kind of thing.
+ComfyUI never inspects the Python object flowing along an edge: it compares the two declared strings and, if they
 match, passes the object through untouched.
-
-The matching rule is `validate_node_input` in
-`comfy_execution/validation.py`, and it is short:
-
-| Rule | Behaviour |
-|---|---|
-| Exact string equality | matches |
-| `"*"` on either side (`IO.AnyType`) | matches anything |
-| `COMFY_MATCHTYPE_V3` on either side | matches; the frontend validates it |
-| `"A,B"` | a **union** — comma-separated. Non-strict (the default) needs a non-empty intersection; strict needs a subset |
 
 There are ~85 built-in types (`comfy_api/latest/_io.py`), and the Python
 objects behind them are ordinary:
@@ -225,13 +177,13 @@ objects behind them are ordinary:
 
 **The type registry is open.** Nothing registers a type name centrally, so a
 pack invents one by returning it: `TRIMESH`, `POINTCLOUD`, `SKELETON` are
-strings a pack made up, and ComfyUI wires them as happily as `IMAGE`. Two
+strings a pack made up, and ComfyUI wires them to each other as happily as `IMAGE`. Two
 packs that independently pick `MESH` are, as far as ComfyUI is concerned, the
-same type — the string is the whole contract.
+same type, as the string is the whole contract!
 
 !!! note "Why this matters for comfy-env"
     In vanilla ComfyUI the object never leaves the process, so "the type is
-    just a string" costs nothing — the same `Trimesh` instance is handed from
+    just a string" costs nothing: the same `Trimesh` instance is handed from
     one node to the next.
 
     Under comfy-env the object may have to cross a **process boundary**, and

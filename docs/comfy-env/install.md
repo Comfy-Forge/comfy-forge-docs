@@ -167,8 +167,7 @@ The CUDA wheels are **inside** the generated manifest, as direct-URL
 pypi-dependencies (0.4.31): they land in `pixi.lock`, hash-verified when the
 index anchor carries a `#sha256=` fragment, and there is no second install
 system. The out-of-band `uv pip install --no-deps` pass this replaced, and
-why it existed, is [the two-system problem](two-system-problem.md) -- now
-historical.
+why it existed, is the history section of [One solver](one-solver.md).
 
 ## When it fails
 
@@ -184,34 +183,3 @@ historical.
 **Start here when debugging:** every workspace install tees its full output to
 `<workspace>/install.log` (`workspace.py:680`), including the discovery list,
 the resolved combo, and each `pixi install` invocation.
-
-## Reference
-
-```python
-def install(
-    config: str | Path | None = None,     # explicit config path; default: discover
-    node_dir: Path | None = None,         # default: the CALLER's directory
-    log_callback: Callable | None = None, # default: print
-    dry_run: bool = False,
-) -> bool
-```
-
-With no arguments it infers everything: `node_dir` comes from the caller's file
-via `inspect.stack()` -- which is how the one-liner in `install.py` works -- and
-the config is discovered by looking for `comfy-env-root.toml` /
-`comfy-env.toml` there. No config at all raises `FileNotFoundError`.
-
-`node_dir` is resolved with `abspath`, not `resolve()`: a symlinked or
-junctioned pack must keep its `custom_nodes`-side spelling, or the walk up to
-the ComfyUI root starts from the physical location and finds nothing.
-
-!!! danger "`dry_run=True` is not side-effect free"
-    It skips the `pixi install` calls, but it **writes real per-env manifests**
-    first (`workspace.py:793`, `:810`), always enters derivation rather than
-    taking the fast-key skip (`:668`), and bypasses the identity short-circuits
-    (`:765`, `:771`). Use it to see *what would be built*, not to leave the disk
-    untouched.
-
-Importing the module also sets `PYTHONUNBUFFERED=1` and switches stdout/stderr
-to line buffering, so install output streams live even when ComfyUI-Manager
-pipes it.

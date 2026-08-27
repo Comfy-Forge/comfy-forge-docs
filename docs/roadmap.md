@@ -50,7 +50,7 @@ stay listed (struck) so the list doubles as a change record.
 1. **Revive the inlining path** once curated wheels land -- URL
    pypi-dependencies in generated manifests, side-channel + `--no-cache`
    retired.
-   ([The two-system problem](comfy-env/two-system-problem.md))
+   ([One solver](comfy-env/one-solver.md))
 2. **Finish the orphaned system-env path** -- `_collect_root_conda_deps`
    is defined and never called; wire it as the shared GL/ffmpeg runtime
    layer. *Resolved by deletion 2026-08: its only would-be consumers
@@ -277,7 +277,7 @@ and the proxy's honesty. What they deliberately did not fix:
 - **conda-forge pytorch coverage** -- feedstock is current (2.13, CUDA on
   Linux + Windows); the gate for conda-native publishing is our
   dependent-package matrix plus the build-lineage caveat for zero-copy.
-  ([The two-system problem](comfy-env/two-system-problem.md))
+  ([One solver](comfy-env/one-solver.md))
 
 ## Frontend JavaScript isolation
 

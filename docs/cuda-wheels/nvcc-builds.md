@@ -47,25 +47,52 @@ the `max_jobs` dispatch input.
 **Swap: avoid using it like the plague — and CI enforces that.** An 8GB
 swapfile exists purely as a safety net (a brief peak becomes a slow minute
 instead of a SIGKILL at hour 3). The resource monitor tracks a swap
-high-water mark, and after the compile a gate rules on it: **any swap use
-fails the build** with an error annotation naming the cell and its peak
-swap GB — unless the package is already at the `max_jobs: 1`,
-`nvcc_threads: 1` floor, where swap merely warns (nothing left to trim;
-the package is at the runner's memory ceiling).
+high-water mark and a MemAvailable low-water mark, and after the compile a
+gate rules on both. It has **three** outcomes, not two:
+
+- **Already at the floor** (`max_jobs: 1`, `nvcc_threads: 1`) and swap was
+  touched at all -> **warn**. This branch is tested first, whatever the
+  magnitude: there is nothing left to trim, so the parachute did its job.
+- **Peak swap above ~1GB AND available memory bottomed out below ~2GB** ->
+  **fail**, with an annotation naming the cell, the peak and the low-water.
+  Both conditions, not either.
+- **Anything else** -> **warn**. Swap touched while memory stayed
+  comfortable is the kernel paging out idle pages, not an over-committed
+  compile. A green cumesh build was once rejected over 0.30GB of swap with
+  10GB still free; that is why the second condition exists.
 
 ## The escalation ladder
 
 When a package OOMs or overruns, escalate in this order — each step costs
 more machinery than the last:
 
-1. **Trim parallelism**: `max_jobs: 2` (natten's proven setting:
-   `max_jobs: 4` OOM'd ~3 minutes in; `2` with single-threaded nvcc held
-   stable for full 3h links).
-2. **Trim the arch list**: if the package has a real floor (Ampere-only
-   kernels), an `arch_override.yml` is both correctness *and* memory relief.
-3. **Shard** (`sharding: N`): torch `cpp_extension` packages only — split
-   the translation units across N parallel jobs
-   ([the 6-hour cap](build-process.md#sequential-and-sharded-compiles)).
+1. **Trim parallelism**: `max_jobs: 1` is where the heaviest packages ended
+   up (natten and flash_attn both), because sharding changes the arithmetic
+   -- a shard holds few enough translation units that one job at a time is
+   the right setting, and anything more re-introduces the peak.
+2. **Trim the arch list -- NO. Do not do this.**
+
+    This rung used to read "if the package has a real floor, an
+    `arch_override.yml` is both correctness *and* memory relief". Narrowing
+    an arch list to survive a build is banned, for a reason that is easy to
+    miss: the pre-upload arch check compares the wheel against the
+    *resolved* list, so trimming moves both sides of the comparison at once
+    and **the build goes green having silently dropped GPUs**. spconv lost
+    its Blackwell cubins exactly that way, under a comment asserting the
+    trim changed nothing about the shipped wheel; a later edit to the same
+    file dropped Ada and nobody noticed for two days.
+
+    If a package genuinely cannot compile an arch, fix it at the source: an
+    `__CUDA_ARCH__` guard with a real fallback, the documented `atomicCAS`
+    shim for `atomicAdd(double*)` below sm_60, or pinning a vendored
+    dependency below its new floor. See
+    [How a cell gets its arch list](arch-selection.md).
+
+3. **Shard** (`sharding: N`): not only `cpp_extension` packages -- natten is
+   a cmake build and spconv is pccm, and both shard in production. There are
+   three knobs, not one (`sharding`, `shard_filter`, `sharding_platforms`),
+   and picking the wrong filter is a *silent* slow build. See
+   [Sharding](sharding.md).
 (A fourth rung -- sequential checkpointing -- was removed 2026-08-21
 after measurement showed nothing needed it; see the build-process page.)
 

@@ -56,7 +56,7 @@ sibling deps were bare names resolving against PyPI; detectron2 ships
 `black==21.4b2` as a runtime dep. This mis-metadata is why comfy-env must
 install these wheels with `--no-deps`, outside its lockfile (the
 "two-system problem" --
-[comfy-env docs](../../comfy-env/two-system-problem.md)).
+[comfy-env docs](../../comfy-env/one-solver.md)).
 
 Mechanism: an optional `requires_dist` list in the package's own
 `package.yml` REPLACES the wheel's Requires-Dist (and Provides-Extra)
