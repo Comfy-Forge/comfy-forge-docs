@@ -83,6 +83,41 @@ nothing; leaving it out hides nothing.
       scan reads both: the V1 dict, and `comfy_entrypoint()` when no dict is
       exported.
 
+        ```python
+        from comfy_api.latest import ComfyExtension, io
+
+        class MyExtension(ComfyExtension):
+            async def on_load(self) -> None:
+                ...                              # optional startup hook
+
+            async def get_node_list(self) -> list[type[io.ComfyNode]]:
+                return [MyNode, MyOtherNode]
+
+        async def comfy_entrypoint() -> MyExtension:
+            return MyExtension()
+        ```
+
+        Core unwraps that straight back into the V1 globals
+        (`nodes.py:2321-2326`): `schema.node_id` becomes the key and
+        `schema.display_name` the display name. **The two registration paths
+        converge on the same two dicts** -- V3 is a builder for them, not a
+        separate registry.
+
+    !!! tip "Definition style and registration style are independent"
+        A class written the V3 way (`define_schema()` + `execute`) can be
+        registered through the **V1 dict** and loses nothing: `io.ComfyNode`
+        synthesizes the whole V1 surface from the schema -- `INPUT_TYPES()`
+        from `schema.get_v1_info(cls)`, and `RETURN_TYPES` / `CATEGORY` /
+        `OUTPUT_NODE` as classproperties that call `GET_SCHEMA()` on first
+        access (`comfy_api/latest/_io.py:2126-2183`). `FUNCTION` resolves to
+        `EXECUTE_NORMALIZED`, which forwards to `cls.execute()`.
+
+        That combination is what comfy-env packs use, because
+        `register_nodes()` returns the two dicts. Choosing `comfy_entrypoint`
+        instead buys exactly one thing the dict cannot give you --
+        `on_load()` -- plus display names lifted from the schema
+        automatically, which `register_nodes()` already does for you.
+
     !!! note "An empty dict is not the same as no dict"
         Core's loader takes the V1 branch whenever `NODE_CLASS_MAPPINGS` is
         *present and not `None`* -- an empty `{}` still wins, and the
@@ -116,6 +151,41 @@ nothing; leaving it out hides nothing.
     -- plus any monkeypatching or global setup the pack does at import
     time. ComfyUI reads no named attribute for any of this; it just runs
     the module, and the side effects happen.
+
+    Two things about those endpoints are easy to get wrong:
+
+    - **Every route is mounted twice.** `add_routes()` walks the table and
+      re-registers each non-static route under an `/api` prefix as well
+      (`server.py:1233-1240`), so the handler above answers on **both**
+      `/geompack/upload` and `/api/geompack/upload`. The prefix exists so a
+      frontend dev server can forward everything except static files. Only
+      `web.RouteDef` entries are aliased -- a `web.static` mount a pack adds
+      is skipped.
+    - **You must register during import, or not at all.** `self.routes` is a
+      plain `RouteTableDef` that gets copied into the aiohttp app exactly
+      once, and `main.py` calls that copy *after* custom nodes have loaded:
+
+        ```
+        main.py:525   PromptServer(loop)        # self.routes = RouteTableDef()
+        main.py:531   init_extra_nodes(...)     # packs import -> append here
+        main.py:545   prompt_server.add_routes()  # SNAPSHOT into the app
+        main.py:566   setup(); run(...)         # serving starts
+        ```
+
+        Decorating a handler after line 545 -- lazily on first node
+        execution, say -- appends to a table nobody reads again. The route
+        silently 404s.
+
+    There is **no V3 API for endpoints**. `ComfyExtension` exposes only
+    `on_load()` and `get_node_list()`, and `comfy_api.latest` has no
+    route surface at all, so V1 and V3 packs both reach for
+    `PromptServer.instance`. `on_load()` at least gives a V3 pack a defined
+    place to call it from, and it still runs inside the import window above.
+
+    Under comfy-env this is the one contract isolation cannot preserve for
+    free: a worker's routes would be registered on a server that does not
+    exist in that process, so the parent re-registers forwarding proxies for
+    them (`_register_proxy_routes`).
 
 Two things go the other way -- ComfyUI writes to the pack rather than reading
 from it:
