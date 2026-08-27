@@ -66,10 +66,11 @@ nav:
               - "setup_env()": comfy-env/setup-env.md
               - "register_nodes()": comfy-env/register-nodes.md
           - Config reference: comfy-env/config.md
-          - Settings reference: comfy-env/settings.md
           - Accelerator declarations: comfy-env/accelerators.md
-          - System footprint: comfy-env/system-footprint.md
           - Custom wire types: comfy-env/serializers.md
+      - Nodepack User Reference:
+          - Settings reference: comfy-env/settings.md
+          - System footprint: comfy-env/system-footprint.md
       - Internals:
           - The two-system problem: comfy-env/two-system-problem.md
           - Why not just conda?: comfy-env/why-not-conda.md

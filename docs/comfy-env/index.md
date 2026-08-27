@@ -198,7 +198,11 @@ full graph, the invariants, and the CI contracts that check them are in
 
 ## Where to go next
 
-- [Module inventory](modules.md) -- what every file under `src/comfy_env/` does
-- [Decision records](adr/index.md) -- the "why" behind each of these choices
-- [System footprint](system-footprint.md) -- exactly what comfy-env writes
+- [Nodepack Author Reference](install.md): the three calls, config,
+  accelerator declarations, custom wire types -- everything a pack declares
+- [Nodepack User Reference](settings.md): machine-global settings, and what
+  comfy-env puts on your disk
+- [Module inventory](modules.md): what every file under `src/comfy_env/` does
+- [Decision records](adr/index.md): the "why" behind each of these choices
+- [System footprint](system-footprint.md): exactly what comfy-env writes
   outside the ComfyUI folder, why, and how to remove it
