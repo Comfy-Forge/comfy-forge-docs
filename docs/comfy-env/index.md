@@ -38,46 +38,41 @@ The rest of this page assumes that the user is already familiar with this crucia
 
 One shared environment for every pack breaks in predictable ways:
 
-- **Conflicting Python deps**: pip installs into one shared env, so
-  whichever lands last wins and the other crashes on import.
-    - Node A pins `numpy<2` -- it has an extension compiled against the
-      numpy 1.x ABI.
+- **Conflicting Python deps**:
+    - Node A pins `numpy<2`
     - Node B needs `numpy>=2`.
+    - pip installs into one shared env, so
+  whichever lands last wins and the other crashes on import.
 - **Conflicting native libraries**: the classic is the **duplicate
-  OpenMP runtime**: torch bundles one (`libiomp5`), another package
-  bundles another (`libomp`/`libgomp`), and loading both into one process
-  aborts with `OMP: Error #15` or silently corrupts numerics. (comfy-env
-  papers over this today with `KMP_DUPLICATE_LIB_OK=TRUE`; see
-  [ADR-0002](adr/0002-pixi-as-environment-manager.md).)
-- **Wrong interpreter entirely** -- a node may need a different Python version
-  than ComfyUI runs. Blender's official `bpy` whee, for example, is built for one
-  specific Python (e.g. 3.11) and refuses to install on any other.
+  OpenMP runtime**.
+    - torch bundles one (`libiomp5`)
+    - another pip installed pack
+  bundles another (`libomp`/`libgomp`)
+    - loading both into one process
+  aborts with `OMP: Error #15` or silently corrupts numerics
+- **Wrong interpreter entirely**:
+    -  ComfyUI is running Python 3.12
+    - Node pack C needs Python 3.11 (for example, it might need a Blender `bpy` wheel)
+    -  The best case scenario is that Node pack C doesn't install at all, worst case is that it does and then crashes ComfyUI when loading
 
-comfy-env's answer is **process isolation**: any subdirectory that declares a
+comfy-env's answer is **process isolation**: any nodepack subdirectory that declares a
 `comfy-env.toml` gets its own pixi-managed environment: separate
 interpreter, conda packages, pip packages.
 
 Its nodes then execute in a persistent subprocess worker using that interpreter.
 
-Moving node code out of the parent breaks exactly one upstream contract that
-has to be rebuilt by hand: **API routes**. A pack that serves its own HTTP
-endpoints -- 23% of the top-500 corpus do -- hangs them off
-`PromptServer.instance`, and that server exists only in the parent process. A
-worker registering a route would be talking to a server that is not there, so
+If the isolated node pack wants to register **API routes**
 comfy-env re-registers **forwarding proxies** in the parent
 (`_register_proxy_routes`): the endpoint answers on ComfyUI's own server and
-the call crosses to the worker like any node execution. Everything else a pack
-contributes -- workflow templates, subgraphs, locales -- is read straight off
-disk by the parent and needs no bridging at all
-([ComfyUI background](comfyui-background.md)).
+the call crosses to the persistent subprocess worker just like node execution.
 
-As a principle, comfy-env **never installs anything into the host environment** -- the host
+As a principle, comfy-env **never installs anything into the host environment**: the host
 env's only comfy-env-related content is `comfy-env` itself
 ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)).
 
 ### Problem 2: CUDA, prebuilt wheels, and conda packages
 
-Two kinds of dependency `pip install` alone cannot deliver:
+There are two kinds of dependency `pip install` alone cannot deliver:
 
 | | Kind | Why pip fails |
 |---|---|---|
@@ -111,19 +106,8 @@ ROCm (torch's `+rocm` tag), and a separate **rocm-wheels** index mirroring
 cuda-wheels is planned. At the moment this is blocked only on the maintainer not owning ROCm
 hardware. Today only CUDA is compiled end to end.
 
-!!! note "Why this logic lives in comfy-env at all"
-    Ideally none of it would: resolution would be delegated to conda and the
-    prebuilt wheels published to a conda channel as packages, resolved by native solver against torch/operating system pins etc like everything
-    else. That path is closed today because **the PyTorch team does not publish
-    conda packages**, which is quite egregious, given torch is the poster child for the
-    exact problems conda exists to solve (bundled libomp copies,
-    import-numpy-before-torch-or-was-it-the-other-way-around native loading order).
-    Until torch is resolvable through conda, the custom index, combo detection and torch-family pinning
-    stay here.
-
-!!! note "Another note about the PyTorch situation because I'm really not happy about it"
-    PyTorch saying "we will shut down conda support because only 5% of our downloads come through there" is like a hospital saying:
-    "Only 5% of our arrivals are by ambulance, so ambulances are clearly low ROI and we shouldn't support them anymore"
+If you are thinking "this dude is just reinventing conda", you are absolutely right.
+[Here's](why-not-conda.md) why this logic lives in comfy-env at all.
 
 #### 2B — Conda packages
 
