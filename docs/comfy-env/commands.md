@@ -26,7 +26,7 @@ that page applies; the flags are the only CLI-specific part:
 
 | Flag | Meaning |
 |---|---|
-| `--dir`, `-d` | The pack directory. **Use this.** Without it, the config is resolved from the *current* directory, which fails from the ComfyUI root -- `comfy-env install --dir <pack>` is the spelling that works from anywhere, and the one error messages print. |
+| `--dir`, `-d` | The pack directory. **Use this.** Without it, the config is resolved from the *current* directory, which fails from the ComfyUI root -- `comfy-env install --dir custom_nodes/<pack>` is the spelling that works from anywhere, and the one error messages print. |
 | `--config`, `-c` | Explicit config path, for a config living somewhere unusual. |
 | `--dry-run` | Derive and report; write no manifests, install nothing. |
 
