@@ -172,39 +172,6 @@ stay listed (struck) so the list doubles as a change record.
    is caught, and land the deferred runtime tier (diff `window`/DOM after
    load -- catches variable-aliased globals the static pass cannot).
 
-### Upstream ComfyUI: the real frontend boundary (PR to open)
-
-The `javascript` lint *detects and contains*; it cannot make a same-origin,
-full-JS plugin **safe** -- variable-aliased globals (`const w = window`) and
-same-origin iframe reach-through (`parent.X` from iframe HTML) are past what
-static analysis can see, and the install-weighted majority of popular packs
-(rgthree, cg-use-everywhere, Crystools, Easy-Use) *legitimately* patch the
-shared canvas/menubar because ComfyUI offers no sanctioned extension point.
-Only core can close this. **TODO: open an upstream ComfyUI PR** proposing, in
-leverage order:
-
-1. **Entry-point manifest** replacing the `**/*.js` auto-import glob -- a
-   pack declares which files enter the main realm; everything else under
-   `web/` is a static asset. Makes "what runs in the shared page" an
-   explicit, reviewable list and fixes accidental iframe-internal imports
-   (the `.mjs` trick is already this, informally).
-2. **Sandboxed, port-based iframe-widget API** (`app.iframeWidget(node,
-   {src, onMessage})` returning a `MessageChannel` port) -- pairwise ports
-   make cross-pack message bleed structurally impossible (no `event.source`
-   to forget), and `sandbox` (opaque origin) makes the boundary real so
-   `parent.*` reach-through throws. Must re-handshake on iframe reload (a
-   navigated iframe drops its port) and needs a CORS/blob-proxy story for
-   in-iframe `/view` fetches under an opaque origin.
-3. **Sanctioned hooks for shared surfaces** -- registered canvas overlays,
-   menubar/panel slots, theme tokens, serialization middleware -- each
-   fault-isolated by core, so deep-integration packs stop monkeypatching
-   `LGraphCanvas.prototype`. Hooks compose by construction; monkeypatches
-   only compose if every pack chains correctly (today's n-factorial risk).
-
-This is the frontend twin of comfy-env's **isolation before sandboxing**
-([ADR-0011](comfy-env/adr/0011-isolation-before-sandboxing.md)): ship the
-containment now, propose the real sandbox upstream.
-
 ## cookiecutter-comfy-extension
 
 1. **Update the scaffold -- it does not produce a comfy-env pack.**
@@ -311,3 +278,50 @@ and the proxy's honesty. What they deliberately did not fix:
   Linux + Windows); the gate for conda-native publishing is our
   dependent-package matrix plus the build-lineage caveat for zero-copy.
   ([The two-system problem](comfy-env/two-system-problem.md))
+
+## Frontend JavaScript isolation
+
+comfy-env isolates a pack's **Python** into its own process and environment.
+Its **frontend JS cannot currently be isolated the same way**: ComfyUI serves
+every pack's scripts into one shared browser origin, so there is no per-pack
+boundary to isolate at. The reasoning and the deferral are
+[ADR-0031](comfy-env/adr/0031-frontend-javascript-isolation.md).
+
+What ships today is *containment, not isolation*: the `javascript` test level
+lints for collisions (unnamespaced extensions, foreign node hooks, unguarded
+message listeners, shared DOM injection), and iframe-only bundles are kept out
+of the shared realm by naming them `.mjs`, which ComfyUI's `**/*.js` glob does
+not pick up.
+
+### Upstream ComfyUI: the real frontend boundary (PR to open)
+
+The `javascript` lint *detects and contains*; it cannot make a same-origin,
+full-JS plugin **safe** -- variable-aliased globals (`const w = window`) and
+same-origin iframe reach-through (`parent.X` from iframe HTML) are past what
+static analysis can see, and the install-weighted majority of popular packs
+(rgthree, cg-use-everywhere, Crystools, Easy-Use) *legitimately* patch the
+shared canvas/menubar because ComfyUI offers no sanctioned extension point.
+Only core can close this. **TODO: open an upstream ComfyUI PR** proposing, in
+leverage order:
+
+1. **Entry-point manifest** replacing the `**/*.js` auto-import glob -- a
+   pack declares which files enter the main realm; everything else under
+   `web/` is a static asset. Makes "what runs in the shared page" an
+   explicit, reviewable list and fixes accidental iframe-internal imports
+   (the `.mjs` trick is already this, informally).
+2. **Sandboxed, port-based iframe-widget API** (`app.iframeWidget(node,
+   {src, onMessage})` returning a `MessageChannel` port) -- pairwise ports
+   make cross-pack message bleed structurally impossible (no `event.source`
+   to forget), and `sandbox` (opaque origin) makes the boundary real so
+   `parent.*` reach-through throws. Must re-handshake on iframe reload (a
+   navigated iframe drops its port) and needs a CORS/blob-proxy story for
+   in-iframe `/view` fetches under an opaque origin.
+3. **Sanctioned hooks for shared surfaces** -- registered canvas overlays,
+   menubar/panel slots, theme tokens, serialization middleware -- each
+   fault-isolated by core, so deep-integration packs stop monkeypatching
+   `LGraphCanvas.prototype`. Hooks compose by construction; monkeypatches
+   only compose if every pack chains correctly (today's n-factorial risk).
+
+This is the frontend twin of comfy-env's **isolation before sandboxing**
+([ADR-0011](comfy-env/adr/0011-isolation-before-sandboxing.md)): ship the
+containment now, propose the real sandbox upstream.

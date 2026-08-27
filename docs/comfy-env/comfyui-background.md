@@ -60,84 +60,40 @@ WEB_DIRECTORY = "./web"                                   # optional JS for the 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 ```
 
-Exactly what ComfyUI takes from the imported module (verified against
-core `nodes.py` `load_custom_node`). It reads **four** named attributes and
+ComfyUI reads up to **four** named attributes from __init__.py and
 nothing else:
 
 | Attribute | Required | What it is |
 |---|---|---|
-| `NODE_CLASS_MAPPINGS` | one of these two | `id -> class` (`nodes.py:2293`) |
-| `comfy_entrypoint` | one of these two | V3 alternative, taken only if the dict is absent (`:2302`) |
-| `NODE_DISPLAY_NAME_MAPPINGS` | no | `id -> pretty name` (`:2298`) |
-| `WEB_DIRECTORY` | no | frontend JS directory (`:2286`) |
+| `NODE_CLASS_MAPPINGS` | one of these two | `id -> class` |
+| `comfy_entrypoint` | one of these two | V3 alternative, taken only if the dict is absent |
+| `NODE_DISPLAY_NAME_MAPPINGS` | no | `id -> pretty name` |
+| `WEB_DIRECTORY` | no | frontend JS directory |
 
-Everything else the loader does is a side effect of the import, not a lookup.
-Nothing named `__all__` is consulted -- listing an attribute there changes
-nothing; leaving it out hides nothing.
+But the ComfyUI loader takes several things from the custom node pack as a side effect of the import:
 
-1. **The nodes** -- one of two ways:
+1. **The nodes**: one of two ways:
     - **V1 (the common one):** the `NODE_CLASS_MAPPINGS` dict (`id -> class`,
-      **required** -- no dict, no nodes) plus the optional
+      **required**) plus the optional
       `NODE_DISPLAY_NAME_MAPPINGS` (`id -> pretty name`).
     - **V3 (newer):** a `comfy_entrypoint()` function returning a
       `ComfyExtension`, whose `get_node_list()` + each class's
       `GET_SCHEMA()` produce the same node registry. comfy-env's metadata
-      scan reads both: the V1 dict, and `comfy_entrypoint()` when no dict is
-      exported.
-
-        ```python
-        from comfy_api.latest import ComfyExtension, io
-
-        class MyExtension(ComfyExtension):
-            async def on_load(self) -> None:
-                ...                              # optional startup hook
-
-            async def get_node_list(self) -> list[type[io.ComfyNode]]:
-                return [MyNode, MyOtherNode]
-
-        async def comfy_entrypoint() -> MyExtension:
-            return MyExtension()
-        ```
-
-        Core unwraps that straight back into the V1 globals
-        (`nodes.py:2321-2326`): `schema.node_id` becomes the key and
-        `schema.display_name` the display name. **The two registration paths
-        converge on the same two dicts** -- V3 is a builder for them, not a
-        separate registry.
-
-    !!! tip "Definition style and registration style are independent"
-        A class written the V3 way (`define_schema()` + `execute`) can be
-        registered through the **V1 dict** and loses nothing: `io.ComfyNode`
-        synthesizes the whole V1 surface from the schema -- `INPUT_TYPES()`
-        from `schema.get_v1_info(cls)`, and `RETURN_TYPES` / `CATEGORY` /
-        `OUTPUT_NODE` as classproperties that call `GET_SCHEMA()` on first
-        access (`comfy_api/latest/_io.py:2126-2183`). `FUNCTION` resolves to
-        `EXECUTE_NORMALIZED`, which forwards to `cls.execute()`.
-
-        That combination is what comfy-env packs use, because
-        `register_nodes()` returns the two dicts. Choosing `comfy_entrypoint`
-        instead buys exactly one thing the dict cannot give you --
-        `on_load()` -- plus display names lifted from the schema
-        automatically, which `register_nodes()` already does for you.
-
-    !!! note "An empty dict is not the same as no dict"
-        Core's loader takes the V1 branch whenever `NODE_CLASS_MAPPINGS` is
-        *present and not `None`* -- an empty `{}` still wins, and the
-        `comfy_entrypoint` branch is never reached. A pack exporting both an
-        empty dict and an entrypoint therefore registers nothing upstream,
-        and `load_custom_node` still returns success, so nothing warns.
-2. **The frontend JS directory** -- `WEB_DIRECTORY` (or `[tool.comfy].web`
+      scan supports both formats.
+2. **The frontend JS directory**: `WEB_DIRECTORY` (or `[tool.comfy].web`
    in `pyproject.toml`). **ComfyUI does NOT import this into Python.** It
    just *registers the directory* and serves the files statically; the
    **browser** then auto-imports every `.js` under it when the UI loads.
-   Python-side registration, browser-side execution -- two different
-   processes. (This split is why frontend JS **cannot currently be
+   Python-side registration, browser-side execution, which are two different
+   processes. This split is why frontend JS **cannot currently be
    isolated** the way the Python can be -- there is no per-pack browser
    boundary to isolate at, only one shared origin; deferred with the
-   reasoning in [ADR-0031](adr/0031-frontend-javascript-isolation.md).)
-   The exact scan rules are below -- they decide what does and does not
-   end up in that shared realm.
-3. **Whatever the import *did*** -- running `__init__.py` fires every
+   reasoning in [ADR-0031](adr/0031-frontend-javascript-isolation.md).
+   What ships instead, and what would have to change upstream before real
+   isolation is possible, is
+   [Frontend JavaScript isolation](../roadmap.md#frontend-javascript-isolation)
+   on the roadmap.)
+3. **Whatever the import *did***: running `__init__.py` fires every
    side effect it contains. The most common one: **API route
    registration**, where the pack hangs its own HTTP endpoints off
    ComfyUI's shared server --
