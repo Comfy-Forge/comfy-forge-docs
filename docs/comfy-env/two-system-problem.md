@@ -68,8 +68,17 @@ contributors involved), with CUDA builds on Linux **and Windows** and
 CUDA 13 variants underway. This is much healthier than its reputation.
 What "full coverage" still requires before we could switch:
 
-1. **Version breadth**: packs pin torch families back to ~2.4; conda-forge
-   ships the current version, not the historical matrix.
+1. ~~**Version breadth**~~ **-- solved** (re-checked 2026-08): the feedstock
+   carries the historical matrix after all -- 2.4.1, 2.5.1, 2.6.0, 2.7.1,
+   2.8.0, 2.9.1, 2.10.0 through 2.13.0, each at py3.10-3.13, on linux-64,
+   win-64 *and* linux-aarch64 (whose CUDA coverage is better than PyPI's).
+   What replaces it: **CUDA-variant alignment**. conda-forge builds one or
+   two variants per torch line and they are not PyPI's cells -- torch 2.8.0
+   on linux is **cuda129 only** (no cuda128), while win-64 is cuda128. Our
+   x86 fallback combo (12.8, 2.8) has no exact linux cell; the aarch64
+   fallback (13.0, 2.10) exists exactly. Either the combo table learns
+   conda-forge's cells, or we accept nearest-minor and verify CUDA minor
+   compatibility holds for the farm's extensions.
 2. **Dependent-package matrix**: the real work is our side -- building the
    ~27 CUDA packages as conda packages across the variant grid (the
    rattler-build recipes exist; the matrix is the cost).
