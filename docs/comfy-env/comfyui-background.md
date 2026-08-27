@@ -1,10 +1,7 @@
 # ComfyUI background, for newcomers
 
-*How vanilla ComfyUI loads a node pack, which is the contract comfy-env has to
-honour.
-If you already know what `NODE_CLASS_MAPPINGS` is and when
-`prestartup_script.py` runs, skip to the
-[architecture overview](index.md).*
+*How vanilla ComfyUI installs, loads and uses a node pack, which is the contract comfy-env has to
+honour.*
 
 Vanilla ComfyUI loads every custom node pack into
 one shared Python process with one shared environment.
@@ -46,9 +43,9 @@ ComfyUI/custom_nodes/
     +-- fonts/, docs/, kjweb_async/                       <- misc
 ```
 
-## What ComfyUI reads from `__init__.py`
+## What ComfyUI reads from installed custom nodes
 
-### The four attributes
+### The four `__init__.py` attributes
 
 At startup ComfyUI `import`s each pack's `__init__.py`:
 
@@ -72,84 +69,40 @@ nothing else:
 | `NODE_DISPLAY_NAME_MAPPINGS` | no | `id -> pretty name` |
 | `WEB_DIRECTORY` | no | frontend JS directory |
 
-### Everything else the import does
+### Everything else
 
-- But the ComfyUI loader takes several more things from the custom node pack as a side effect of the import:
+The ComfyUI loader takes several more things from the custom node pack as a side effect of the import:
 
-    1. **Whatever the import *did***: running `__init__.py` fires every
-       side effect it contains. The most common one: **API route
-       registration**, where the pack hangs its own HTTP endpoints off
-       ComfyUI's shared server:
+- **Whatever the import *did***: running `__init__.py` fires every
+   side effect it contains. The most common one: **API route
+   registration**, where the pack hangs its own HTTP endpoints off
+   ComfyUI's shared server:
 
-        ```python
-        from server import PromptServer
+    ```python
+    from server import PromptServer
 
-        @PromptServer.instance.routes.post("/geompack/upload")
-        async def upload_mesh(request):
-            ...   # now GET/POST http://127.0.0.1:8188/geompack/upload hits this
-        ```
+    @PromptServer.instance.routes.post("/geompack/upload")
+    async def upload_mesh(request):
+        ...   # now GET/POST http://127.0.0.1:8188/geompack/upload hits this
+    ```
 
-        plus any monkeypatching or global setup the pack does at import
-        time. ComfyUI reads no named attribute for any of this; it just runs
-        the module, and the side effects happen:
-        [Import-time side effects in the wild](import-side-effects.md).
+    plus any monkeypatching or global setup the pack does at import
+    time. ComfyUI reads no named attribute for any of this; it just runs
+    the module, and the side effects happen:
+    [Import-time side effects in the wild](import-side-effects.md).
 
-    2. **[Workflow templates](#workflow-templates)**, found by folder name --
-       and [subgraphs](#subgraphs) likewise.
+- **Workflow templates**, found by folder name,
+       and subgraphs likewise.
 
-    3. Optional **node-name translations**, one folder per
-       [locale](#locales).
+- Optional **node-name translations**, one folder per
+       locale.
 
-    4. **[`pyproject.toml`](#what-core-actually-reads-from-pyprojecttoml)**: the
-       project name -- your JS URL.
-
-## Data types: what a socket type actually is
-
-A socket type in ComfyUI is **a string**, and nothing more. `RETURN_TYPES =
-("INT",)` and `INPUT_TYPES` returning `{"required": {"mesh": ("TRIMESH",)}}`
-declare the same kind of thing. ComfyUI never inspects the Python object
-flowing along an edge — it compares the two declared strings and, if they
-match, passes the object through untouched.
-
-The matching rule is `validate_node_input` in
-`comfy_execution/validation.py`, and it is short:
-
-| Rule | Behaviour |
-|---|---|
-| Exact string equality | matches |
-| `"*"` on either side (`IO.AnyType`) | matches anything |
-| `COMFY_MATCHTYPE_V3` on either side | matches; the frontend validates it |
-| `"A,B"` | a **union** — comma-separated. Non-strict (the default) needs a non-empty intersection; strict needs a subset |
-
-There are ~85 built-in types (`comfy_api/latest/_io.py`), and the Python
-objects behind them are ordinary:
-
-| Socket | Python object |
-|---|---|
-| `IMAGE`, `MASK` | `torch.Tensor` |
-| `LATENT` | `dict` with a `samples` tensor, plus optional `noise_mask`, `batch_index` |
-| `CONDITIONING` | list of `[tensor, dict]` pairs |
-| `MODEL`, `CLIP`, `VAE` | ComfyUI wrapper objects (`ModelPatcher` and friends) |
-| `INT`, `FLOAT`, `STRING`, `BOOLEAN` | Python primitives |
-
-**The type registry is open.** Nothing registers a type name centrally, so a
-pack invents one by returning it: `TRIMESH`, `POINTCLOUD`, `SKELETON` are
-strings a pack made up, and ComfyUI wires them as happily as `IMAGE`. Two
-packs that independently pick `MESH` are, as far as ComfyUI is concerned, the
-same type — the string is the whole contract.
-
-!!! note "Why this matters for comfy-env"
-    In vanilla ComfyUI the object never leaves the process, so "the type is
-    just a string" costs nothing — the same `Trimesh` instance is handed from
-    one node to the next.
-
-    Under comfy-env the object may have to cross a **process boundary**, and
-    a string does not say how to move bytes. That is the gap
-    [custom wire types](serializers.md) fills.
+- **`pyproject.toml`**: the
+       project name.
 
 ## Lifecycle hooks and who runs them
 
-Every file besides `__init__.py` is optional, and different actors run them
+Every file besides `__init__.py` in a node pack is optional, and different actors run them
 at different times:
 
 | File | Run by | When | Logic |
@@ -188,7 +141,7 @@ Real packs cover the whole spectrum of these hooks:
   This hook exists precisely because it runs *before* anything imports --
   the only moment you can still fix the environment.
 
-## Frontend JavaScript: what gets auto-imported
+## Frontend JavaScript
 
 Registration is Python-side; execution is browser-side. Both halves matter.
 
@@ -240,111 +193,47 @@ rather than ComfyUI's. Everything left as `.js` under the web dir shares one
 global scope with every other installed pack: one `window`, one `document`,
 one extension-name namespace.
 
-## Scanned from disk, no import needed
 
-The three below are read straight off the filesystem by the server. A pack that
-fails to import still contributes them, and no attribute controls any of it.
+## Data types
 
-### Workflow templates
+A socket type in ComfyUI is **a string**, and nothing more. `RETURN_TYPES =
+("INT",)` and `INPUT_TYPES` returning `{"required": {"mesh": ("TRIMESH",)}}`
+declare the same kind of thing. ComfyUI never inspects the Python object
+flowing along an edge — it compares the two declared strings and, if they
+match, passes the object through untouched.
 
-A pack can ship example workflows that appear in the UI's template browser.
-This is **not** part of the `__init__.py` import -- like
-`prestartup_script.py`, it is a separate thing the server does, which is why
-no attribute controls it. It is a directory scan, and the rules are in
-`app/custom_node_manager.py`.
+The matching rule is `validate_node_input` in
+`comfy_execution/validation.py`, and it is short:
 
-**Five folder names are accepted** (`:94`), first match wins per pack:
-
-```python
-example_workflow_folder_names = ["example_workflows", "example", "examples",
-                                 "workflow", "workflows"]
-```
-
-`example_workflows` is the preferred spelling; the other four still work and
-merely log a nudge -- at `logging.debug`, so nobody sees it at ComfyUI's
-default level. A pack using `workflows/` is fine and does not need renaming.
-
-!!! warning "The scan is exactly one level deep"
-    The glob is `os.path.join(folder, f"*/{folder_name}/*.json")` (`:104`) --
-    `custom_nodes/<pack>/<folder>/*.json` and **no deeper**. A workflow at
-    `workflows/basic/foo.json` is never found, and nothing warns: it simply
-    does not appear. Organising templates into subfolders is the one mistake
-    this feature invites.
-
-The **filename is the display name** --
-`os.path.splitext(os.path.basename(file))[0]` (`:114`). There is no title
-field and no ordering control, so naming is the only lever you have.
-
-Two separate mechanisms back the feature, and they disagree about which packs
-count:
-
-| | endpoint | source of truth |
-|---|---|---|
-| **Listing** | `GET /workflow_templates` (`:96-119`) | globs the **filesystem**, every `custom_nodes` path |
-| **Serving** | static `/api/workflow_templates/<module_name>` (`:121-137`) | iterates `loadedModules` -- only packs that **imported successfully** |
-
-So a pack that fails to load can still be *listed* while its templates 404 on
-open. That is worth knowing for an isolated pack specifically: a missing env
-sends it down the in-process import fallback, and if that fails hard the pack
-is absent from `loadedModules` -- its workflows stay advertised and become
-unfetchable.
-
-### Subgraphs
-
-A pack can ship reusable node groups as `<pack>/subgraphs/*.json`. The glob is
-`custom_nodes/*/subgraphs/*.json` (`app/subgraph_manager.py:82`) -- **one level,
-non-recursive**, same shape as workflow templates, and nesting hides a file just
-as silently.
-
-Each entry is tagged with its pack as `custom_nodes.<pack-dir-name>`
-(`:84`), and they are served at `GET /global_subgraphs` and
-`/global_subgraphs/{id}`. The same route serves ComfyUI's own `blueprints/`
-directory, so a pack's subgraphs sit in one namespace beside core's.
-
-Results are **cached** after the first scan (`cached_custom_node_subgraphs`,
-with a `force_reload` flag), so dropping a new file in does not appear until
-restart.
-
-### Locales
-
-A pack can ship UI translations as `<pack>/locales/<lang>/main.json`, where
-`<lang>` is the directory name. Three extra files are folded into the same
-object under a key named after the file (`custom_node_manager.py:12-16`):
-
-```
-<pack>/locales/
-    en/
-        main.json          <- merged at the top level
-        nodeDefs.json      <- merged under "nodeDefs"
-        commands.json      <- merged under "commands"
-        settings.json      <- merged under "settings"
-```
-
-Served at `GET /i18n`. Two properties follow from *how* they are combined
-(`:56-88`):
-
-- **Every pack merges into one dict per language**, recursively
-  (`merge_json_recursive`). This is a shared namespace, exactly like the
-  frontend JS realm -- two packs defining the same key collide, and the winner
-  is whichever comes later in the **sorted** directory walk. The sort is
-  deliberate ("for deterministic ordering"), which makes the collision stable,
-  not absent.
-- **A malformed file is skipped in silence.** `safe_load_json_file` catches
-  `JSONDecodeError` and returns `{}`, so a stray trailing comma costs you the
-  translations with no message anywhere.
-
-## What core actually reads from `pyproject.toml`
-
-The file carries a lot of Registry metadata, but `load_custom_node` touches
-exactly two fields (`nodes.py:2270-2281`):
-
-| Field | Used for |
+| Rule | Behaviour |
 |---|---|
-| `project.name` | the key under which the web dir is registered in `EXTENSION_WEB_DIRS` |
-| `[tool.comfy] web` | the web directory itself |
+| Exact string equality | matches |
+| `"*"` on either side (`IO.AnyType`) | matches anything |
+| `COMFY_MATCHTYPE_V3` on either side | matches; the frontend validates it |
+| `"A,B"` | a **union** — comma-separated. Non-strict (the default) needs a non-empty intersection; strict needs a subset |
 
-Everything else in the model -- `PublisherId`, `DisplayName`, `Icon`,
-`Models` (each with `location` and `model_url`), `banner_url`, `includes`
-(`comfy_config/types.py:47-55`) -- is **Registry metadata**, consumed by
-comfy.org and ComfyUI-Manager. Declaring `Models` does not make the running
-server fetch anything.
+There are ~85 built-in types (`comfy_api/latest/_io.py`), and the Python
+objects behind them are ordinary:
+
+| Socket | Python object |
+|---|---|
+| `IMAGE`, `MASK` | `torch.Tensor` |
+| `LATENT` | `dict` with a `samples` tensor, plus optional `noise_mask`, `batch_index` |
+| `CONDITIONING` | list of `[tensor, dict]` pairs |
+| `MODEL`, `CLIP`, `VAE` | ComfyUI wrapper objects (`ModelPatcher` and friends) |
+| `INT`, `FLOAT`, `STRING`, `BOOLEAN` | Python primitives |
+
+**The type registry is open.** Nothing registers a type name centrally, so a
+pack invents one by returning it: `TRIMESH`, `POINTCLOUD`, `SKELETON` are
+strings a pack made up, and ComfyUI wires them as happily as `IMAGE`. Two
+packs that independently pick `MESH` are, as far as ComfyUI is concerned, the
+same type — the string is the whole contract.
+
+!!! note "Why this matters for comfy-env"
+    In vanilla ComfyUI the object never leaves the process, so "the type is
+    just a string" costs nothing — the same `Trimesh` instance is handed from
+    one node to the next.
+
+    Under comfy-env the object may have to cross a **process boundary**, and
+    a string does not say how to move bytes. That is the gap
+    [custom wire types](serializers.md) fills.

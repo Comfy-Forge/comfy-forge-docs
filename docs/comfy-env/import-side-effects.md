@@ -55,7 +55,7 @@ file in it, and copies its own JS in -- on every launch.
 
 Why it exists: this predates `WEB_DIRECTORY`, when shipping frontend JS meant
 putting files where ComfyUI would serve them. The mechanism it replaces
-([WEB_DIRECTORY](comfyui-background.md#frontend-javascript-what-gets-auto-imported))
+([WEB_DIRECTORY](comfyui-background.md#frontend-javascript))
 does the same job by *registering* a directory rather than copying into
 someone else's.
 

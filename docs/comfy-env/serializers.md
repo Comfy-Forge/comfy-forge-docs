@@ -1,7 +1,7 @@
 # Custom wire types (`[types]` + `serialization.py`)
 
 Nodes in ComfyUI exchange objects along edges. A socket type is defined by
-[just a string](comfyui-background.md#data-types-what-a-socket-type-actually-is)
+[just a string](comfyui-background.md#data-types)
 -- `IMAGE`, `VIDEO`, `LATENT` -- and vanilla ComfyUI never looks inside the
 object. The same instance is handed from one node to the next, in one process.
 
