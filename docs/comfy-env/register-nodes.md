@@ -42,8 +42,8 @@ Step by step:
 2. **Discover isolation dirs**: `<nodes_package>/comfy-env.toml` or `<nodes_package>/<subdir>/`, the two
    shapes the runtime binder can bind.
 3. **Every isolation dir** gets a **metadata scan**: a short-lived subprocess runs
-   *inside the isolation env*, imports the node modules there, and pickles
-   out their metadata: `INPUT_TYPES`, `RETURN_TYPES`, `FUNCTION`,
+   *inside the isolation env*, imports the node modules there, and writes
+   out their metadata as JSON: `INPUT_TYPES`, `RETURN_TYPES`, `FUNCTION`,
    v3 schemas, dynamic option lists (model dropdowns). The parent never
    imports node code
    ([ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md)).
@@ -85,10 +85,13 @@ Step by step:
 !!! warning "A proxy's `INPUT_TYPES` is a snapshot, and core's is not"
     Vanilla ComfyUI re-evaluates `INPUT_TYPES()` on every `/object_info`
     request, which is why file-listing dropdowns stay live. A proxy replays a
-    payload captured once at scan time and cached on disk, so a combo built
-    from a directory listing never refreshes -- newly uploaded files do not
-    appear, even after a restart. A node can opt one combo back into live
-    refresh with `comfy_env_dynamic_dir`; see
+    payload captured once at scan time and cached on disk -- so a computed
+    option list would freeze. comfy-env closes the two common cases: combos
+    built from `folder_paths.get_filename_list(...)` are **detected at scan
+    time** and re-resolved live in the parent on every `/object_info`, and
+    input-directory pickers stay live by building their options with
+    `comfy_env.input_files(...)`. Anything else -- hand-rolled walks, backend
+    probes, API queries -- stays frozen; see
     [Dynamic combos](dynamic-combos.md).
 
 ## Degradation and flags
