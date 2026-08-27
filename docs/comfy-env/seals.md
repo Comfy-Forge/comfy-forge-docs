@@ -17,12 +17,24 @@ Both files sit in the env's manifest directory
 
 ## Seal 1 -- the fast key (`_fast_key`, `install/workspace.py`)
 
-A sha256 over the **local inputs** that could change the derivation: this
-env's `comfy-env.toml` bytes, the bootstrap ABI tag, GPU presence, and the
-cross-env combo inputs. Pure local -- no network, no torch import. When every
-env's fast key matches (and each env is materialized, and none sits on a
-fallback combo), the whole `install()` run exits before torch is even
-resolved: the cheap N-installs-per-CI-run path.
+A sha256 over the **local inputs** -- the facts on this machine that the
+derivation would be computed *from*. Exactly these:
+
+1. the raw **bytes of this env's `comfy-env.toml`** (bytes, not meaning --
+   a comment edit changes the key)
+2. the declared **`[cuda]` package names**, across every discovered env
+3. the requested **python version** per env (`python = "..."` or "host")
+4. the host **ABI tag** (python + torch + cuda stack of the bootstrap
+   interpreter)
+5. **GPU presence** (`has_nvidia_gpu()`)
+6. a **manifest-format constant** (bumped when the *shape* of what install
+   writes changes, so an on-disk layout from an older comfy-env cannot
+   survive the skip -- added in 0.4.31 for the wheel inlining)
+
+Everything on the list is readable from disk in a millisecond: no network,
+no torch import. When every env's fast key matches (and each env is
+materialized, and none sits on a fallback combo), the whole `install()` run
+exits before torch is even resolved: the cheap N-installs-per-CI-run path.
 
 It is deliberately **pessimistic**: editing a comment in `comfy-env.toml`
 misses the key, because the key hashes bytes, not meaning. That is fine --
