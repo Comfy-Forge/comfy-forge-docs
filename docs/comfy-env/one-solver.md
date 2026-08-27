@@ -48,14 +48,28 @@ URL. The `conda-cuda-packages` repo already prototypes the recipes
 ## What it costs
 
 **1. torch itself must resolve from conda -- for every cell packs pin.**
-This is the hard one. Packs pin torch families back to ~2.4; conda-forge
-ships the current version, not the historical matrix
-([checked 2026-08](why-not-conda.md): the feedstock is at 2.13, actively
-maintained, CUDA builds on Linux and Windows -- much healthier than its
-reputation, but it is a rolling head, not an archive). Covering every
-(torch, cuda, python) cell the packs need means either conda-forge growing
-the historical matrix or **our own channel repackaging PyPI's torch wheels
-as conda packages** -- a second farm, torch-shaped.
+This is the hard one, and it is now measured rather than suspected. The
+demand curve is the wheel farm's own build grid: **29 (cuda, torch) cells**,
+torch 2.4.1 through 2.13.0, cu124 through cu132. Against conda-forge's
+actual `pytorch` builds (anaconda.org API, checked 2026-08-27, 4573
+artifacts):
+
+- **12 of 29 cells exist on linux-64 -- 41%.**
+- **cu128 does not exist on conda-forge linux-64 for *any* torch version**
+  -- and cu128/torch2.8 is the fleet's workhorse cell. (win-64 has cu128;
+  linux never got it.)
+- cu124 never existed there; cu132 does not yet.
+- The pattern is structural, not backlog: conda-forge ships **one or two
+  CUDA lines per torch version**, migrating with its global pinning
+  (cu118 → cu120 → cu126 → cu129 → cu130). It is a moving pointer, not a
+  matrix, and PyPI torch ships 3-4 CUDA lines per version. **The historical
+  matrix will never appear upstream by policy.**
+
+So the end state requires **our own channel repackaging PyPI's torch wheels
+as conda packages** -- a second farm, torch-shaped, though repackaging
+rather than compiling: 29 cells x their python axes x three platforms is
+roughly 350 artifacts of wrap-the-wheel work, automatable with the same
+machinery the wheel farm already runs.
 
 **2. The dependent-package matrix is on us regardless.** ~27 packages x the
 variant grid, as conda builds. The recipes exist; the matrix is the cost.
