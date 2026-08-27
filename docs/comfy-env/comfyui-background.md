@@ -40,7 +40,9 @@ ComfyUI/custom_nodes/
     +-- web/                    <- JS extensions served to the browser UI
     |                              (pointed at by WEB_DIRECTORY = "./web")
     +-- example_workflows/      <- .json workflows the UI offers as templates
-    |                              (scanned by the server -- see below)
+    +-- subgraphs/              <- .json reusable node groups
+    +-- locales/<lang>/         <- UI translations merged into /i18n
+    |                              (all three scanned off disk -- see below)
     +-- fonts/, docs/, kjweb_async/                       <- misc
 ```
 
@@ -407,3 +409,63 @@ open. That is worth knowing for an isolated pack specifically: a missing env
 sends it down the in-process import fallback, and if that fails hard the pack
 is absent from `loadedModules` -- its workflows stay advertised and become
 unfetchable.
+
+### Subgraphs
+
+A pack can ship reusable node groups as `<pack>/subgraphs/*.json`. The glob is
+`custom_nodes/*/subgraphs/*.json` (`app/subgraph_manager.py:82`) -- **one level,
+non-recursive**, same shape as workflow templates, and nesting hides a file just
+as silently.
+
+Each entry is tagged with its pack as `custom_nodes.<pack-dir-name>`
+(`:84`), and they are served at `GET /global_subgraphs` and
+`/global_subgraphs/{id}`. The same route serves ComfyUI's own `blueprints/`
+directory, so a pack's subgraphs sit in one namespace beside core's.
+
+Results are **cached** after the first scan (`cached_custom_node_subgraphs`,
+with a `force_reload` flag), so dropping a new file in does not appear until
+restart.
+
+### Locales
+
+A pack can ship UI translations as `<pack>/locales/<lang>/main.json`, where
+`<lang>` is the directory name. Three extra files are folded into the same
+object under a key named after the file (`custom_node_manager.py:12-16`):
+
+```
+<pack>/locales/
+    en/
+        main.json          <- merged at the top level
+        nodeDefs.json      <- merged under "nodeDefs"
+        commands.json      <- merged under "commands"
+        settings.json      <- merged under "settings"
+```
+
+Served at `GET /i18n`. Two properties follow from *how* they are combined
+(`:56-88`):
+
+- **Every pack merges into one dict per language**, recursively
+  (`merge_json_recursive`). This is a shared namespace, exactly like the
+  frontend JS realm -- two packs defining the same key collide, and the winner
+  is whichever comes later in the **sorted** directory walk. The sort is
+  deliberate ("for deterministic ordering"), which makes the collision stable,
+  not absent.
+- **A malformed file is skipped in silence.** `safe_load_json_file` catches
+  `JSONDecodeError` and returns `{}`, so a stray trailing comma costs you the
+  translations with no message anywhere.
+
+### What core actually reads from `pyproject.toml`
+
+The file carries a lot of Registry metadata, but `load_custom_node` touches
+exactly two fields (`nodes.py:2270-2281`):
+
+| Field | Used for |
+|---|---|
+| `project.name` | the key under which the web dir is registered in `EXTENSION_WEB_DIRS` |
+| `[tool.comfy] web` | the web directory itself |
+
+Everything else in the model -- `PublisherId`, `DisplayName`, `Icon`,
+`Models` (each with `location` and `model_url`), `banner_url`, `includes`
+(`comfy_config/types.py:47-55`) -- is **Registry metadata**, consumed by
+comfy.org and ComfyUI-Manager. Declaring `Models` does not make the running
+server fetch anything.
