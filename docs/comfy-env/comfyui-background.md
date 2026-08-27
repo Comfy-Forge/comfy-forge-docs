@@ -70,7 +70,7 @@ nothing else:
 
 But the ComfyUI loader takes several more things from the custom node pack as a side effect of the import:
 
-3. **Whatever the import *did***: running `__init__.py` fires every
+1. **Whatever the import *did***: running `__init__.py` fires every
    side effect it contains. The most common one: **API route
    registration**, where the pack hangs its own HTTP endpoints off
    ComfyUI's shared server:
@@ -85,50 +85,14 @@ But the ComfyUI loader takes several more things from the custom node pack as a 
 
     plus any monkeypatching or global setup the pack does at import
     time. ComfyUI reads no named attribute for any of this; it just runs
-    the module, and the side effects happen. What packs in the wild
-    actually do with that freedom can be very silly, from
-    `sys.path` mutation to `git pull` at startup:
+    the module, and the side effects happen:
     [Import-time side effects in the wild](import-side-effects.md).
-
-Two things go the other way -- ComfyUI writes to the pack rather than reading
-from it:
-
-- **`RELATIVE_PYTHON_MODULE` is set on every registered class**
-  (`nodes.py:2296`, and again on the V3 path at `:2324`). Core mutates your
-  classes on the way in; the frontend uses it to attribute a node to its pack.
-  Setting it yourself is pointless -- it is overwritten.
-- **The pack's directory is recorded** in `LOADED_MODULE_DIRS` (`:2265`),
-  keyed by module name. That table is `loadedModules`, and it is why a pack
-  that fails to import can still be *listed* under workflow templates yet 404
-  when opened (see below).
-
-There is also an `ignore` set parameter (`:2294`): a caller can name node ids
-to skip. Core passes it when loading its own nodes, not for custom packs.
-
-Plus two things that are *not* part of the `__init__.py` import at all,
-covered in the lifecycle table below: `prestartup_script.py` (run **before**
-import) and the install-time `requirements.txt` + `install.py` (run by
-Manager, earlier still).
-
-Each node is a plain class with a well-known shape -- this is the whole
-interface ComfyUI needs (real node, verbatim from `nodes/nodes.py`):
-
-```python
-class INTConstant:
-    @classmethod
-    def INPUT_TYPES(s):                      # -> input sockets/widgets in the UI
-        return {"required": {
-            "value": ("INT", {"default": 0, "min": -0xffffffffffffffff,
-                              "max": 0xffffffffffffffff}),
-        }}
-    RETURN_TYPES = ("INT",)                  # -> output socket types
-    RETURN_NAMES = ("value",)                # -> output socket labels
-    FUNCTION = "get_value"                   # -> method ComfyUI calls to execute
-    CATEGORY = "KJNodes/constants"           # -> where it sits in the node menu
-
-    def get_value(self, value):              # the actual work
-        return (value,)
-```
+2. **[Workflow templates](#workflow-templates)**, found by folder name --
+   and [subgraphs](#subgraphs) likewise.
+3. Optional **node-name translations**, one folder per
+   [locale](#locales).
+4. **[`pyproject.toml`](#what-core-actually-reads-from-pyprojecttoml)**: the
+   project name -- your JS URL.
 
 ### Data types: what a socket type actually is
 
