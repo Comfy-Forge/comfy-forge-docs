@@ -5,11 +5,10 @@ management and automatic CUDA wheel resolution for ComfyUI custom nodes
 ([~13,000 lines of Python](code-breakdown.md) under `src/comfy_env/`).
 
 !!! abstract "The promise"
-    *You click install on a node pack in ComfyUI Manager, and it just runs.*
+    *You click the install button for a node pack in ComfyUI Manager, and it just runs.*
 
     No build tools. No CUDA toolkit. No hunting for the one torch version that
-    satisfies everything. **No PhD in dependency management** -- on the machine
-    a non-developer actually has.
+    satisfies everything. **No PhD in dependency management**.
 
     That is the whole point: **node packs should behave like real software**
     ([the aim](../aims.md)).
@@ -17,11 +16,11 @@ management and automatic CUDA wheel resolution for ComfyUI custom nodes
 Two things stand between a node pack and that promise. comfy-env exists to
 remove both:
 
-1. **Environment isolation** -- Vanilla ComfyUI loads every pack into one shared environment, so two packs that need
-   incompatible versions of the same library cannot coexist and one never knows if they are about to damage their existing setup when installing a new node.
-2. **CUDA / prebuilt wheels / conda packages** -- dependencies pip alone
+1. **Environment isolation**: Vanilla ComfyUI loads every pack into one shared environment, so two packs that need
+   incompatible versions of the same library cannot coexist. When one installs a custom node, they never know if they are about to damage the existing setup.
+2. **CUDA / prebuilt wheels / conda packages**: dependencies pip alone
    cannot deliver (compiled CUDA extensions, conda-only native libraries),
-   can take a long time and manual work to find or compile for the user's exact machine.
+   can take a long time and manual work to find or compile for the user's exact machine and operating system.
 
 ## ComfyUI background
 
@@ -57,6 +56,18 @@ comfy-env's answer is **process isolation**: any subdirectory that declares a
 interpreter, conda packages, pip packages.
 
 Its nodes then execute in a persistent subprocess worker using that interpreter.
+
+Moving node code out of the parent breaks exactly one upstream contract that
+has to be rebuilt by hand: **API routes**. A pack that serves its own HTTP
+endpoints -- 23% of the top-500 corpus do -- hangs them off
+`PromptServer.instance`, and that server exists only in the parent process. A
+worker registering a route would be talking to a server that is not there, so
+comfy-env re-registers **forwarding proxies** in the parent
+(`_register_proxy_routes`): the endpoint answers on ComfyUI's own server and
+the call crosses to the worker like any node execution. Everything else a pack
+contributes -- workflow templates, subgraphs, locales -- is read straight off
+disk by the parent and needs no bridging at all
+([ComfyUI background](comfyui-background.md)).
 
 As a principle, comfy-env **never installs anything into the host environment** -- the host
 env's only comfy-env-related content is `comfy-env` itself

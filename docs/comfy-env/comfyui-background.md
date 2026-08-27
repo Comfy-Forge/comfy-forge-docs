@@ -46,8 +46,7 @@ ComfyUI/custom_nodes/
     +-- fonts/, docs/, kjweb_async/                       <- misc
 ```
 
-At startup ComfyUI `import`s each pack's `__init__.py` and takes several
-distinct things from it:
+At startup ComfyUI `import`s each pack's `__init__.py`:
 
 ```python
 # __init__.py (KJNodes, condensed)
@@ -59,7 +58,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {"INTConstant": "INT Constant", ...}
 WEB_DIRECTORY = "./web"                                   # optional JS for the UI
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 ```
-
 ComfyUI reads up to **four** named attributes from __init__.py and
 nothing else:
 
@@ -70,33 +68,12 @@ nothing else:
 | `NODE_DISPLAY_NAME_MAPPINGS` | no | `id -> pretty name` |
 | `WEB_DIRECTORY` | no | frontend JS directory |
 
-But the ComfyUI loader takes several things from the custom node pack as a side effect of the import:
+But the ComfyUI loader takes several more things from the custom node pack as a side effect of the import:
 
-1. **The nodes**: one of two ways:
-    - **V1 (the common one):** the `NODE_CLASS_MAPPINGS` dict (`id -> class`,
-      **required**) plus the optional
-      `NODE_DISPLAY_NAME_MAPPINGS` (`id -> pretty name`).
-    - **V3 (newer):** a `comfy_entrypoint()` function returning a
-      `ComfyExtension`, whose `get_node_list()` + each class's
-      `GET_SCHEMA()` produce the same node registry. comfy-env's metadata
-      scan supports both formats.
-2. **The frontend JS directory**: `WEB_DIRECTORY` (or `[tool.comfy].web`
-   in `pyproject.toml`). **ComfyUI does NOT import this into Python.** It
-   just *registers the directory* and serves the files statically; the
-   **browser** then auto-imports every `.js` under it when the UI loads.
-   Python-side registration, browser-side execution, which are two different
-   processes. This split is why frontend JS **cannot currently be
-   isolated** the way the Python can be -- there is no per-pack browser
-   boundary to isolate at, only one shared origin; deferred with the
-   reasoning in [ADR-0031](adr/0031-frontend-javascript-isolation.md).
-   What ships instead, and what would have to change upstream before real
-   isolation is possible, is
-   [Frontend JavaScript isolation](../roadmap.md#frontend-javascript-isolation)
-   on the roadmap.)
 3. **Whatever the import *did***: running `__init__.py` fires every
    side effect it contains. The most common one: **API route
    registration**, where the pack hangs its own HTTP endpoints off
-   ComfyUI's shared server --
+   ComfyUI's shared server:
 
     ```python
     from server import PromptServer
@@ -106,47 +83,12 @@ But the ComfyUI loader takes several things from the custom node pack as a side 
         ...   # now GET/POST http://127.0.0.1:8188/geompack/upload hits this
     ```
 
-    -- plus any monkeypatching or global setup the pack does at import
+    plus any monkeypatching or global setup the pack does at import
     time. ComfyUI reads no named attribute for any of this; it just runs
     the module, and the side effects happen. What packs in the wild
-    actually do with that freedom -- measured across 491 of them, from
-    `sys.path` mutation to `git pull` at startup -- is
+    actually do with that freedom can be very silly, from
+    `sys.path` mutation to `git pull` at startup:
     [Import-time side effects in the wild](import-side-effects.md).
-
-    Two things about those endpoints are easy to get wrong:
-
-    - **Every route is mounted twice.** `add_routes()` walks the table and
-      re-registers each non-static route under an `/api` prefix as well
-      (`server.py:1233-1240`), so the handler above answers on **both**
-      `/geompack/upload` and `/api/geompack/upload`. The prefix exists so a
-      frontend dev server can forward everything except static files. Only
-      `web.RouteDef` entries are aliased -- a `web.static` mount a pack adds
-      is skipped.
-    - **You must register during import, or not at all.** `self.routes` is a
-      plain `RouteTableDef` that gets copied into the aiohttp app exactly
-      once, and `main.py` calls that copy *after* custom nodes have loaded:
-
-        ```
-        main.py:525   PromptServer(loop)        # self.routes = RouteTableDef()
-        main.py:531   init_extra_nodes(...)     # packs import -> append here
-        main.py:545   prompt_server.add_routes()  # SNAPSHOT into the app
-        main.py:566   setup(); run(...)         # serving starts
-        ```
-
-        Decorating a handler after line 545 -- lazily on first node
-        execution, say -- appends to a table nobody reads again. The route
-        silently 404s.
-
-    There is **no V3 API for endpoints**. `ComfyExtension` exposes only
-    `on_load()` and `get_node_list()`, and `comfy_api.latest` has no
-    route surface at all, so V1 and V3 packs both reach for
-    `PromptServer.instance`. `on_load()` at least gives a V3 pack a defined
-    place to call it from, and it still runs inside the import window above.
-
-    Under comfy-env this is the one contract isolation cannot preserve for
-    free: a worker's routes would be registered on a server that does not
-    exist in that process, so the parent re-registers forwarding proxies for
-    them (`_register_proxy_routes`).
 
 Two things go the other way -- ComfyUI writes to the pack rather than reading
 from it:
