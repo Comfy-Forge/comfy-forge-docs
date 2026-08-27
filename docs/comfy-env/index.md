@@ -13,14 +13,30 @@ management and automatic CUDA wheel resolution for ComfyUI custom nodes
     That is the whole point: **node packs should behave like real software**
     ([the aim](../aims.md)).
 
-Two things stand between a node pack and that promise. comfy-env exists to
-remove both:
+Two things stand between a node pack and that promise -- three, if you count
+the one comfy-env cannot remove. It exists to remove the first two:
 
 1. **Environment isolation**: Vanilla ComfyUI loads every pack into one shared environment, so two packs that need
    incompatible versions of the same library cannot coexist. When one installs a custom node, they never know if they are about to damage the existing setup.
 2. **CUDA / prebuilt wheels / conda packages**: dependencies pip alone
    cannot deliver (compiled CUDA extensions, conda-only native libraries),
    can take a long time and manual work to find or compile for the user's exact machine and operating system.
+
+!!! info "And the third problem, which comfy-env does not solve"
+
+    <small markdown>
+    *Isolation stops at the process boundary. A pack's **frontend JavaScript**
+    still runs in one shared browser origin -- one `window`, one `document`, one
+    extension-name namespace -- because ComfyUI serves every pack's scripts into
+    the same page and there is no per-pack boundary to isolate at. What ships
+    instead is containment rather than isolation: comfy-test's `javascript`
+    level lints for collisions, and iframe-only bundles stay out of the shared
+    realm by being named `.mjs`, which ComfyUI's `**/*.js` scan does not pick
+    up. The reasoning is
+    [ADR-0031](adr/0031-frontend-javascript-isolation.md); what would have to
+    change upstream before real isolation is possible is
+    [Frontend JavaScript isolation](../roadmap.md#frontend-javascript-isolation).*
+    </small>
 
 ## ComfyUI background
 
@@ -138,22 +154,6 @@ Some dependencies absolutely require us to use conda, and we can broadly subdivi
 This is why comfy-env generates **pixi** manifests.
 **Pixi** is the uv equivalent for conda, speaking conda-forge and PyPI in one file with one
 lockfile ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)).
-
-!!! info "And the third problem, which comfy-env does not solve"
-
-    <small markdown>
-    *Isolation stops at the process boundary. A pack's **frontend JavaScript**
-    still runs in one shared browser origin -- one `window`, one `document`, one
-    extension-name namespace -- because ComfyUI serves every pack's scripts into
-    the same page and there is no per-pack boundary to isolate at. What ships
-    instead is containment rather than isolation: comfy-test's `javascript`
-    level lints for collisions, and iframe-only bundles stay out of the shared
-    realm by being named `.mjs`, which ComfyUI's `**/*.js` scan does not pick
-    up. The reasoning is
-    [ADR-0031](adr/0031-frontend-javascript-isolation.md); what would have to
-    change upstream before real isolation is possible is
-    [Frontend JavaScript isolation](../roadmap.md#frontend-javascript-isolation).*
-    </small>
 
 ## The three-call contract
 
