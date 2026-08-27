@@ -68,31 +68,34 @@ nothing else:
 | `NODE_DISPLAY_NAME_MAPPINGS` | no | `id -> pretty name` |
 | `WEB_DIRECTORY` | no | frontend JS directory |
 
-But the ComfyUI loader takes several more things from the custom node pack as a side effect of the import:
+- But the ComfyUI loader takes several more things from the custom node pack as a side effect of the import:
 
-1. **Whatever the import *did***: running `__init__.py` fires every
-   side effect it contains. The most common one: **API route
-   registration**, where the pack hangs its own HTTP endpoints off
-   ComfyUI's shared server:
+    1. **Whatever the import *did***: running `__init__.py` fires every
+       side effect it contains. The most common one: **API route
+       registration**, where the pack hangs its own HTTP endpoints off
+       ComfyUI's shared server:
 
-    ```python
-    from server import PromptServer
+        ```python
+        from server import PromptServer
 
-    @PromptServer.instance.routes.post("/geompack/upload")
-    async def upload_mesh(request):
-        ...   # now GET/POST http://127.0.0.1:8188/geompack/upload hits this
-    ```
+        @PromptServer.instance.routes.post("/geompack/upload")
+        async def upload_mesh(request):
+            ...   # now GET/POST http://127.0.0.1:8188/geompack/upload hits this
+        ```
 
-    plus any monkeypatching or global setup the pack does at import
-    time. ComfyUI reads no named attribute for any of this; it just runs
-    the module, and the side effects happen:
-    [Import-time side effects in the wild](import-side-effects.md).
-2. **[Workflow templates](#workflow-templates)**, found by folder name --
-   and [subgraphs](#subgraphs) likewise.
-3. Optional **node-name translations**, one folder per
-   [locale](#locales).
-4. **[`pyproject.toml`](#what-core-actually-reads-from-pyprojecttoml)**: the
-   project name -- your JS URL.
+        plus any monkeypatching or global setup the pack does at import
+        time. ComfyUI reads no named attribute for any of this; it just runs
+        the module, and the side effects happen:
+        [Import-time side effects in the wild](import-side-effects.md).
+
+    2. **[Workflow templates](#workflow-templates)**, found by folder name --
+       and [subgraphs](#subgraphs) likewise.
+
+    3. Optional **node-name translations**, one folder per
+       [locale](#locales).
+
+    4. **[`pyproject.toml`](#what-core-actually-reads-from-pyprojecttoml)**: the
+       project name -- your JS URL.
 
 ### Data types: what a socket type actually is
 
