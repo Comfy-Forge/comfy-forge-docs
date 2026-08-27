@@ -28,7 +28,7 @@ that page applies; the flags are the only CLI-specific part:
 |---|---|
 | `--dir`, `-d` | The pack directory. **Use this.** Without it, the config is resolved from the *current* directory, which fails from the ComfyUI root -- `comfy-env install --dir custom_nodes/<pack>` is the spelling that works from anywhere, and the one error messages print. |
 | `--config`, `-c` | Explicit config path, for a config living somewhere unusual. |
-| `--dry-run` | Derive and report; write no manifests, install nothing. |
+| `--dry-run` | Runs the whole derivation and stops before `pixi install`: discovers every env, resolves the torch/CUDA combo and the CUDA-wheel URLs, and **writes each env's `pixi.toml`** -- the manifests plus the printed log *are* the report. Nothing is downloaded and no env is created or modified. (It does rewrite the per-env manifests on disk; harmless to a live install, since workers launch with `pixi run --as-is` and a real install re-derives from config, not from these files.) |
 
 Exit is non-zero on failure, with the reasons batched per
 [When it fails](install.md#when-it-fails).
@@ -53,13 +53,18 @@ JSON. This is the block to paste into a bug report.
 
 ## `comfy-env doctor`
 
-The environment report from `info`, plus pointers. It deliberately does
-**not** import packages to check them: the host-env principle guarantees an
-isolated env's dependencies are absent from the host interpreter, so an
-import-based check reported every *working* install as broken. For package
-and accelerator checks it points at `comfy-test lint --check accel`, which
-resolves real import names from `env.stamp.json` instead of guessing
-(`faithc-aot` installs `faithcontour`).
+Prints the same environment block as `info`, then tells you where the real
+checks live: `comfy-test lint --check accel`. That is all it does -- it
+performs no package checks itself, on purpose.
+
+The history: doctor used to verify an env by `__import__`-ing its packages
+from the host interpreter. But isolation *guarantees* those packages are not
+in the host interpreter -- that is the point of the isolated env -- so the
+check reported every **working** install as broken and exited 1. The real
+check has to run inside the env with the package's true import name (which
+often differs from the pip name: `faithc-aot` installs `faithcontour`);
+`comfy-test lint --check accel` does exactly that, reading the import names
+from each env's `env.stamp.json` instead of guessing.
 
 ## `comfy-env settings`
 
