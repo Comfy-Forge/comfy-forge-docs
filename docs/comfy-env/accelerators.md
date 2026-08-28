@@ -22,6 +22,24 @@ class SegmentGPUNode(io.ComfyNode):
         ...
 ```
 
+## What declaring buys you
+
+The declaration is not paperwork -- comfy-env consumes it in four places:
+
+| # | Behavior | Mechanism |
+|---|---|---|
+| 1 | **Precise degradation on the wrong machine.** On a machine without the backend, the node still registers with its real inputs and outputs (shared workflows load; dispatcher node-ids resolve) but is hidden from the node picker, its description badged "(requires CUDA -- unavailable on this machine)", a startup line names it, and executing it raises a named-reason error instead of a raw torch stack trace | the unavailable stub; gate = machine backend &isin; declared list ([ADR-0012](adr/0012-unavailable-nodes-hidden-not-unregistered.md)) |
+| 2 | **Import hygiene, enforced twice.** The declaration tells both checkers which nodes may lazily import the `[cuda]` packages -- the scan's `sys.modules` check at every `register_nodes()`, and `comfy-test lint --check accel` in CI | [Enforcement](#enforcement) |
+| 3 | **Honest CPU test lanes.** comfy-test skips declared-GPU nodes as "requires cuda" instead of faking their imports with empty mock modules | [What this replaces](#what-this-replaces) |
+| 4 | **A machine-readable tag** -- `_comfy_env_accelerator` on the proxy class, for harnesses and future UI badging | registration |
+
+One honest limit: the declaration is **consumed, never audited**. Nothing
+verifies the node actually needs what it declares -- over-declare and a
+node that runs fine on CPU is needlessly hidden on Macs; under-declare and
+CPU users get the ugly raw error instead of the named one. Auditing would
+mean executing the node on real hardware, which is comfy-test's execution
+level's job, not a metadata scan's.
+
 ## The rule
 
 1. **Declaration.** `ACCELERATOR` is a class attribute holding one value,
@@ -57,13 +75,10 @@ class SegmentGPUNode(io.ComfyNode):
    the metadata scan and **every node in the env silently vanishes**, CPU
    nodes included.
 3. **Registered but menu-hidden**
-   ([ADR-0012](adr/0012-unavailable-nodes-hidden-not-unregistered.md)).
-   On a machine lacking the declared backend, the node still **registers**
-   with its real inputs and outputs -- so shared workflows load and
-   dispatcher node-ids resolve -- but it is hidden from the node
-   picker/search (via `DEPRECATED`), a startup warning summarizes the
-   hidden nodes, and executing it (via a loaded workflow) raises a
-   named-reason error:
+   ([ADR-0012](adr/0012-unavailable-nodes-hidden-not-unregistered.md)) --
+   row 1 above, mechanically: the hiding rides ComfyUI's own `DEPRECATED`
+   handling (hidden from picker/search, still registered), and the
+   named-reason error reads:
 
    ```
    Node 'GeomPackRemesh_GPU' requires CUDA; this machine has backend 'cpu'
