@@ -8,7 +8,7 @@ mainly for bug reports ([`info`](#comfy-env-info)).
 |---|---|
 | [`install`](#comfy-env-install) | Build/refresh every isolated env for a pack |
 | [`init`](#comfy-env-init) | Scaffold a config file in the current directory |
-| [`info`](#comfy-env-info) | Show the detected runtime (OS, python, torch, CUDA, GPU) |
+| [`info`](#comfy-env-info) | Show the detected runtime (OS, python, torch, accelerator) |
 | [`settings`](#comfy-env-settings) | TUI for feature flags (`~/.comfy-env/settings.env`) |
 | [`debug`](#comfy-env-settings) | Same TUI, opened on its second tab: per-subsystem debug-logging switches (`~/.comfy-env/debug.env`) |
 | [`gc`](#comfy-env-gc) | List (and optionally delete) orphaned envs |
@@ -44,8 +44,8 @@ files' roles are [Config reference](config.md).
 
 ## `comfy-env info`
 
-Prints the detected runtime -- OS, platform tag, python, torch, CUDA, GPU
-name and compute capability. `--json` emits the same as machine-readable
+Prints the detected runtime -- OS, platform tag, python, torch, and the
+accelerator (CUDA version, GPU name, compute capability). `--json` emits the same as machine-readable
 JSON. This is the block to paste into a bug report.
 
 ## `comfy-env settings`
