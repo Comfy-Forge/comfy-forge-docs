@@ -4,17 +4,45 @@
 
 Two files, two roles ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)):
 
-1. **`comfy-env-root.toml`** -- at the pack root.
-   Declares node pack dependencies and pack-wide switches, and
-   **never touches the Python environment**.
+1. **`comfy-env-root.toml`** at the pack root:
 
-2. **`comfy-env.toml`** -- at `nodes/` or `nodes/<subdir>`.
-   Gives that directory its own isolated pixi environment. The file's
-   *presence* is the isolation switch.
+     - Declares other node packs that this node pack depends on or uses
+     - Declares node pack custom type serializers
+
+3. **`comfy-env.toml`** at `nodes/` or `nodes/<subdir>`.
+
+    - Gives that directory its own isolated pixi environment.
+    - The file's *presence* is the isolation switch.
 
 Those two locations are the only ones supported: discovery and the runtime
 binder deliberately match, so a config anywhere else is simply not seen
 rather than silently materialized-but-unused.
+
+## Every key at a glance
+
+**`comfy-env-root.toml`** -- closed schema: these two sections and nothing
+else. Any other top-level table is a hard parse error.
+
+| Section | What it is |
+|---|---|
+| `[node_packs]` | Peer node packs to install -- git-ref-pinned table form per ADR-0016 |
+| `[types]` | Wire types this pack puts on sockets: `"builtin"` or `"custom"` |
+
+**`comfy-env.toml`** -- open schema, four buckets. Anything not listed as
+ours/rewritten/refused is passthrough by definition.
+
+| Key(s) | Bucket | Fate |
+|---|---|---|
+| `python` | ours | the env's interpreter pin (quoted string, 3.10 minimum) |
+| `[cuda]` | ours | packages resolved to prebuilt wheel URLs at install time |
+| `[env_vars]` | ours | env vars on this env's workers and scans -- never reaches pixi |
+| `[options]` | ours | runtime knobs (`health_check_timeout`) -- never reaches pixi |
+| `[dependencies]`, `[pypi-dependencies]`, `[target.*]`, `[activation]`, `[tasks]`, `[pypi-options]`, `[system-requirements]`, `[workspace]` | passthrough | forwarded verbatim into the generated `pixi.toml` (`[activation]` and `workspace.channels` are *merged* with comfy-env's own entries) |
+| `torch` / `torchvision` / `torchaudio` pins | rewritten | stripped and replaced with the workspace-wide pin, with a log line |
+| `[environments]`, `[feature.*]` | refused | compiler-owned: the manifest is single-feature/single-environment by design |
+| `workspace.name` / `.version` / `.platforms` | refused | compiler-owned: env identity and host-derived platforms |
+| `[node_packs]`, `[types]` | refused | root-file sections -- the two files do not share a vocabulary |
+| `[serializers]` | refused | removed 0.4.16; declare `[types]` in the root file instead |
 
 Using [ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
 as the example:
@@ -38,8 +66,11 @@ ComfyUI/custom_nodes/
 ```
 
 GeometryPack puts the env file at `nodes/`, so the whole directory is a
-single environment. A pack that needs **two** environments puts a
-`comfy-env.toml` in each `nodes/<subdir>/` instead -- one env per subdir,
+single environment.
+
+The case where a pack needs **two or more environments** is also supported!
+
+Node pack authors can put one `comfy-env.toml` in each `nodes/<subdir>/` instead -- one env per subdir,
 named `<pack>-<subdir>`.
 
 ## Parsing
