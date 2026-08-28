@@ -76,6 +76,21 @@ like ordinary nodes.
   those side effects local for node code, not for the module that registers
   it: [Import-time side effects in the wild](comfy-env/import-side-effects.md).
 
+- **Filesystem (and network) isolation.** A worker's *dependencies* are
+  isolated; its *privileges* are not. Node code still runs with the user's
+  full account: it can read the home directory, write anywhere, and open
+  any network connection -- same as vanilla ComfyUI, where pack code runs
+  unsandboxed in the main process itself. Deferred deliberately, not
+  overlooked: process isolation is sandboxing's *precondition* (in-process
+  code cannot be confined at all), and the path is mapped -- a
+  deny-by-default bubblewrap sandbox on Linux (explicit system-path
+  allow-list, network off by default, GPU device nodes bound explicitly,
+  IPC namespace kept shared so /dev/shm and CUDA IPC keep working), as the
+  sibling project pyisolate already demonstrates on this exact
+  architecture. The sequencing argument, the anti-RCE transport
+  precondition, and why this is not negligence are
+  [ADR-0011](comfy-env/adr/0011-isolation-before-sandboxing.md).
+
 - **Model weights.** A pack only runs once its checkpoints are on disk, and
   nothing installs them. `pyproject.toml` even has a `Models` field carrying
   `location` and `model_url` -- but `load_custom_node` never reads it. That
