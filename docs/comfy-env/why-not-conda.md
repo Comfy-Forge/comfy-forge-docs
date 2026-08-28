@@ -1,7 +1,9 @@
 # Why not just conda?
 
-If you are thinking "this is just reinventing conda", you are absolutely
-right. Combo detection, torch-family pinning, resolving wheel URLs by
+If you are thinking our [cuda] to pypi dependencies pipeline is "just reinventing conda", you are absolutely
+right.
+
+Combo detection, torch-family pinning, resolving wheel URLs by
 scraping a PEP 503 page, `+cuXtorchY` local-version tags, `#sha256=`
 fragment plumbing... all of it exists because **the CUDA/torch variant axis
 does not exist in PyPI's model**, and conda's model has it natively.

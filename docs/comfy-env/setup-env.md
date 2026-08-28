@@ -9,12 +9,12 @@ The **launch-time** entry point. ComfyUI core executes each pack's
 `prestartup_script.py` on every launch, *before* the server boots and before
 any node imports.
 
-Precisely: `main.py:225`, before ComfyUI imports torch, `folder_paths` or
-`comfy.model_management`, which is why process-wide hygiene belongs here and
+This happens before ComfyUI imports torch, `folder_paths` or
+`comfy.model_management`, and that is why process-wide hygiene belongs here and
 nowhere else. [`register_nodes()`](register-nodes.md) runs much later, at
 custom-node import time; both finish before the server binds a port.
 
-Setup_env() is mostly a health report plus environment
+setup_env() is mostly a health report plus environment
 hygiene.
 
 ## What it does, in order

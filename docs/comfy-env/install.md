@@ -159,18 +159,7 @@ That ordering is deliberate and produces three behaviours worth knowing:
   succeeded alongside it, and they are re-derived next time.
 
 The CUDA wheels are **inside** the generated manifest, as direct-URL
-pypi-dependencies (0.4.31): they land in `pixi.lock`.
-
-## When it fails
-
-| What | Result |
-|---|---|
-| ComfyUI base dir not found | workspace skipped, warning; steps 1-2 stand |
-| A config does not parse | that pack skipped, batch-reported, install continues |
-| Two configs derive one env name | **`ValueError`** -- rename a directory |
-| No cuda-wheels combo covers a package | **`RuntimeError`** naming package + index URL |
-| `pixi install` fails for an env | collected; **`RuntimeError`** at the end listing every failure |
-| An env ends up unbuilt | marked `[MISSING]` at next launch by [`setup_env()`](setup-env.md); ComfyUI still boots and those nodes fall back to in-process import at [`register_nodes()`](register-nodes.md) time ([ADR-0008](adr/0008-graceful-degradation-everywhere.md)) |
+pypi-dependencies: they land in `pixi.lock`.
 
 **Start here when debugging:** every workspace install tees its full output to
 `<workspace>/install.log` (`workspace.py:680`), including the discovery list,

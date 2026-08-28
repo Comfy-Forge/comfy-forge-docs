@@ -1,4 +1,10 @@
-# Sharing one GPU
+## ComfyUI background
+
+The aim of comfy-env is to be completely invisible to ComfyUI, to let it manage VRAM as it already does across processes.
+ComfyUI manages VRAM and RAM extensively, including models, whatever.
+The rest of this page assumes that the user is already familiar with this crucial context.
+
+**[If you're not, please read this page first](comfyui-memory.md)**.
 
 Two processes, one card, one pool of VRAM, and neither can see the other's
 allocations. This page explains how ComfyUI decides what to evict, what

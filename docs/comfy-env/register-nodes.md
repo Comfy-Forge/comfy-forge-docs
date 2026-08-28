@@ -74,11 +74,15 @@ Step by step:
     registers a forwarding handler on the parent's server for each
     (`_register_proxy_routes`, `pool.py:359`): the endpoint answers on
     ComfyUI's own server, the JSON body crosses to the worker over IPC, and
-    the handler's dict comes back as the response. The contract is
+    the handler's dict comes back as the response.
+
+    The contract is
     JSON-in/JSON-out -- a raw multipart upload needs base64-in-JSON or a
     parent-side route. Real example: ComfyUI-SAM3's
     `/sam3/interactive_segment_one`.
-6. A proxy's `INPUT_TYPES` is a snapshot, and core's is not: see [Dynamic combos](dynamic-combos.md).
+
+6. **`INPUT_TYPES`** is mirrored to host. See [dynamic combos](dynamic-combos.md).
+
 7. **Everything else**: directories without a config, or with a config but
-   no materialized env -- is imported normally in-process, and their
+   no materialized env is imported normally in-process, and their
    mappings merged into the same return value.
