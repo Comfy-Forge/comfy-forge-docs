@@ -175,11 +175,16 @@ objects behind them are ordinary:
 | `MODEL`, `CLIP`, `VAE` | ComfyUI wrapper objects (`ModelPatcher` and friends) |
 | `INT`, `FLOAT`, `STRING`, `BOOLEAN` | Python primitives |
 
-**The type registry is open.** Nothing registers a type name centrally, so a
-pack invents one by returning it: `TRIMESH`, `POINTCLOUD`, `SKELETON` are
-strings a pack made up, and ComfyUI wires them to each other as happily as `IMAGE`. Two
-packs that independently pick `MESH` are, as far as ComfyUI is concerned, the
-same type, as the string is the whole contract!
+**There is no type registry.** No central list of valid types exists, and no
+declaration step: a pack makes a type exist by simply using its name.
+`TRIMESH`, `POINTCLOUD`, `SKELETON` are strings a pack made up, and ComfyUI
+wires them as happily as `IMAGE` -- even the ~85 built-ins are not
+privileged, just strings core's own nodes happen to use. The flip side: two
+packs that independently pick `MESH` are, to ComfyUI, the *same* type -- it
+will wire one pack's `MESH` output straight into the other's `MESH` input,
+and if they disagree about the Python object behind the string, that
+surfaces as a crash inside the node at execution time, not as a wiring
+error. The string is the whole contract.
 
 !!! note "Why this matters for comfy-env"
     In vanilla ComfyUI the object never leaves the process, so "the type is
