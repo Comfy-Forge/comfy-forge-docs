@@ -62,8 +62,10 @@ file) -- unreadable, unlintable, undiffable.
   `comfy-env-worker` wheel inside each env -- the main rejected
   alternative -- would rot against an upgraded parent and make a
   version handshake load-bearing.)*
-- A constraint this delivery mechanism implies but nothing enforces:
-  the worker and `_ipc_shared.py` must stay parseable by the **oldest
-  Python any worker env uses** (the motivating examples above include
-  3.9). CI runs host Pythons only; a `py_compile` lane at the floor
-  version is the planned guard.
+- A constraint this delivery mechanism implies: the worker and
+  `_ipc_shared.py` must stay parseable by the **oldest Python any worker
+  env uses**. That floor is **3.10** -- ComfyUI itself is
+  `requires-python >= 3.10`, an env's interpreter defaults to the host's,
+  and a config pinning `python` below 3.10 is rejected at load. The guard
+  is `tests/test_ipc_shared_constraints.py`, which `ast.parse`s both
+  boundary files at `feature_version=(3, 10)` on every CI run.

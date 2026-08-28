@@ -108,8 +108,8 @@ The previous snapshot said "~600-800 lines that exist twice". Measured with
 **~388 lines per copy, 777 in total, 225 byte-identical.** Read as
 "per copy", the old figure was roughly double the truth.
 
-**And it is not forced.** `_ipc_parent.py` already parses clean under Python
-3.9 and its only `comfy_env` import is the debug flag. `_ipc_shared.py` is
+**And it is not forced.** `_ipc_parent.py` already parses clean at the worker
+floor (3.10) and its only `comfy_env` import is the debug flag. `_ipc_shared.py` is
 *already* copied next to the worker (`subprocess.py`) and imported by it, so
 the read-as-text delivery demonstrably satisfies cross-module imports today.
 What is genuinely side-specific is ~115 lines of **policy** -- who owns the shm
@@ -267,7 +267,7 @@ codebase** -- including `_ensure_started` (288), `install_workspace` (422) and
 
 - **`_persistent_worker.py`'s non-ComfyUI ~1,320 lines.** It ships to the far
   interpreter as source text and must parse under the oldest worker Python
-  (3.9). A whole program in one *module* is the right shape. A whole program in
+  (3.10). A whole program in one *module* is the right shape. A whole program in
   one *function* is not -- see shame #2.
 - **`_to_shm_generic` (164).** One walker for both sides, twelve type rungs,
   cycle detection, pluggable tensor strategy. This is the de-duplication that

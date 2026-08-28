@@ -171,8 +171,8 @@ isolated repos need zero changes.
 ComfyUI custom nodes share a single Python environment and a single process.
 This breaks when node A needs torch 2.4 and node B needs torch 2.8, when two
 packages bundle conflicting native libraries (libomp, CUDA runtimes, cv2), or
-when a node requires a different Python version (Blender needs 3.11, pymesh2
-needs 3.9).
+when a node requires a different Python version (Blender needs 3.11,
+pythonocc needs 3.12).
 
 Alternatives considered by the ecosystem:
 

@@ -135,7 +135,8 @@ author would break the manifest's shape:
 Errors and warnings elsewhere: typos inside comfy-env's own sections
 (`[cuda]`, `[options]`) warn and continue; an invalid `[types]` value is a
 parse error; an unquoted `python = 3.10` is a parse error too, because TOML
-reads it as the float `3.1`.
+reads it as the float `3.1`; and a `python` pinned below 3.10 is rejected --
+comfy-env supports 3.10+ only, matching ComfyUI's own `requires-python`.
 
 ## `comfy-env-root.toml` (pack root)
 
@@ -226,7 +227,7 @@ The real-world reference is
 # Presence of this file = this directory runs in its own isolated env,
 # named <plugin>-<subdir> ("mypack-nodes"), materialized machine-wide.
 
-# Interpreter for the env (defaults to the host's python)
+# Interpreter for the env (defaults to the host's python; 3.10 minimum)
 python = "3.11"
 
 # CUDA-compiled packages, resolved from the cuda-wheels index at install

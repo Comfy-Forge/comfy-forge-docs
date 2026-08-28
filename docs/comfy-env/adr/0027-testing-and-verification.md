@@ -36,13 +36,15 @@ The layers, and what each one guarantees:
    loan book; add the **HEAD lane** -- scheduled, against ComfyUI
    nightly, allowed to fail loudly -- as the early-warning system for
    the unofficial ABI. Cheapest insurance in the whole strategy.
-4. **The worker Python floor lane**: `py_compile` of
-   `_persistent_worker.py` + `_ipc_shared.py` at the oldest supported
-   worker-env Python (3.9, per [ADR-0006](0006-worker-crosses-the-boundary-as-source-text.md)).
-   The worker source is stdlib-only at module scope and must stay
-   parseable by that floor; nothing enforces it today, so one
-   contributor's `match`/`:=`-in-the-wrong-place or 3.10+ syntax would
-   break every old env at spawn with no CI to catch it.
+4. **The worker Python floor gate**: `tests/test_ipc_shared_constraints.py`
+   `ast.parse`s `_persistent_worker.py` + `_ipc_shared.py` at
+   `feature_version=(3, 10)` -- the floor comfy-env supports, matching
+   ComfyUI's own `requires-python >= 3.10`
+   ([ADR-0006](0006-worker-crosses-the-boundary-as-source-text.md)); a config
+   pinning lower is rejected at load. The worker source is stdlib-only at
+   module scope and ships as text, so without this gate a contributor's
+   3.11+ syntax would surface only at worker startup on an older env,
+   never in CI.
 5. **The benchmark harness** ([ADR-0010](0010-wire-protocol-and-transport.md)
    item 10, still missing -- this ADR owns it now): a repeatable
    CPU-only floor benchmark (echo tiny / 1MB / mesh-shaped payload) run
