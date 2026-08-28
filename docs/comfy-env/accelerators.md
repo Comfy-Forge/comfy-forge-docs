@@ -32,6 +32,13 @@ class SegmentGPUNode(io.ComfyNode):
    backends at execution"**, not "can use them": a node with a real CPU
    fallback declares nothing.
 
+    In practice, **only `"cuda"` is wired end-to-end today** -- it is the
+    only backend with a wheel index, a `[cuda]` config section, and hardware
+    probes, and the only one any fleet pack declares. The other three names
+    are valid and the availability gate honours them (a ROCm/MPS machine is
+    detected correctly), but declaring them is forward-compatibility, not a
+    supported path: there is no `[rocm]`/`[xpu]`/`[mps]` wheel story yet.
+
     There is **no "any GPU" sentinel.** Spell out the backends the node
     actually supports -- `["cuda", "rocm", "xpu", "mps"]` if it really is
     all four. A catch-all value claims support for hardware nobody tested.
