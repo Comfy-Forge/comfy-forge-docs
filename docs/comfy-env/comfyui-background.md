@@ -1,4 +1,4 @@
-# ComfyUI background, for newcomers
+# ComfyUI custom nodepack background
 
 *How vanilla ComfyUI installs, loads and uses a node pack, which is the contract comfy-env has to
 honour.*

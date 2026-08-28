@@ -255,5 +255,5 @@ ComfyUI-3D-Pack-enved still carry markers.
   the metadata scan runs.
 - [The process boundary](process-boundary.md) -- why the class is not in the
   main process to begin with.
-- [ComfyUI background](comfyui-background.md) -- what core does with
+- [ComfyUI custom nodepack background](comfyui-background.md) -- what core does with
   `INPUT_TYPES` and `/object_info`.

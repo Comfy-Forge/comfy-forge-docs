@@ -124,7 +124,10 @@ The fallback is **per CPU architecture**:
 - `cu12.8 / torch 2.8` on x86_64
 - `cu13.0 / torch 2.10` on linux aarch64.
 
-The reasoning is a bit long but can be summarised as follows: very few people use torch aarch64, but if they have a CUDA GPU it is likely to be a DGX Spark or some other late model, while if someone is on x86_64 there's a higher chance they might want Volta/Turing compatibility if they have an old GPU.
+The reasoning is a bit long but can be summarised as follows:
+- 12.8 / 2.8 is a blessed combo in terms of backwards and forward compatibility
+- 12.8 / 2.8 was never published for aarch64
+- Most aarch64 + CUDA GPU users have a DGX Spark or some other late model, so we use the latest CUDA major (13).
 
 !!! warning "No GPU means CPU torch, whatever the host's torch says"
     Portable ComfyUI ships `torch+cu128` inside `python_embeded` even on

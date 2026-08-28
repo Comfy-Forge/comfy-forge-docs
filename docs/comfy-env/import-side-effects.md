@@ -1,7 +1,7 @@
 # Import-time side effects in the wild
 
 ComfyUI does not sandbox a pack's `__init__.py`. It calls
-`exec_module()` on it ([ComfyUI background](comfyui-background.md)), so every
+`exec_module()` on it ([ComfyUI custom nodepack background](comfyui-background.md)), so every
 statement at module level runs, in ComfyUI's process, with ComfyUI's
 permissions, before the server starts. Whatever a pack does there, it does to
 everybody.
