@@ -20,7 +20,8 @@ rather than silently materialized-but-unused.
 
 ## Every key at a glance
 
-**`comfy-env-root.toml`** -- closed schema: these two sections and nothing
+### comfy-env-root.toml
+**`comfy-env-root.toml`** is closed schema: these two sections and nothing
 else. Any other top-level table is a hard parse error.
 
 | Section | What it is |
@@ -28,15 +29,19 @@ else. Any other top-level table is a hard parse error.
 | `[node_packs]` | Peer node packs to install -- git-ref-pinned table form per ADR-0016 |
 | `[types]` | Wire types this pack puts on sockets: `"builtin"` or `"custom"` |
 
-**`comfy-env.toml`** -- open schema, four buckets. Anything not listed as
-ours/rewritten/refused is passthrough by definition.
+### comfy-env.toml
+
+**`comfy-env.toml`** is open schema, four buckets.
+comfy-env translates this .toml file into a pixi.toml config file format.
+Some keys are passed through without any change, some are refused, and some are converted into equivalent pixi.toml keys.
+Any key not listed as ours/rewritten/refused is passthrough by definition.
 
 | Key(s) | Bucket | Fate |
 |---|---|---|
 | `python` | ours | the env's interpreter pin (quoted string, 3.10 minimum) |
 | `[cuda]` | ours | packages resolved to prebuilt wheel URLs at install time |
 | `[env_vars]` | ours | env vars on this env's workers and scans -- never reaches pixi |
-| `[options]` | ours | runtime knobs (`health_check_timeout`) -- never reaches pixi |
+| `[options]` | ours | runtime knobs -- never reaches pixi. Exactly one exists today: `health_check_timeout` (seconds, per-env worker ping timeout, default 5.0); `call_timeout` is planned ([ADR-0018](adr/0018-worker-call-timeout.md)) |
 | `[dependencies]`, `[pypi-dependencies]`, `[target.*]`, `[activation]`, `[tasks]`, `[pypi-options]`, `[system-requirements]`, `[workspace]` | passthrough | forwarded verbatim into the generated `pixi.toml` (`[activation]` and `workspace.channels` are *merged* with comfy-env's own entries) |
 | `torch` / `torchvision` / `torchaudio` pins | rewritten | stripped and replaced with the workspace-wide pin, with a log line |
 | `[environments]`, `[feature.*]` | refused | compiler-owned: the manifest is single-feature/single-environment by design |
@@ -44,6 +49,7 @@ ours/rewritten/refused is passthrough by definition.
 | `[node_packs]`, `[types]` | refused | root-file sections -- the two files do not share a vocabulary |
 | `[serializers]` | refused | removed 0.4.16; declare `[types]` in the root file instead |
 
+## Example node pack
 Using [ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
 as the example:
 
@@ -115,7 +121,7 @@ something pixi does understand:
 | `python = "3.11"` | `[feature.<env>.dependencies] python = "3.11.*"` | build |
 | `[cuda] packages` | resolved wheel URLs, installed after pixi (see [cuda-wheels](../cuda-wheels/index.md)) | build |
 | `[env_vars]` | environment variables set on the worker process at spawn | run |
-| `[options]` | runtime knobs (`health_check_timeout`) | run |
+| `[options]` | the one runtime knob: `health_check_timeout` (seconds, default 5.0) | run |
 
 The bottom two never reach `pixi.toml` in any form. `[env_vars]` in particular
 is **not** `[activation.env]`: it is applied when comfy-env spawns the metadata
