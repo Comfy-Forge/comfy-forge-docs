@@ -165,10 +165,9 @@ Notes:
 - `register_nodes()` validates and loads `[types]` (see [custom wire types](serializers.md))
 
 ### `[node_packs]`
-Two sources, checked in this order per entry (`packages/node_packs.py`):
-**registry first, then github**. An entry with neither logs a warning and is
-skipped. After cloning/downloading, the peer's own `requirements.txt` is
-pip-installed and its `install.py` run -- the standard ComfyUI install flow.
+We can declare node packs to install together with our main one in various ways, both from the registry and from github.
+After cloning/downloading, the peer's own `requirements.txt` is
+pip-installed and its `install.py` run (the standard ComfyUI install flow)
 
 | Spelling | Example | What happens |
 |---|---|---|
@@ -183,6 +182,8 @@ pip-installed and its `install.py` run -- the standard ComfyUI install flow.
 mutually exclusive in effect (tag wins over branch; commit only consulted
 when neither is set).
 
-Notes:
-- One pack can mix modes: `nodes/main/` with no config imports in-process,
-  `nodes/cgal/` with a config gets its own env.
+!!! tip "One pack can mix modes"
+    Isolation is per-directory, not per-pack: `nodes/main/` with no config
+    imports in-process like any vanilla pack, while `nodes/cgal/` with a
+    `comfy-env.toml` gets its own env. Put the exotic dependencies behind a
+    config and leave the lightweight nodes on the host runtime.
