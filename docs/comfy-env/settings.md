@@ -48,7 +48,6 @@ individual categories:
 `COMFY_ENV_DEBUG_MODELS` (model registry/eviction) ·
 `COMFY_ENV_DEBUG_META` (metadata scans) ·
 `COMFY_ENV_DEBUG_INSTALL` (env building) ·
-`COMFY_ENV_DEBUG_STACKTRACE` ·
 `COMFY_ENV_DEBUG_INPUTS_OUTPUTS` (per-call I/O summaries) ·
 `COMFY_ENV_DEBUG_VRAM` (VRAM polling) ·
 `COMFY_ENV_DEBUG_WATCHDOG` (worker watchdog thread dumps)
