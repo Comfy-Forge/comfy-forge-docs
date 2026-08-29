@@ -1,8 +1,8 @@
-# Custom wire types (`[types]` + `serialization.py`)
+# Custom wire types
 
-Nodes in ComfyUI exchange objects along edges. A socket type is defined by
-[just a string](comfyui-background.md#data-types)
--- `IMAGE`, `VIDEO`, `LATENT` -- and vanilla ComfyUI never looks inside the
+Nodes in ComfyUI exchange objects along edges.
+
+A socket type is defined by [just a string](comfyui-background.md#data-types) (`IMAGE`, `VIDEO`, `LATENT`) and vanilla ComfyUI never looks inside the
 object. The same instance is handed from one node to the next, in one process.
 
 ComfyUI ships ~85 built-in types (`comfy_api/latest/_io.py`). By the shape of
@@ -11,7 +11,7 @@ the Python object behind them:
 1. **Primitives** -- `INT`, `FLOAT`, `STRING`, `BOOLEAN`, `COMBO`.
 2. **Tensors** -- `IMAGE` and `MASK` are a bare `torch.Tensor`.
 3. **Dicts of tensors** -- `LATENT` (`{"samples": tensor, ...}`), `AUDIO`
-   (`{"waveform": tensor, "sampler_rate": int}`).
+   (`{"waveform": tensor, "sample_rate": int}`).
 4. **Nested containers** -- `CONDITIONING` is a list of `[tensor, dict]` pairs.
 5. **Model handles** -- `MODEL`, `CLIP`, `VAE`, `CONTROL_NET`, `STYLE_MODEL`:
    ComfyUI wrapper objects around weights, usually multi-GB and GPU-resident.
@@ -21,7 +21,7 @@ the Python object behind them:
 
 ## How comfy-env moves the standard types
 
-The transport walks the object structurally -- it dispatches on what the value
+The comfy-env inter process transport walks the object structurally: it dispatches on what the value
 *is*, never on the socket string:
 
 | Shape | How it crosses |
@@ -51,9 +51,8 @@ comfy-env registers codecs for `MESH`, `VOXEL` and `SPLAT`, so those are
 already handled; other core types may follow. `MODEL`, `CLIP` and `VAE`
 deliberately never will -- weights stay in the worker that owns them.
 
-!!! note "Pickling never fails silently"
-    If it fails outright, the transport raises a `TypeError` naming the type
-    and the cause. The value is never dropped.
+Pickling that fails outright raises rather than dropping the value; the
+exact guarantee is [practical rule 2](#practical-rules-learned-the-hard-way).
 
 ## Types from custom node packs
 
@@ -69,22 +68,12 @@ mechanism in [ADR-0014](adr/0014-pack-extensible-serializer-registry.md)) is
 how you tell it: decompose the type into **schema + arrays**, so the bulk rides
 the shared-memory tensor path and no pickle is involved.
 
-!!! note "`[types]` does not route anything"
-    Routing is decided by the **serializer registry**, looked up by Python type
-    at wire time. `[types]` is a *declaration*: comfy-env reads it once at
-    startup and, for every socket marked `"custom"`, refuses to start the pack
-    unless `serialization.py` exists, imports, and registers something. A
-    socket marked `"builtin"` changes no behaviour at all.
+## The recipe
 
-    So declaring a type does not make it fast -- **registering a serializer
-    does**. The declaration is what stops you shipping a pack whose serializer
-    file quietly went missing.
-
-Worked example: [ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
+The worked example throughout:
+[ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
 moves `trimesh.Trimesh` (the type behind its `TRIMESH` sockets) as
 shared-memory arrays.
-
-## The recipe
 
 **1. Declare your sockets** in the pack root `comfy-env-root.toml`:
 
@@ -95,11 +84,21 @@ SKELETON   = "builtin"    # dict of arrays -- automatic transport
 INTRINSICS = "builtin"
 ```
 
-`"builtin"` entries are documentation with teeth (comfy-test can diff
-declared vs observed); `"custom"` entries require step 2. A pack whose
-types are all dicts/arrays/tensors needs **no** `[types]` table at all.
-Typos fail at parse time; a `"custom"` socket with no matching
-registration is a loud startup error.
+A pack whose types are all dicts/arrays/tensors needs **no** `[types]`
+table at all. `"builtin"` entries are documentation with teeth (comfy-test
+can diff declared vs observed); `"custom"` entries require step 2.
+
+!!! note "`[types]` does not route anything"
+    Routing is decided by the **serializer registry**, looked up by Python type
+    at wire time. `[types]` is a *declaration*: comfy-env reads it once at
+    startup and, for every socket marked `"custom"`, refuses to start the pack
+    unless `serialization.py` exists, imports, and registers something. A
+    socket marked `"builtin"` changes no behaviour at all. Typos fail at
+    parse time.
+
+    So declaring a type does not make it fast -- **registering a serializer
+    does**. The declaration is what stops you shipping a pack whose serializer
+    file quietly went missing.
 
 **2. `serialization.py` at your pack root** (that exact name -- it is
 loaded by *file path* under a per-pack mangled module name, so every

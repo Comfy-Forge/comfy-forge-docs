@@ -42,15 +42,15 @@ Same three-tier resolution, persistent file `~/.comfy-env/debug.env`,
 TUI via `comfy-env debug`. `COMFY_ENV_DEBUG=1` turns everything on;
 individual categories:
 
-`COMFY_ENV_DEBUG_SERIALIZE` (tensor/shm serialization) ·
-`COMFY_ENV_DEBUG_IPC` (socket frames) ·
-`COMFY_ENV_DEBUG_WORKER` (worker lifecycle) ·
-`COMFY_ENV_DEBUG_MODELS` (model registry/eviction) ·
-`COMFY_ENV_DEBUG_META` (metadata scans) ·
-`COMFY_ENV_DEBUG_INSTALL` (env building) ·
-`COMFY_ENV_DEBUG_INPUTS_OUTPUTS` (per-call I/O summaries) ·
-`COMFY_ENV_DEBUG_VRAM` (VRAM polling) ·
-`COMFY_ENV_DEBUG_WATCHDOG` (worker watchdog thread dumps)
+1. `COMFY_ENV_DEBUG_SERIALIZE` -- tensor/shm serialization
+2. `COMFY_ENV_DEBUG_IPC` -- socket frames
+3. `COMFY_ENV_DEBUG_WORKER` -- worker lifecycle
+4. `COMFY_ENV_DEBUG_MODELS` -- model registry/eviction
+5. `COMFY_ENV_DEBUG_META` -- metadata scans
+6. `COMFY_ENV_DEBUG_INSTALL` -- env building
+7. `COMFY_ENV_DEBUG_INPUTS_OUTPUTS` -- per-call I/O summaries
+8. `COMFY_ENV_DEBUG_VRAM` -- VRAM polling
+9. `COMFY_ENV_DEBUG_WATCHDOG` -- worker watchdog thread dumps
 
 Workers cannot import the settings module (different env), so debug env
 vars are forwarded to and parsed by workers directly.
