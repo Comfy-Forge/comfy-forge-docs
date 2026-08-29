@@ -3,13 +3,16 @@
 ## Why this convention exists
 
 Packs on the registry install for everyone, whatever the machine, and then
-fail at install or execution when the hardware does not match. GeometryPack
-is where this bit: some nodes need a CUDA GPU, most run fine on CPU, and the
+fail at install or execution when the hardware does not match (example: TRELLIS2 node pack on Mac, no CUDA GPU).
+
+This bites quite hard for node packs like ComfyUI-GeometryPack:
+- Some nodes need a CUDA GPU, most run fine on CPU, and the
 CUDA remeshing backends should simply disappear for a user without an NVIDIA
-card instead of greeting them with a stack trace. Testing had the same
-disease in another form: python files importing CUDA packages they never use
-forced CPU test lanes to mock those imports. The cure for both is one tag on
-the node.
+card instead of greeting them with a stack trace.
+- Testing has a similar disease in another form: python files importing CUDA packages
+forced CPU test lanes to mock those imports.
+
+The cure for both of these problems is one tag on the node.
 
 ## What you write
 
@@ -51,10 +54,13 @@ what each checker can see.
 | 4 | **A machine readable tag**, `_comfy_env_accelerator` on the proxy class, for harnesses and future UI badging | registration |
 
 One honest limit: the declaration is **consumed, never audited**. Nothing
-verifies the node actually needs what it declares. Over-declare and a node
-that runs fine on CPU is needlessly hidden on Macs. Under-declare and CPU
-users get the raw error instead of the named one. Auditing would mean
-executing the node on real hardware, which is the job of comfy-test's
+verifies the node actually needs what it declares.
+
+Over-declare and a node that runs fine on CPU is needlessly hidden on Macs.
+
+Under-declare and CPU users get the raw error instead of the named one.
+
+Auditing implies executing the node on real hardware, which is the job of comfy-test's
 [execution level](../comfy-test/levels/execution.md), not a metadata scan.
 
 ## The fine print
@@ -64,10 +70,8 @@ executing the node on real hardware, which is the job of comfy-test's
 2. Absent means CPU capable, and the meaning is strictly "requires one of
    these backends at execution", never "can use them". A node with a real
    CPU fallback declares nothing.
-3. There is no "any GPU" sentinel. Spell out the backends the node actually
-   supports; a catch all value claims support for hardware nobody tested.
-4. Values are normalized at scan time: lowercased, deduplicated, sorted.
-5. **Registered but hidden from the menu**
+3. Values are normalized at scan time: lowercased, deduplicated, sorted.
+4. **Registered but hidden from the menu**
    ([ADR-0012](adr/0012-unavailable-nodes-hidden-not-unregistered.md)) is
    row 1 above, mechanically: the hiding rides ComfyUI's own `DEPRECATED`
    handling (hidden from picker and search, still registered), and the
@@ -82,7 +86,7 @@ executing the node on real hardware, which is the job of comfy-test's
     Full unregistration was rejected deliberately: a missing node type
     breaks shared workflow loading with an inscrutable "node type not
     found". Hiding gives the clean picker without that cost.
-6. **Lazy imports only.** Packages from the env's `[cuda]` list may only be
+5. **Lazy imports only.** Packages from the env's `[cuda]` list may only be
    imported inside function bodies (typically `execute()`) of nodes that
    declare that accelerator. A module top level accelerator import is an
    error anywhere: comfy-env skips CUDA wheels on machines with no GPU, so
@@ -95,7 +99,9 @@ A declaration can express which GPUs, never GPU or CPU, because absent
 means CPU capable. So a node offering both should declare nothing and act
 as an accelerator neutral dispatcher, routing to hidden per backend leaf
 nodes (by node id, without importing them), each declaring its own
-requirement. GeometryPack's flagship nodes (Remesh, UV Unwrap, Fix Normals)
+requirement.
+
+GeometryPack's flagship nodes (Remesh, UV Unwrap, Fix Normals)
 already work this way, and it stays the blessed shape.
 
 Opportunistic GPU use, `device = "cuda" if torch.cuda.is_available() else
@@ -135,21 +141,3 @@ Three mechanisms, in order of authority:
    for declared nodes the machine cannot serve. Available nodes carry
    `_comfy_env_accelerator` (a list) on the proxy class for downstream
    consumers.
-
-## What this replaces
-
-Previously, CPU test lanes stubbed missing CUDA packages with empty modules
-(`COMFY_TEST_MOCK_PACKAGES`) so imports would not fail, which made
-registration "pass" for code that was never importable and broke on from
-imports and submodules. With declarations, test harnesses skip tagged nodes
-honestly on CPU lanes; the mock remains only as a fallback for undeclared
-packs.
-
-## Deliberately out of scope (for now)
-
-1. Per backend option tags inside a dispatcher's combo (needs frontend
-   support to grey out unavailable options).
-2. Derived minimum compute capability. The cuda-wheels farm already knows
-   each package's arch list; hand declared values would rot. This arrives
-   when the wheel index publishes arch metadata.
-3. VRAM requirements as a gate: workload dependent, permanently rejected.

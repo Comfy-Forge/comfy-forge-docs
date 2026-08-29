@@ -182,7 +182,7 @@ pip-installed and its `install.py` run (the standard ComfyUI install flow)
 mutually exclusive in effect (tag wins over branch; commit only consulted
 when neither is set).
 
-!!! tip "One pack can mix modes"
+!!! tip "Note:"
     Isolation is per-directory, not per-pack: `nodes/main/` with no config
     imports in-process like any vanilla pack, while `nodes/cgal/` with a
     `comfy-env.toml` gets its own env. Put the exotic dependencies behind a

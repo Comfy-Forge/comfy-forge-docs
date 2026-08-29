@@ -4,9 +4,7 @@ Every comfy-env setting, its default, and how to change it.
 
 ## How settings resolve
 
-Three tiers, highest priority first. All settings are **machine-global**
-(the per-pack `[settings]` section was removed in 0.4.25):
-
+Three tiers, highest priority first. All settings are **machine-global**:
 1. **Environment variable** -- `COMFY_ENV_POOL_IPC=1 python main.py`
 2. **Persistent file** -- `~/.comfy-env/settings.env`, plain `KEY=VALUE`
    lines; edited comfortably via the `comfy-env settings` TUI.
@@ -39,7 +37,7 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 ## Debug logging
 
 Same three-tier resolution, persistent file `~/.comfy-env/debug.env`,
-TUI via `comfy-env debug`. `COMFY_ENV_DEBUG=1` turns everything on;
+TUI: the Debug tab of `comfy-env settings`. `COMFY_ENV_DEBUG=1` turns everything on;
 individual categories:
 
 1. `COMFY_ENV_DEBUG_SERIALIZE` -- tensor/shm serialization

@@ -1,8 +1,6 @@
 # Commands
 
-`comfy-env` has six subcommands. Two matter day to day --
-[`install`](#comfy-env-install) and [`gc`](#comfy-env-gc) -- and one exists
-mainly for bug reports ([`info`](#comfy-env-info)).
+`comfy-env` has five subcommands.
 
 | Command | What it does |
 |---|---|
@@ -10,7 +8,6 @@ mainly for bug reports ([`info`](#comfy-env-info)).
 | [`init`](#comfy-env-init) | Scaffold a config file in the current directory |
 | [`info`](#comfy-env-info) | Show the detected runtime (OS, python, torch, accelerator) |
 | [`settings`](#comfy-env-settings) | TUI for feature flags (`~/.comfy-env/settings.env`) |
-| [`debug`](#comfy-env-settings) | Same TUI, opened on its second tab: per-subsystem debug-logging switches (`~/.comfy-env/debug.env`) |
 | [`gc`](#comfy-env-gc) | List (and optionally delete) orphaned envs |
 
 `comfy-env --version` prints the installed version.
@@ -57,9 +54,8 @@ One TUI, two tabs, two files:
 | Settings | comfy-env's feature flags | `~/.comfy-env/settings.env` |
 | Debug logging | ten stderr-narration switches -- a master (`COMFY_ENV_DEBUG=1` = everything) plus per-subsystem categories: node inputs/outputs, VRAM around node calls, tensor serialization, CUDA IPC, worker lifecycle, worker watchdog, model registration, metadata scans, env install | `~/.comfy-env/debug.env` |
 
-`comfy-env debug` is the **same TUI opened on the second tab** -- an alias,
-not a different tool. Every toggle is also just an env var with the same
-three-tier precedence (env var > file > default); the full lists live in the
+Every toggle is also just an env var with the same three-tier precedence
+(env var > file > default); the full lists live in the
 [Settings reference](settings.md), debug categories under
 [Debug logging](settings.md#debug-logging).
 
