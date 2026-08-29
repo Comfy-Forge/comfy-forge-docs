@@ -4,7 +4,15 @@ A node pack convention with two halves, enforced differently:
 
 1. **A node declares the backend(s) it requires at execution, or none.** The
    vocabulary is closed and comfy-env enforces it -- an unrecognized value
-   raises during the metadata scan.
+   raises during the metadata scan:
+
+    | Value | Hardware | Status |
+    |---|---|---|
+    | `"cuda"` | NVIDIA | wired end-to-end (wheel index, `[cuda]`, probes) |
+    | `"rocm"` | AMD | valid + availability-gated; no wheel story yet |
+    | `"xpu"` | Intel | valid + availability-gated; no wheel story yet |
+    | `"mps"` | Apple | valid + availability-gated; no wheel story yet |
+
 2. **Accelerator packages are imported lazily, inside the nodes that declare
    them.** Nothing can enforce this at declaration time; it is *observed* at
    scan time and *checked* statically in CI. See
