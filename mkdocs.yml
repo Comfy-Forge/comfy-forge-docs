@@ -73,6 +73,7 @@ nav:
           - Commands: comfy-env/commands.md
           - Settings reference: comfy-env/settings.md
           - System footprint: comfy-env/system-footprint.md
+          - Drives and volumes: comfy-env/drives-and-volumes.md
       - Internals:
           - Why not just conda?: comfy-env/why-not-conda.md
           - Sharing one GPU: comfy-env/sharing-one-gpu.md

@@ -22,7 +22,7 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 
 | Env var | default | meaning |
 |---|---|---|
-| `COMFY_ENV_ROOT` | `%LOCALAPPDATA%\Programs\comfy-env` (Windows), `~/.ce` (Unix) | Override the machine-wide workspace root where envs materialize (ADR-0007). |
+| `COMFY_ENV_ROOT` | `%LOCALAPPDATA%\Programs\comfy-env` (Windows), `~/.ce` (Unix) | Override the machine-wide workspace root where envs materialize (ADR-0007). **Read [Drives and volumes](drives-and-volumes.md) first** -- moving the workspace without also moving the package cache silently disables dedup. |
 | `COMFY_ENV_CUDA_WHEELS_INDEX` | `https://comfy-forge.github.io/cuda-wheels/` | Base URL of the [cuda-wheels index](../cuda-wheels/index.md). Point it at a mirror you host. A missing trailing slash is added for you. **This is a trust boundary** -- see the warning below. |
 
 !!! danger "The wheel index is a trust boundary"
