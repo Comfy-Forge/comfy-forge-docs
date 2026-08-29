@@ -21,3 +21,5 @@ order).
     "Only 5% of our arrivals are by ambulance, so ambulances are clearly low ROI and we shouldn't support them anymore"
 
 Conda-forge's community builds, healthy as they are, are ~30% of what is published on pypi.
+
+Compiling torch for ALL python/os/cuda versions that it is compiled for in pypi is [one of the items in the roadmap](../roadmap.md#conda-torch-builds).

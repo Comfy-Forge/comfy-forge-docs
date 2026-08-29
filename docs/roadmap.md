@@ -16,6 +16,17 @@ stay listed (struck) so the list doubles as a change record.
    lockfile-visible inlining in comfy-env.
    ([CW-ADR-0004](cuda-wheels/adr/0004-combo-encoded-versions-and-metadata-patching.md))
 
+2. <a id="conda-torch-builds"></a>**Conda torch builds for every
+   python/os/cuda combo PyPI gets.** PyTorch publishes no conda packages,
+   and conda-forge's community builds cover roughly 30% of the combo grid
+   PyPI carries -- which is why the torch family rides a separate pip index
+   inside otherwise-conda envs, with all the two-system machinery that
+   implies ([Why not just conda?](comfy-env/why-not-conda.md)). The farm
+   already builds CUDA wheels per combo; extending it to build conda torch
+   packages for the full PyPI grid would let the solver own torch like any
+   other dependency. Big (torch is the heaviest build in the ecosystem),
+   unscheduled, recorded so the wheel-farm work builds toward it.
+
 ## comfy-env
 
 !!! success "12.8 on ARM64 -- resolved in the resolver, still blocked in the farm"
