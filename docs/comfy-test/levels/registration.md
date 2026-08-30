@@ -80,8 +80,8 @@ and `api`, requesting any capture or execution level pulls it in automatically
 whether or not you list it.
 
 Relevant environment: `COMFY_TEST_VERBOSE` echoes every server line rather than
-the interesting ones; `COMFY_TEST_SHOW_CONSOLE_ERRORS` surfaces browser console
-errors. See the [settings reference](../settings.md).
+the interesting ones; `COMFY_TEST_SHOW_CONSOLE` surfaces the browser's
+JavaScript console. See the [settings reference](../settings.md).
 
 ## See also
 

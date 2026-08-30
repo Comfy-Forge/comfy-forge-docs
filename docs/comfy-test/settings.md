@@ -25,19 +25,15 @@ including `0`, `false`, and any typo -- reads as off.
 
 | Env var | default | meaning |
 |---|---|---|
-| `COMFY_TEST_RUN_CONSUMER` | **on** | Discover the pack's user-facing workflows (`example_workflows/` and its aliases -- see [what a pack looks like](using.md#what-a-pack-looks-like)). Turning this off makes those workflows invisible to the run. |
-| `COMFY_TEST_RUN_DEV` | **on** | Discover dev-only workflows from the `tests/` subfolder of any workflow directory. |
 | `COMFY_TEST_VERBOSE` | off | Echo every ComfyUI server line, not just the interesting ones. |
-| `COMFY_TEST_SHOW_CONSOLE_ERRORS` | off | Surface browser console **errors** in the run output. |
-| `COMFY_TEST_SHOW_CONSOLE_WARNINGS` | off | Surface browser console **warnings** in the run output. |
+| `COMFY_TEST_SHOW_CONSOLE` | off | Echo the **browser's JavaScript console** (errors and warnings) into the run output. Every console message is written to `logs/<workflow>_console.log` either way -- this only decides whether it also appears inline. |
 | `COMFY_TEST_VRAM_DEBUG` | off | VRAM accounting log lines during execution. |
 
-!!! warning "The two discovery switches change what is tested"
-    `COMFY_TEST_RUN_CONSUMER` and `COMFY_TEST_RUN_DEV` are not output
-    verbosity -- they decide **which workflow files exist as far as the run is
-    concerned**. With both off, every workflow-driven level has nothing to do.
-    They default on; leave them there unless you are deliberately narrowing a
-    local run.
+!!! note "Nothing here changes *what* is tested"
+    Every setting on this page is about output, paths and diagnostics. Which
+    workflows run is decided by your pack's folder layout and
+    [`comfy-test.toml`](config.md) alone -- there is no environment variable
+    that makes a workflow invisible to a run.
 
 ## Paths
 
@@ -101,9 +97,6 @@ is not supported.
 - **Sandbox and container context** -- `COMFY_TEST_IN_DOCKER`,
   `COMFY_TEST_IN_SANDBOX`, `COMFY_TEST_SANDBOX_ROOT`,
   `COMFY_TEST_SESSION_USER`.
-- **comfy-env interop** -- `COMFY_ENV_CUDA_VERSION`, `COMFY_ENV_CACHE_DIR`,
-  set so wheel resolution works on CPU-only CI
-  (see [Relationship to comfy-env](index.md#relationship-to-comfy-env)).
 
 !!! note "`COMFY_TEST_TORCH_VERSION` outranks your config"
     When it is set, it wins over `[test] torch_version` in

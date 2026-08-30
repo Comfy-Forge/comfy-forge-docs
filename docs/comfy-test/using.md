@@ -28,9 +28,7 @@ ComfyUI-YourPack/
 ├── web/                          frontend JS, if any (the `javascript` level)
 ├── example_workflows/         <- workflows: docs for users, tests for you
 │   ├── basic.json
-│   ├── upscale.json
-│   └── tests/                    dev-only workflows, not shown to users
-│       └── regression.json
+│   └── upscale.json
 └── .github/
     └── workflows/
         └── test-install.yml   <- one line; only for the CI paths

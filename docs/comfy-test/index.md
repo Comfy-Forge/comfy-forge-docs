@@ -7,12 +7,16 @@ It does three things, the way a real user would:
 
 1. **Installs the node pack.**
 
-2. **Drives real workflows against it** -- queues actual workflow JSONs on the
+2. **Drives real workflows against it**: queues actual workflow JSONs on the
    running server and checks it actually executes.
 
-3. **Produces a results gallery** -- an HTML report with a per-lane video
+3. **Produces a results gallery**: an HTML report with a per-lane video
    of each workflow running, plus memory and performance logs (RAM, VRAM, CPU,
    CUDA).
+
+![The results gallery for GeometryPack: per-lane tabs, each workflow card
+carrying a video of the run plus RAM and VRAM logs](img/test_gallery_example_geometrypack.png)
+
 
 In this way, `example_workflows/` or `workflows/` folders in custom node packs become both
 documentation and testing.
@@ -27,12 +31,10 @@ comfy-test can run on every OS ComfyUI runs on:
 
 And across every officially supported ComfyUI installation type:
 
-- **git-cloned ComfyUI** (all three) -- a fresh venv with a real server (`main.py`)
-- the **portable bundle** (Windows only) -- the official embedded-Python build
-- the **Desktop app** (Windows and macOS) -- the Electron app, driven over CDP
+- **git-cloned ComfyUI** (all three): a fresh venv with a real server (`main.py`)
+- the **portable bundle** (Windows only): the official embedded-Python build
+- the **Desktop app** (Windows and macOS): the Electron app, driven over CDP
 
-![The results gallery for GeometryPack: per-lane tabs, each workflow card
-carrying a video of the run plus RAM and VRAM logs](img/test_gallery_example_geometrypack.png)
 
 For the anatomy of a single run: [What a run does](what-a-run-does.md).
 
@@ -47,7 +49,7 @@ comfy-test can be pointed at a custom nodepack in **four different ways**.
 | **Central dispatcher ([comfy-ci](https://github.com/PozzettiAndrea/comfy-ci))** | a developer with **several nodes** who has local GitHub runners and doesn't want to open a GitHub org (GitHub won't let you register the same GPU machine to multiple repos) | automated GitHub Actions on a central repo with write access to the node repos | pushed back to **each node's own repo** |
 | **Registry gate (comfy-forge)** | the **comfy-forge** registry | the registry, on ingest | kept by the registry as a **verdict / badge** |
 
-Each is expanded in [Using comfy-test](using.md).
+Each is expanded in [using comfy-test](using.md).
 
 ## Accelerators
 
@@ -70,7 +72,7 @@ As of 0.5.0, only CUDA is supported.
 
 Each combination of (os x accelerator x install method) is called a "lane".
 As of 0.5.0, there are ten lanes in all.
-See [Lanes](lanes.md) for the full per-lane breakdown.
+See [the lanes docs](lanes.md) for the full per-lane breakdown.
 
 ## CLI
 
@@ -80,9 +82,14 @@ You can find the full reference here: [commands reference](commands.md).
 ## Relationship to comfy-env
 
 comfy-test knows about [comfy-env](../comfy-env/index.md) as an optional
-peer, not a dependency: it reads `comfy-env.toml` for declared `[cuda]`
-packages and `comfy-env-root.toml` for `[node_packs]`, sets
-`COMFY_ENV_CUDA_VERSION` so wheel resolution works on CPU-only CI, probes
-comfy-env's workspace to see which CUDA packages actually materialized (and
-mocks the ones that didn't, since CUDA imports fail without a GPU), and logs
-the installed comfy-env version alongside its own in every run.
+peer, not a dependency.
+
+If it is testing a comfy-enved package it reads `comfy-env.toml` for declared
+`[cuda]` packages and `comfy-env-root.toml` for `[node_packs]`, probes
+comfy-env's materialized workspace to see which of those CUDA packages actually
+landed (and mocks the ones that did not, since a CUDA import fails without a
+GPU), applies any `[env_vars]` the pack declares, and logs the installed
+comfy-env version alongside its own in every run.
+
+The probe is per-ABI: with no materialized environment for the running ABI it
+says so and treats every declared package as absent, rather than assuming.
