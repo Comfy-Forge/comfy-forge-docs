@@ -51,12 +51,21 @@ order:
     once previews have rendered, and write the logs, resource samples and
     `results.json`.
 
-!!! note "The video covers execution, not the whole run"
-    Recording starts at the **pre-run graph** -- browser open, workflow loaded,
-    nothing queued yet -- and that frame is held across the validate-and-queue
-    window so the video does not jump-cut into execution. Steps 1-10 are not
-    filmed: the capture is browser screenshots, and until the server is up
-    there is no page to point a camera at.
+!!! note "Two videos: the install, and the execution"
+    `driver.mp4` covers **execution only**. Recording starts at the **pre-run
+    graph** -- browser open, workflow loaded, nothing queued yet -- and that
+    frame is held across the validate-and-queue window so the video does not
+    jump-cut into execution. It cannot cover steps 1-10: the capture is browser
+    screenshots, and until the server is up there is no page to point a camera
+    at.
+
+    Steps 1-10 get their own video, `videos/install/driver.mp4`, which appears
+    in the report beside the per-workflow ones. By default it is rendered from
+    `install.jsonl` -- the timed event stream, chapter markers and all -- so it
+    works on every lane including the CUDA containers, where there is no
+    desktop to record. Set `COMFY_TEST_INSTALL_VIDEO=x11` on Linux for a real
+    screen recording instead, or `off` for neither. See
+    [Settings](settings.md#filming-the-install).
 
     The **resource monitor does start earlier**, before the browser navigates,
     which is why the RAM/VRAM graph is offset back onto the video's timeline

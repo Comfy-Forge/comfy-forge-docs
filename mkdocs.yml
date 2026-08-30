@@ -59,6 +59,7 @@ nav:
       - Upstream ComfyUI:
           - ComfyUI custom nodepack background: comfy-env/comfyui-background.md
           - ComfyUI memory management background: comfy-env/comfyui-memory.md
+          - How aimdo manages weights: comfy-env/comfyui-aimdo.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
       - Nodepack Author Reference:
           - The three calls:
@@ -135,6 +136,18 @@ nav:
           - What a run does: comfy-test/what-a-run-does.md
           - Commands: comfy-test/commands.md
           - GitHub workflows: comfy-test/workflows.md
+          - Test lanes:
+              - The lane table: comfy-test/lanes.md
+              - "linux-cpu": comfy-test/lanes/linux-cpu.md
+              - "linux-cuda": comfy-test/lanes/linux-cuda.md
+              - "windows-cpu": comfy-test/lanes/windows-cpu.md
+              - "windows-cuda": comfy-test/lanes/windows-cuda.md
+              - "windows-portable-cpu": comfy-test/lanes/windows-portable-cpu.md
+              - "windows-portable-cuda": comfy-test/lanes/windows-portable-cuda.md
+              - "macos-cpu": comfy-test/lanes/macos-cpu.md
+              - "macos-desktop": comfy-test/lanes/macos-desktop.md
+              - "windows-desktop": comfy-test/lanes/windows-desktop.md
+              - "windows-desktop-cuda": comfy-test/lanes/windows-desktop-cuda.md
           - Test levels:
               - The ladder: comfy-test/levels.md
               - "1. syntax": comfy-test/levels/syntax.md
@@ -150,7 +163,6 @@ nav:
               - "11. execution_light": comfy-test/levels/execution_light.md
               - "12. execution": comfy-test/levels/execution.md
               - "13. custom": comfy-test/levels/custom.md
-          - Lanes: comfy-test/lanes.md
           - "comfy-test.toml reference": comfy-test/config.md
           - ComfyUI versioning: comfy-test/comfyui-versioning.md
           - Settings reference: comfy-test/settings.md

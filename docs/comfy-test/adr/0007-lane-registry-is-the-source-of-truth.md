@@ -5,7 +5,7 @@
 ## Decision
 
 > **A lane is an (os x accelerator x install method) target described by exactly five
-> stored facts -- `id`, `os`, `backend`, `kind`, `label` -- and everything
+> stored facts -- `id`, `os`, `backend`, `install_method`, `label` -- and everything
 > else is computed** (`lanes/registry.py`). Config tokens, the
 > `TestConfig` field lookup, the results-gallery entries and the CI job
 > matrix all derive from that one table.
@@ -49,7 +49,7 @@ one row.
 - `rocm` is reserved in the taxonomy with no runner wired -- the vocabulary
   is allowed to lead the infrastructure, so long as selecting it fails
   loudly ([ADR-0008](0008-lanes-are-opt-in.md)).
-- Because `kind` is a first-class axis (`server` / `portable` / `desktop`),
-  fundamentally different install mechanisms
+- Because `install_method` is a first-class axis (`manual` / `portable` /
+  `desktop` -- ComfyUI's own three), fundamentally different install mechanisms
   ([ADR-0013](0013-desktop-is-driven-over-cdp.md)) coexist without special
   cases in the config layer.

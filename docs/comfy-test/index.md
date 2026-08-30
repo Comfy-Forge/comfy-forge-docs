@@ -36,7 +36,7 @@ And across every officially supported ComfyUI installation type:
 - the **Desktop app** (Windows and macOS): the Electron app, driven over CDP
 
 
-For the anatomy of a single run: [What a run does](what-a-run-does.md).
+For the anatomy of a single run: [what a run does](what-a-run-does.md).
 
 ## Supported usage methods
 

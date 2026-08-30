@@ -1,112 +1,167 @@
 # ComfyUI memory management background
 
-*A plain-language tour of the memory a running ComfyUI occupies and the
-machinery that manages it -- chiefly `comfy/model_management.py`, plus the
-execution cache that owns most of your RAM between runs. Line references are
-against **ComfyUI v0.33.0** (`comfy/model_management.py` unless noted); they
-drift by a few lines between releases.*
+*What a running ComfyUI holds on to, where it holds it, and what has to happen
+before it lets go.*
 
-You need this page before [Sharing one GPU](sharing-one-gpu.md), because
-everything comfy-env does about VRAM is a reaction to what is described here.
+*Last verified against ComfyUI `b133e483` (2026-08-26) with comfy-aimdo 0.4.15.*
 
-## The problem in one paragraph
+You need this page before [Sharing one GPU](sharing-one-gpu.md).
 
-A checkpoint is several gigabytes. A graphics card has a handful of gigabytes.
-A workflow may touch a UNet, a VAE, a text encoder, two ControlNets and an
-upscaler. They do not all fit at once, and moving one between CPU and GPU costs
-seconds. So ComfyUI keeps as much as it can resident, and evicts the cheapest
-thing only when it must. Model weights are the star of this show -- but they
-are not the only memory in the theater, and the biggest RAM consumer between
-runs is usually something else entirely.
+## Why does ComfyUI manage memory?
 
-## The map
+ComfyUI runs a workflow as a graph.
 
-Six kinds of memory, with very different amounts of actual management:
+Each node does its work, hands the result to the next one, and most of the time nothing about memory is worth thinking about.
 
-| # | Memory | Where it lives | How much ComfyUI manages it |
-|---|---|---|---|
-| 1 | Model weights on the GPU | VRAM | **Fully managed.** The `current_loaded_models` ledger and the evict-the-minimum loop -- [the ledger](#the-ledger) and everything through [eviction](#freeing-the-eviction-loop). |
-| 2 | Model weights evicted to the CPU | RAM | **Managed as the same ledger's other half** -- [eviction is a move, not a delete](#the-ram-half-of-the-ledger). |
-| 3 | Pinned (page-locked) RAM | RAM | **Fully managed**, by [a separate budget](#the-pin-budget). |
-| 4 | Activation working memory | VRAM | **Managed by guessing** -- [reserved headroom](#reserved-headroom), never tracked. |
-| 5 | The allocator cache | VRAM | **Counted and flushable**, not allocated by ComfyUI -- see [the number everything depends on](#the-number-everything-depends-on). |
-| 6 | Cached node outputs and node instances | RAM (+VRAM if outputs hold GPU tensors) | **Managed by a different subsystem** -- [the execution caches](#the-execution-caches), not the memory manager. |
+IMAGE/GIF
 
-Only #1 and #3 involve ComfyUI actively deciding what to keep and what to
-give back. #2 is a consequence of #1, #4 and #5 are arithmetic around memory
-it cannot control, and #6 is a cache-retention policy that happens to hold
-most of your RAM. So: how is #1 managed?
+It becomes worth thinking about when the graph is heavy.
 
-## The ledger
+A model checkpoint can be several gigabytes and a user's GPU/RAM might hold a fixed number of them: ask one workflow for a UNet, a VAE, a text encoder and two ControlNets and they might not all fit at once.
 
-ComfyUI tracks resident models in one process-global list:
+ComfyUI does things about it:
 
-```python
-current_loaded_models = []          # of LoadedModel
-```
+- It shuffles weights on and off the card while
+the graph runs.
+- It keeps room back for work whose size it cannot predict.
+- It remembers what each node produced, in case you run the graph again.
+- It retries in smaller pieces when something fails.
 
-Each `LoadedModel` wraps one model and remembers which device it is on and how
-much of it is currently loaded. Two details matter later:
+None of that is one system. Five different things hold memory during a run, they
+are held for different reasons, and only the first three of them react at all
+when you run short.
 
-- **It holds a weak reference.** `self._model = weakref.ref(model)` (`:751`).
-  If nothing else in your Python process is holding that model, it can be
-  garbage-collected out from under the ledger; `is_dead()` (`:827-828`) is how
-  the eviction loop skips those corpses.
-- **Equality is identity.** `__eq__` is `self.model is other.model` (`:820-821`)
-  -- not a value comparison.
+## Where memory lives
 
-## Loading: "how much of this fits?"
+Before the five, the places. People say "RAM and VRAM" and that is close enough
+until you start moving things, at which point it matters that RAM is really three
+places and there is a fourth below it.
 
-`load_models_gpu(models, ...)` (`:909`) is the entry point. For each model it
-computes a budget called `lowvram_model_memory` (`:995-996`):
+| Place | What it is | Getting a weight back from here costs |
+|---|---|---|
+| **VRAM** | on the card | nothing. It is already there |
+| **Pinned RAM** | host memory the OS has promised not to move | the transfer, and nothing else |
+| **Pageable RAM** | ordinary host memory | a staging copy the driver makes for you, then the transfer |
+| **Page cache** | the checkpoint file, still in RAM because the kernel kept it | a page fault, then the transfer |
+| **The file** | the safetensors on disk | reading it, though ComfyUI can read straight to the card and skip host RAM entirely |
 
-> free memory minus the headroom we must not touch -- but at least 40% of free
-> memory on non-NVIDIA cards, even when that eats into the inference reserve
-> (`MIN_WEIGHT_MEMORY_RATIO` is a **floor** inside a `max(...)`, and it is
-> **0.0 on NVIDIA**, `:454-456`) -- minus what is already loaded.
+This is why eviction is a move and not a delete. Pushing a model out of VRAM
+puts it somewhere in that list, and where it lands decides what it costs to
+bring back. It is also why VRAM pressure becomes RAM pressure: the bytes have to
+go somewhere, and the somewhere is your machine's memory.
 
-Then it hands that number to the model. And here is the part that trips
-everyone up:
+!!! note "Pinned and pageable are both real RAM"
+    The difference is not where the bytes are, it is whether the kernel has
+    promised to leave them alone. The card's copy engine reads host memory by
+    physical address and needs that address to hold still for the length of the
+    transfer. Pageable pages do not qualify, because the kernel may relocate or
+    swap them at any moment, so the driver copies your data into a small pinned
+    buffer of its own and transfers from there. Two steps instead of one, and
+    the first is a synchronous copy on the CPU.
+
+    That is the whole reason to pin, and the whole reason pinning has a cost:
+    pages the kernel cannot move are pages the rest of the machine cannot have.
+    Pinned RAM is the one place in this table with a budget. Pageable RAM has
+    none at all.
+
+!!! note "The page cache row is stranger than it looks"
+    ComfyUI memory maps checkpoints, so a model can be resident in RAM without
+    ComfyUI having allocated anything. The kernel counts those pages as
+    available, and the caches in row three ask the kernel how much is available
+    before deciding whether to evict. The process uses RAM it is already using
+    to authorise using more.
+
+## The five kinds
+
+| # | Kind | What it is | Lives in | Held until |
+|---|---|---|---|---|
+| 1 | **Weights** | the models themselves | VRAM, or anywhere in the table above | something needs the space |
+| 2 | **Work** | activations, attention buffers, tiling accumulators | VRAM, and RAM when tiling | the pass ends |
+| 3 | **Results** | what each node returned, kept in case you run again | RAM, and VRAM if a node returned a GPU tensor | the next prompt, and only if system RAM is short |
+| | | *above this line, something is watching and will act when memory runs short* | | |
+| 4 | **State** | what a node kept on itself between runs | RAM | you submit a different workflow |
+| 5 | **Everything else** | imports, native libraries, fragmentation | both | you restart ComfyUI |
+
+Each row is here because it is held until something different happens. That is
+the whole cut, and it is checkable: if you can name a sixth thing that releases
+memory in a running ComfyUI, this list is wrong.
+
+The line between rows three and four is the point of the table. Above it, code
+exists that notices you are short and acts. Below it, nothing is watching, and
+the memory stays until you take the process away.
+
+!!! note "The order is not size order"
+    It descends by how readily the memory comes back, not by how much of it there
+    is. In an ordinary install the largest single consumer is row three.
+
+The rest of this page takes the five in order. One thing cuts across all of
+them, the number they all read, and that comes last.
+
+## First: which memory manager are you on?
+
+Row one has two possible answers, decided at startup, and ComfyUI tells you
+which in the log.
+
+| Log line | Manager |
+|---|---|
+| `DynamicVRAM support detected and enabled` | **aimdo**. Weights are paged in per layer. [Details](comfyui-aimdo.md) |
+| `No working comfy-aimdo install detected... Falling back to legacy ModelPatcher.` | **the ledger**. Whole models, evicted whole |
+
+aimdo is the default. `main.py:272` picks it unless one of four things stops it:
+a flag (`--disable-dynamic-vram`, `--highvram`, `--gpu-only`, `--novram`,
+`--cpu`), an unsupported GPU (NVIDIA, or AMD on ROCm 7.14 and later), torch below
+2.8, or a failed init.
+
+!!! warning "The fallback is being removed"
+    Pass `--disable-dynamic-vram` and ComfyUI prints *"this argument will be
+    removed soon."* The ledger is the minority path. It is not dead code: a CPU
+    load device, `get_non_dynamic_delegate()`, `clone(disable_dynamic=True)` and
+    multi GPU deepclones all still use it on a default install.
+
+---
+
+## 1. Weights
+
+The models. This is the row everyone means when they say ComfyUI manages memory,
+and it is the only row with a manager whose whole job is managing it.
+
+### On the aimdo path, a loaded model is mostly a promise
+
+Weights get virtual address space, which is free, and no physical pages. When a
+layer runs, `fault()` commits VRAM for that weight; `unpin()` afterwards lets it
+be reclaimed. Faulting a high priority weight evicts lower priority ones, and
+priority is address order, so the application lays weights out in the order it
+will need them.
+
+An eviction sets a watermark. Faults above it fail fast, so a model does not
+re-fault everything on every iteration. A failed fault is not an error: the layer
+allocates a temporary, copies the weight in, and runs slower.
+
+The point is that the application stops doing admission control. It asks every
+time and checks the answer. [Full mechanism](comfyui-aimdo.md).
+
+### On the ledger path, whole models, by budget
+
+`load_models_gpu` computes a per model byte budget called
+`lowvram_model_memory`, then hands it to the model. A model need not be all in or
+all out: `partially_load` loads layers until the budget is spent and streams the
+rest during the forward pass. That is all "lowvram mode" ever was, a small
+budget rather than a separate mode.
 
 !!! warning "Two magic numbers"
     | Value | Means |
     |---|---|
-    | `0` | **"Load everything."** Rewritten to `1e32` at `:787-789`. |
-    | `0.1` | **"Load essentially nothing."** Set at `:998-999` when the computed budget came out as zero, and at `:1002` under `NO_VRAM`. |
+    | `0` | **Load everything.** Rewritten to `1e32`. |
+    | `0.1` | **Load essentially nothing.** Set when the computed budget came out as zero, and under `NO_VRAM`. |
 
-    So the smallest possible request and the largest possible request are
-    `0.1` and `0` -- adjacent numbers with opposite meanings. Any code that
-    does `int(extra_memory)` turns `0.1` into `0` and inverts the instruction.
+    The smallest possible request and the largest possible request are `0.1` and
+    `0`, adjacent numbers with opposite meanings. Code that does
+    `int(extra_memory)` turns `0.1` into `0` and inverts the instruction.
 
-## Partial residency
+### Making room
 
-A model does not have to be all-in or all-out. `partially_load(device, extra_memory)`
-loads layers until it has used `extra_memory` more bytes; the rest stay on the
-CPU and are streamed in during the forward pass. `partially_unload` is the
-reverse. This is what "lowvram mode" actually is -- not a separate mode, just a
-small budget.
-
-## Reserved headroom
-
-The budget above never fills the card, because a forward pass creates
-temporary activation tensors that are never tracked -- ComfyUI just reserves
-room for them up front and estimates per-operation needs before big ops like
-VAE decode. It holds back:
-
-| Reserve | Amount | Where |
-|---|---|---|
-| `EXTRA_RESERVED_VRAM` | **400 MB**, or **600 MB on Windows** (*"the shared vram issue"*), **+100 MB** on Windows cards over 15 GB | `:847-851` |
-| inference working room | **0.8 GB** + the above | `minimum_inference_memory()`, `:860-861` |
-| user override | `--reserve-vram <GB>` replaces the first entirely | `:853-854` |
-
-So on a 16 GB Windows card, roughly 1.5 GB is spoken for before a single
-weight is loaded. When the guess is short, the symptom is an OOM mid-sampling
-and the knob is `--reserve-vram`.
-
-## Freeing: the eviction loop
-
-`free_memory(memory_required, device)` walks the ledger and unloads until
-there is room. The interesting part is the order it picks victims (`:875`):
+When the budget does not fit, `free_memory` walks the ledger and unloads until it
+does. The order it picks victims:
 
 ```python
 can_unload.append((-shift_model.model_offloaded_memory(),
@@ -114,181 +169,208 @@ can_unload.append((-shift_model.model_offloaded_memory(),
                    shift_model.model_memory(), i))
 ```
 
-Sorted ascending, so the first victim is the one with the **largest
-already-offloaded portion** -- i.e. the model that is already mostly on the
-CPU, because finishing that eviction is the cheapest way to free the next
-byte. Ties break on refcount (least-referenced first), then size.
+Ascending, so the first victim is the one already most offloaded, since finishing
+that eviction is the cheapest way to free the next byte. Ties break on refcount,
+then size, then list position. It recomputes free memory every iteration, so it
+is a feedback loop rather than a plan, and it stops as soon as there is room.
 
-Then, per victim (`:879-889`, verbatim):
+!!! note "Two consequences of that sort key"
+    Refcount as a tiebreaker means row three is a term in row one's eviction
+    policy. How many references a model has depends on what the results cache is
+    holding. These are not independent systems.
 
-```python
-for x in can_unload_sorted:
-    i = x[-1]
-    memory_to_free = 1e32
-    if not DISABLE_SMART_MEMORY or device is None:
-        memory_to_free = 0 if device is None else memory_required - get_free_memory(device)
-        if current_loaded_models[i].model.is_dynamic() and for_dynamic:
-            #don't actually unload dynamic models for the sake of other dynamic models
-            #as that works on-demand.
-            memory_required -= current_loaded_models[i].model.loaded_size()
-            memory_to_free = 0
-    if memory_to_free > 0 and current_loaded_models[i].model_unload(memory_to_free):
-```
+    The last tiebreaker is list index, where index zero is the most recently
+    loaded model. At the bottom of the sort, the policy is anti LRU.
 
-Note it **recomputes free memory every iteration** -- it is a feedback loop,
-not a precomputed plan. It stops as soon as there is enough room. (A `None`
-device means "free everything everywhere", and dynamic models are spared when
-the caller is itself loading one -- they stream on demand anyway.)
+!!! danger "On the default path this loop declines to act"
+    ```python
+    if current_loaded_models[i].model.is_dynamic() and for_dynamic:
+        memory_required -= current_loaded_models[i].model.loaded_size()
+        memory_to_free = 0
+    ```
+    `for_dynamic` is true when every model in the request is dynamic, which is
+    the normal case. The loop evicts nothing, because aimdo is already doing it
+    per page. This is where the ledger stops applying.
 
-!!! note "`--disable-smart-memory` changes the contract"
-    With that flag (and a concrete device), `memory_to_free` stays hard-set to
-    `1e32` (`:881`) and the recompute at `:883` never runs. Every candidate is
-    fully detached rather than partially unloaded. The feedback loop above
-    simply does not run.
+### Where evicted weights go
 
-Eviction frees VRAM. But the weights have to go *somewhere*.
+Down the table in [Where memory lives](#where-memory-lives), one rung at a time.
+`--fast-disk` makes the bottom rung preferred over pageable RAM, so a weight can
+go from the card to the file and come back without ever occupying host memory.
 
-## The RAM half of the ledger
+On a full unload the ledger entry is popped, so nothing tracks the copy that
+lands in RAM.
 
-Evicting a model does not destroy it -- `model_unload` moves weights to the
-model's `offload_device`, which is CPU RAM. VRAM pressure therefore *converts
-into* RAM pressure, and the eviction entry point accounts for both at once:
+Pinned RAM is the one place with a real budget: `MAX_PINNED_MEMORY`, with
+`ensure_pin_budget` gating each new pin.
 
-```python
-def free_memory(memory_required, device, keep_loaded=[],
-                for_dynamic=False, pins_required=0, ram_required=0):   # :863
-```
+!!! warning "Three ways that budget is softer than it looks"
+    * `--high-ram` returns `True` before reading it. It is off. The same flag
+      also switches row three to classic mode, so one flag has two effects.
+    * In the default configuration the branch taken never consults
+      `MAX_PINNED_MEMORY` at all. It probes system available RAM instead.
+    * `ensure_pin_registerable()` returns a value its callers discard, then pin
+      anyway.
 
-`get_free_memory` on a CPU device answers from
-`psutil.virtual_memory().available` (`:1754`) -- a **system-wide** number, not
-a ComfyUI-private one. That choice matters: anything else on the machine
-eating RAM automatically shrinks what ComfyUI thinks it can offload, so the
-honest shared measurement coordinates with the rest of the system for free.
+!!! warning "Nothing budgets pageable RAM"
+    `free_memory` takes a `ram_required` parameter. It appears in one log string
+    and no caller in the tree passes it. VRAM pressure converts into RAM pressure
+    with no check that the RAM exists.
 
-And those `pins_required` bytes? They belong to the second real budget.
+---
 
-## The pin budget
+## 2. Work
 
-To copy weights CPU→GPU at full PCIe speed, the source pages must be
-**pinned** -- page-locked so the OS cannot swap them out. Pinned pages are
-subtracted from the whole machine's flexibility, not just ComfyUI's, so an
-unbounded pin pool starves everything else running.
+Everything a forward pass allocates and then drops: activations, attention
+workspaces, the buffers a cast needs, the accumulator a tiled VAE decode writes
+into. It is freed by the pass ending, which means refcounting, which means
+nothing decides anything.
 
-ComfyUI runs an explicit budget for this: `MAX_PINNED_MEMORY` is derived from
-total RAM (40% on Windows -- *"Windows limit is apparently 50%"* -- and up to
-90% minus safety margins elsewhere, `:1585-1587`), `ensure_pin_budget(size)`
-(`:714`) gates every new pin against it, and `free_pins` (`:695`) walks
-eviction tiers when the budget is exceeded, with an emergency path keyed on
-system-available RAM under Windows swap pressure (`:706`). `--high-ram`
-disables the gate entirely (`:715-716`) -- and, less obviously, the same flag
-also switches [the execution cache](#the-execution-caches) to classic mode
-(`comfy/cli_args.py:285-286`): one flag, two effects.
+Nothing measures it either. ComfyUI holds a constant back and estimates the rest.
+The constant is `EXTRA_RESERVED_VRAM`, 400 MB, or 600 MB on Windows, plus 100 MB
+more on Windows cards over 15 GB. `minimum_inference_memory()` adds 0.8 GB. On a
+16 GB Windows card roughly 1.5 GB is spoken for before a single weight loads.
 
-This is real memory management -- budget, admission, eviction -- entirely
-about RAM, and entirely separate from the VRAM ledger. Both ledgers, though,
-steer by the same instrument.
+The knob differs by manager, which catches people out:
 
-## The number everything depends on
+| Path | Knob | What it does |
+|---|---|---|
+| aimdo | `--vram-headroom` | keeps this much free, *"even counting VRAM from other apps"* |
+| ledger | `--reserve-vram` | replaces `EXTRA_RESERVED_VRAM` |
 
-`get_free_memory(device)` (`:1748`) is the input to every decision above. On
-CUDA (`:1785-1787`):
+On top of the constant sits an estimate, `area × dtype × memory_usage_factor`,
+where the factor is one of roughly 55 hand tuned per architecture constants from
+0.03 to 11.6, a dozen of them carrying a `#TODO`.
+
+!!! danger "The estimator disagrees with itself"
+    One of its two branches has no dtype term while the other scales by it. The
+    branch test knows about xformers and pytorch flash attention but not sage or
+    flash attn, so `--use-sage-attention` gets the quadratic attention estimate
+    for a kernel that is linear in memory, and over reserves accordingly.
+
+    Text encoders are budgeted at zero. Two of roughly forty implement an
+    estimator, and their compute is forced to fp32.
+
+That constant is a guess, so the guess is sometimes wrong. Thirteen places
+outside the memory manager read free memory at runtime and change what they
+compute: VAE batch size, CFG batching, attention chunk sizes, even the choice
+between GPU and CPU. Ten more catch an out of memory error and retry smaller.
+None of them tell the manager anything, and most of them discard the setting that
+worked, so a fifty step workflow can rediscover the same fallback fifty times.
+
+!!! warning "The fallback allocates more RAM than the thing it replaced"
+    Tiled VAE decode writes into a float32 accumulator sized for the whole
+    output. The untiled path honours `--fp16-intermediates`. The path you take
+    when you are already out of memory does not.
+
+---
+
+## 3. Results
+
+What each node returned, kept in case you run the graph again. In an ordinary
+install this is the largest thing in the process, larger than any model.
+
+It is freed by the next prompt, and only if system RAM is short: the cache polls
+available RAM and drops entries by a score until it clears a target. That is a
+real byte budget, which is more than rows four and five get.
+
+!!! warning "Three sharp edges"
+    * **A cached CUDA tensor counts as 0.05 bytes.** The accounting has a branch
+      for CPU tensors and none for GPU tensors. There is a release callback for
+      RAM and no equivalent for VRAM, so if cached results are your VRAM
+      shortfall, nothing can act on it.
+    * **`--cache-lru N` bounds item count, not bytes.** A hundred entries of
+      unbounded size.
+    * **The poll reads the host's memory inside a container.** Nothing in the tree
+      reads a cgroup limit, so under `docker --memory` it sees the whole
+      machine's RAM and never evicts.
+
+---
+
+## 4. State
+
+What a node kept on itself. A core LoRA loader parks the whole state dict on
+`self`, several gigabytes of it, and a hook loader does the same with a
+checkpoint's patch weights.
+
+Nothing polls this. It has no size accounting and no eviction under any mode. It
+is freed when you submit a different workflow, which clears the entry, and not
+before.
+
+The practical shape of that: fill your RAM, keep running the same workflow, and
+row three drops entries while row four does not move. The results cache reacts to
+pressure. State does not react to anything except a change of graph.
+
+!!! note "V1 and V3 nodes differ here"
+    V3 nodes get a fresh class clone per call, so they cannot accumulate state
+    across executions the way a V1 node can.
+
+---
+
+## 5. Everything else
+
+Freed by restarting ComfyUI, and by nothing short of that.
+
+* **Custom node imports.** Arbitrary code at import time, interned in
+  `sys.modules` forever. There is no unload path anywhere in the tree, and
+  exactly one function is protected against monkeypatching. See
+  [Import time side effects](import-side-effects.md).
+* **Allocations outside torch.** OpenGL framebuffers on the same card, FFmpeg
+  decoder buffers, scipy trees, cuBLAS workspaces created by `--deterministic`.
+  Invisible to every accounting scheme in the codebase.
+* **Class level caches holding GPU tensors**, which outlive every workflow.
+* **CUDA graph pools**, which `empty_cache()` cannot reclaim.
+* **Fragmentation.** Free and unusable, measured nowhere.
+
+---
+
+## The instrument all five rows read
+
+Every decision above is computed from one number:
 
 ```python
 mem_free_cuda, _ = torch.cuda.mem_get_info(dev)
-mem_free_torch  = mem_reserved - mem_active     # torch's own reusable cache
+mem_free_torch  = mem_reserved - mem_active     # torch's own cache
 mem_free_total  = mem_free_cuda + mem_free_torch
 ```
 
-That second term is the **allocator cache**: PyTorch keeps freed VRAM in a
-private reusable pool rather than returning it to the driver. ComfyUI counts
-it as free -- correctly, for its own process -- and can flush it back to the
-driver with `soft_empty_cache` (`:2045`). The reason this complicates
-cross-process accounting is [Sharing one GPU](sharing-one-gpu.md).
+That second term is VRAM torch has reserved and is not using.
 
-**The first term is the honest number only on Linux.** `torch.cuda.mem_get_info`
-asks the driver, and on Windows the driver answers *per process*: it reports
-what **this process** may still commit, not what the card has free. Another
-process can be using 13 GB and this number barely moves.
+!!! danger "It is counted as free. It is not reliably returnable."
+    `reserved` minus `active` is the sum of free blocks, which may all be too
+    small and too scattered to serve the next allocation. Measured on an RTX
+    3090: after freeing every other block the number reported 124 MB,
+    `empty_cache()` released nothing, and a contiguous 128 MB allocation still
+    went to the driver.
 
-ComfyUI has no platform branch here -- it makes one unconditional call and
-trusts it. That is not an oversight so much as an assumption that ComfyUI is
-the only thing using the GPU. Which is exactly the assumption comfy-env breaks
-by putting models in worker subprocesses.
+    When every block is dead it releases everything. When live tensors pin every
+    segment it releases nothing. Fragmentation is what decides, not the allocator
+    backend. And it can never release row one on the aimdo path, because those
+    weights were never in the caching allocator to begin with.
 
-## The execution caches
-
-One large consumer remains -- the RAM you forgot about. After a workflow
-finishes, ComfyUI keeps two caches so the next run can skip unchanged work
-(`execution.py:132-149`, `comfy_execution/caching.py`):
-
-- **`outputs`** -- every node's return values, keyed by a signature of the
-  node's inputs. Images, latents, meshes: real tensors, held between runs.
-- **`objects`** -- the node *instances* themselves, keyed by node id. This is
-  where a V1 node's `self.`-stashed state lives (a loaded model a node cached
-  on itself survives here between runs).
-
-This is why RAM grows after a run completes and stays grown with zero models
-loaded -- and it is retention policy, not the memory manager: nothing in
-`model_management.py` can evict a cached output. The user-facing controls are
-the cache flags (`comfy/cli_args.py:140-143`; the default is chosen in
-`main.py:351-357`). Only the `outputs` cache varies by mode -- `objects` is a
-`HierarchicalCache` in every mode except `--cache-none`
-(`execution.py:135-149`):
-
-| Flag | `outputs` cache |
-|---|---|
-| `--cache-ram [GB ...]` *(default)* | `RAMPressureCache` -- keep outputs until RAM headroom runs low |
-| `--cache-classic` | `HierarchicalCache` -- keep outputs for everything still in the graph; **implied by `--high-ram`** (`cli_args.py:285-286`) |
-| `--cache-lru N` | `LRUCache` -- keep the N most recently used node results |
-| `--cache-none` | `NullCache` -- keep nothing; every node re-executes every run |
-
-!!! note "Why comfy-env cares about #6"
-    For an isolated node, the `objects` cache holds the parent-side **proxy**,
-    while any `self.` state lives in the worker's real instance -- kept alive
-    by the worker's own object cache for exactly this reason. And a cached
-    `outputs` entry can hold shared-memory tensors that crossed the process
-    boundary, which is what the consumed-ack lifetime protocol
-    ([ADR-0032](adr/0032-shm-lifetime-consumed-ack.md)) exists to keep valid.
-
-## What nothing manages
-
-Completing the map with the memory ComfyUI cannot see or steer:
-
-- **Mid-execution temporaries** beyond the reserved headroom -- plain PyTorch
-  refcounting, gone when the tensor goes out of scope.
-- **Non-PyTorch allocations** -- `cuMemAlloc`, TensorRT engines, NVENC,
-  OpenGL: invisible to `torch.cuda` accounting entirely. Measured
-  consequences in [Sharing one GPU](sharing-one-gpu.md#what-this-does-not-fix).
-- **Other processes' VRAM** -- including, without comfy-env's proxies, a
-  worker's models; that gap is the entire subject of
-  [Sharing one GPU](sharing-one-gpu.md).
+There is also more than one of this function. `ModelPatcher.get_free_memory`
+returns the above plus what aimdo could reclaim on demand. Both are used, in the
+same file, in the same batching decision.
 
 ## Why comfy-env has to care
 
-comfy-env runs node code in separate processes, so a worker's models are real
-VRAM that ComfyUI's ledger cannot see. Everything in
-[Sharing one GPU](sharing-one-gpu.md) -- the model proxies, the admission
-arithmetic, the eviction bridge -- exists to put worker-held memory back into
-the picture above, without forking any of it.
+comfy-env runs node code in separate processes, so a worker's models are row one
+memory that ComfyUI's ledger cannot see. It registers a stand in so upstream can
+evict a worker's model the way it evicts its own. The mechanism is in
+[ADR-0036](adr/0036-mirroring-comfyui-memory-management.md), and the arithmetic
+around it is [Sharing one GPU](sharing-one-gpu.md).
 
-The short version: comfy-env registers a stand-in object into
-`current_loaded_models` so upstream's eviction loop can evict a worker's model
-the same way it evicts its own, and pre-compensates `memory_required` so the
-feedback loop converges on the truth rather than on the parent's blind view.
-The precise version is
-[ADR-0036](adr/0036-mirroring-comfyui-memory-management.md).
+!!! note "The bridge works, and the ground has shifted under it"
+    The stand in reports itself as non dynamic on purpose, so the bypass above
+    does not skip it. But on a default install every host model *is* dynamic and
+    therefore protected by that same branch, which leaves the worker's model as
+    the only entry upstream can actually evict.
 
-## Cheat sheet
+## How this page goes stale
 
-| Thing | One line |
-|---|---|
-| `current_loaded_models` | the list of what is resident, weakly held |
-| `load_models_gpu` | "make room and load these" |
-| `free_memory(n, dev)` | "get me `n` free bytes on `dev`" -- also takes `pins_required` / `ram_required` |
-| `partially_load/unload` | move part of a model across the PCIe bus |
-| `lowvram_model_memory` | the per-model byte budget |
-| `0` / `0.1` | "everything" / "nothing" |
-| `minimum_inference_memory()` | 0.8 GB + reserve, never touched |
-| `get_free_memory` | the input to every decision; per-process on Windows |
-| `MAX_PINNED_MEMORY` / `ensure_pin_budget` | the RAM budget for page-locked transfer staging |
-| `outputs` / `objects` caches | the execution-side RAM: node results and node instances, kept between runs |
+* **`--disable-dynamic-vram` is removed.** Upstream says it will be. Half of row
+  one becomes history rather than an alternative.
+* **The aimdo init protocol changes again.** `main.py` already carries three
+  versions behind fallbacks.
+* **`current_loaded_models` stops being a list.** Everything comfy-env does
+  registers into it.

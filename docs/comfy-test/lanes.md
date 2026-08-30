@@ -14,18 +14,18 @@ The taxonomy lives in `lanes/registry.py` and everything else derives from it
 
 ## The lanes
 
-| id | OS | Backend | Kind | Runner | Install path |
-|----|----|---------|------|--------|--------------|
-| `linux-cpu` | linux | cpu | server | hosted | **attach** |
-| `linux-cuda` | linux | cuda | server | self-hosted | fresh |
-| `windows-cpu` | windows | cpu | server | hosted | **attach** |
-| `windows-cuda` | windows | cuda | server | self-hosted | fresh |
-| `windows-portable-cpu` | windows | cpu | portable | hosted | **attach** |
-| `windows-portable-cuda` | windows | cuda | portable | self-hosted | fresh |
-| `macos-cpu` | macos | cpu | server | hosted | **attach** |
-| `macos-desktop` | macos | cpu | desktop | hosted | desktop |
-| `windows-desktop` | windows | cpu | desktop | hosted | desktop |
-| `windows-desktop-cuda` | windows | cuda | desktop | self-hosted (VM) | desktop |
+| id | OS | Accel | Install method | Runner | Install path |
+|----|----|-------|----------------|--------|--------------|
+| [`linux-cpu`](lanes/linux-cpu.md) | linux | cpu | manual | hosted | **attach** |
+| [`linux-cuda`](lanes/linux-cuda.md) | linux | cuda | manual | self-hosted | fresh |
+| [`windows-cpu`](lanes/windows-cpu.md) | windows | cpu | manual | hosted | **attach** |
+| [`windows-cuda`](lanes/windows-cuda.md) | windows | cuda | manual | self-hosted | fresh |
+| [`windows-portable-cpu`](lanes/windows-portable-cpu.md) | windows | cpu | portable | hosted | **attach** |
+| [`windows-portable-cuda`](lanes/windows-portable-cuda.md) | windows | cuda | portable | self-hosted | fresh |
+| [`macos-cpu`](lanes/macos-cpu.md) | macos | cpu | manual | hosted | **attach** |
+| [`macos-desktop`](lanes/macos-desktop.md) | macos | cpu | desktop | hosted | desktop |
+| [`windows-desktop`](lanes/windows-desktop.md) | windows | cpu | desktop | hosted | desktop |
+| [`windows-desktop-cuda`](lanes/windows-desktop-cuda.md) | windows | cuda | desktop | self-hosted (VM) | desktop |
 
 Select them explicitly -- listing is opt-in and an unknown token is a hard
 error ([ADR-0008](adr/0008-lanes-are-opt-in.md)):
@@ -35,16 +35,33 @@ error ([ADR-0008](adr/0008-lanes-are-opt-in.md)):
 lanes = ["linux-cpu", "windows-cuda", "macos-desktop"]
 ```
 
-## Kinds
+## Install methods
 
-- **`server`** -- a normal ComfyUI checkout in a virtual environment. The
-  reference configuration.
+These are ComfyUI's own three, under ComfyUI's own names -- the
+[install docs](https://docs.comfy.org/installation/manual_install) list
+Desktop, Windows Portable and Manual Install, and comfy-test tests one lane
+family per option.
+
+- **`manual`** -- what upstream calls a *manual install*: a virtual environment
+  plus a ComfyUI checkout, which is its published four-step definition (venv,
+  clone, dependencies, start). The reference configuration.
 - **`portable`** -- the Windows portable bundle: an embedded Python with no
   `.git`, unpacked rather than installed. Catches packs that assume a
   writable site-packages or a git checkout.
 - **`desktop`** -- the Electron application, driven over CDP and installed by
   git clone rather than through Manager
   ([ADR-0013](adr/0013-desktop-is-driven-over-cdp.md)).
+
+!!! note "`manual` describes ComfyUI, not your pack"
+    Two different things get installed in a run and both have a "manual"
+    option in the wider ecosystem. This axis is **how ComfyUI itself got
+    there**. How *your pack* gets installed is separate -- and today every
+    lane installs it the same way, by git clone rather than through
+    ComfyUI-Manager, including the Desktop one.
+
+    Note also that `manual` says nothing about who typed the commands: CI does
+    every step unattended, exactly as no runner carries the `portable` bundle
+    on a USB stick. All three are inherited distribution names.
 
 ## What a green cell means -- read this one
 

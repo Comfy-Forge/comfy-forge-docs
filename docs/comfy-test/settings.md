@@ -25,6 +25,7 @@ including `0`, `false`, and any typo -- reads as off.
 
 | Env var | default | meaning |
 |---|---|---|
+| `COMFY_TEST_INSTALL_VIDEO` | `terminal` | How to film the install phase: `terminal`, `x11`, or `off`. See [below](#filming-the-install). |
 | `COMFY_TEST_VERBOSE` | off | Echo every ComfyUI server line, not just the interesting ones. |
 | `COMFY_TEST_SHOW_CONSOLE` | off | Echo the **browser's JavaScript console** (errors and warnings) into the run output. Every console message is written to `logs/<workflow>_console.log` either way -- this only decides whether it also appears inline. |
 | `COMFY_TEST_VRAM_DEBUG` | off | VRAM accounting log lines during execution. |
@@ -34,6 +35,32 @@ including `0`, `false`, and any typo -- reads as off.
     workflows run is decided by your pack's folder layout and
     [`comfy-test.toml`](config.md) alone -- there is no environment variable
     that makes a workflow invisible to a run.
+
+### Filming the install
+
+`driver.mp4` is browser screenshots, so it cannot start until a server exists --
+the install itself was never on film. `videos/install/` fixes that, and appears
+in the report next to the per-workflow videos.
+
+| value | what it records | where it works |
+|---|---|---|
+| `terminal` (default) | Renders `install.jsonl` -- the timed event stream, with your chapter markers -- to frames and encodes them. | **Every lane**: hosted Linux/Windows/macOS, the CUDA containers, Desktop. No display server needed. |
+| `x11` | A real X session: Xvfb, an `xterm` tailing `session.log`, and `ffmpeg -f x11grab`. Literally an OS desktop recording. | **Linux only**, and only where `xvfb` and `xterm` are installed. |
+| `off` | Nothing. | -- |
+
+Neither backend can fail a run. `x11` falls back with a printed reason when it
+is unavailable, and a render that throws is logged and skipped.
+
+!!! note "Why the default is not a screen recording"
+    On a hosted runner nothing draws a window during steps 1-7 -- `uv venv`,
+    the torch triple, `git clone`, `pip install` and `install.py` are terminal
+    processes. Screen-recording that desktop films an empty screen. `terminal`
+    renders what there actually is to see, which is also why it is the only
+    backend that works inside the CUDA containers.
+
+    A very long install is time-compressed rather than truncated, so the whole
+    thing is still shown; the factor is recorded in the video's `metadata.json`
+    and stamped in the corner of the frame.
 
 ## Paths
 
