@@ -1,4 +1,4 @@
-# How ComfyUI manages memory
+# ComfyUI memory management background
 
 *A plain-language tour of the memory a running ComfyUI occupies and the
 machinery that manages it -- chiefly `comfy/model_management.py`, plus the

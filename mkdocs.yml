@@ -58,7 +58,7 @@ nav:
       - Architecture: comfy-env/index.md
       - Upstream ComfyUI:
           - ComfyUI custom nodepack background: comfy-env/comfyui-background.md
-          - How ComfyUI manages memory: comfy-env/comfyui-memory.md
+          - ComfyUI memory management background: comfy-env/comfyui-memory.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
       - Nodepack Author Reference:
           - The three calls:
