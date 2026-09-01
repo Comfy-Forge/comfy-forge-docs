@@ -16,7 +16,9 @@ ComfyUI (`requirements.txt`), GPLv3, source at
 PyTorch VRAM allocator that offloads model weights on demand when the primary
 allocator comes under pressure.
 
-It supports NVIDIA only, PyTorch 2.8+, CUDA 12.8+, Windows 11 and Linux.
+aimdo's README claims NVIDIA only. ComfyUI enables it on NVIDIA, and on AMD
+from ROCm 7.14, and the wheel ships `aimdo_rocm.so` beside `aimdo.so`.
+PyTorch 2.8+, CUDA 12.8+, Windows 11 and Linux.
 
 !!! note "What we have read, and what we have not"
     The wheel ships **seven readable Python modules**, `control.py`,

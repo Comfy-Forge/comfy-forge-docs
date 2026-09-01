@@ -304,6 +304,88 @@ message listeners, shared DOM injection), and iframe-only bundles are kept out
 of the shared realm by naming them `.mjs`, which ComfyUI's `**/*.js` glob does
 not pick up.
 
+### Why collisions are possible today
+
+The mechanism is three lines of ComfyUI, and none of them is a bug. Together
+they mean a pack cannot declare a boundary even if it wants one.
+
+**1. Every `.js` under a pack's web directory is imported into the page.**
+A pack sets `WEB_DIRECTORY` and that directory is recorded
+(`nodes.py:2286`) and mounted as static at `/extensions/<pack>`
+(`server.py:1244`). `GET /extensions` then globs it recursively and returns a
+flat list of every file:
+
+```python
+files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
+```
+
+The frontend imports the whole list into one realm, concurrently, keeping
+going past any failure. De minified from `comfyui_frontend_package`:
+
+```js
+await Promise.all(list.filter(e => shouldLoadExtension(e, false)).map(async e => {
+  try { await import(H.fileURL(e)) }
+  catch (t) { console.error('Error loading extension', e, t) }
+}))
+```
+
+Note the filter. A skip mechanism already exists, and it is core only:
+`shouldLoadExtension` excludes anything under `extensions/core` plus a
+hardcoded `Set` of two cloud files. Packs cannot add to it.
+
+So there is no entry point. Every file is an entry point, and every one lands
+in the same `window`, the same `LiteGraph`, the same `app`.
+
+**2. A pack cannot say "this file is not an extension".** Helper modules are
+imported as though they were. In ComfyUI-KJNodes, four files register nothing
+at all (`utility.js`, `fix_node.js`, `editors/editor_base.js`,
+`editors/interpolation.js`); they exist to be imported by siblings. The glob
+imports each one anyway. Their siblings show what that costs:
+`editors/point_editor_canvas.js:5` calls `createEditorStylesheet(...)` at
+module scope, so a `<style>` element is appended to `document.head` on every
+page load whether or not a spline editor is ever opened.
+
+**3. A pack cannot ship an asset that is served but not executed.** This is the
+one with a public workaround. ComfyUI-KJNodes vendors `marked.min.js` and
+`purify.min.js` for a help popup most users never open. Rather than let the
+glob import both into the realm at startup, it registers a **second static
+route on ComfyUI's own aiohttp app**, pointing outside `WEB_DIRECTORY`
+(`__init__.py:411`), with the reason stated in the source:
+
+```python
+# NOTE: we add an extra static path to avoid comfy mechanism that loads every script in web.
+PromptServer.instance.app.add_routes(
+    [web.static("/kjweb_async", (Path(__file__).parent.absolute() / "kjweb_async").as_posix())]
+)
+```
+
+The files are then pulled in lazily by a hand written `loadScript` that
+de duplicates on `document.querySelector('script[src=...]')`. That helper
+carries the line *"code based on mtb nodes by Mel Massadian"*, so this is a
+pattern packs copy from each other rather than a single author's quirk. A pack
+had to reach into the server's routing table to avoid the frontend's loader.
+
+**4. There is no capability query, so packs read core's source.** With one
+shared realm and no version negotiation, a pack that needs to know whether the
+frontend already supports something has no API to ask. KJNodes stringifies a
+core method and greps it (`web/js/setgetnodes.js:1584`):
+
+```js
+const nativeSource = proto.resolveOutput.toString();
+const hasNativeSupport = nativeSource.includes('resolveVirtualOutput');
+```
+
+That is fragile twice over. It breaks under minification, and if another pack
+patched `resolveOutput` first then `.toString()` returns *that pack's* source
+rather than core's, so the answer is silently wrong. The prototype it reaches
+for is not reached by name either: the pack finds a subgraph node at runtime,
+calls `getInnerNodes`, and takes `constructor` off the first result, because
+the class is not exported.
+
+None of this is careless work. It is what a careful pack does when the platform
+offers one realm, no entry point declaration, no asset channel and no
+capability API.
+
 ### Upstream ComfyUI: the real frontend boundary (PR to open)
 
 The `javascript` lint *detects and contains*; it cannot make a same-origin,

@@ -94,7 +94,7 @@ through the ordinary machinery.
 | `text_encoder_device()` / `text_encoder_offload_device()` / `text_encoder_initial_device()` | the same for text encoders | inherits |
 | `vae_device()` / `vae_offload_device()` | the same for VAEs | inherits |
 
-!!! warning "`intermediate_device` decides whether row four is RAM or VRAM"
+!!! warning "`intermediate_device` decides whether Results are RAM or VRAM"
     Under `--gpu-only` it returns the GPU, so every cached node output holds
     VRAM, and the cache that bounds it counts a CUDA tensor as
     [0.05 bytes](comfyui-memory.md#4-results). comfy-env inherits this and does
@@ -110,9 +110,9 @@ through the ordinary machinery.
 | `cast_to(...)` / `cast_to_device(...)` / `cast_to_gathered(...)` | weight casting | inherits |
 | `mark_mmap_dirty(storage)` | flags a checkpoint page for writeback | inherits |
 
-!!! danger "`reset_cast_buffers` is the whole of row three"
+!!! danger "`reset_cast_buffers` is the whole of Carry"
     One caller, in a `finally` around a single node. It is the only release path
-    for a sixteen gibibyte reservation, CUDA graph pools, and the static tensors
+    for a sixteen gibibyte reservation and the static tensors
     a sampler reuses between steps. comfy-env does not interact with it, but a
     worker node that never returns holds all of it.
 

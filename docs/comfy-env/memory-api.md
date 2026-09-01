@@ -42,8 +42,7 @@ The most used part of the API by a wide margin, and the least discussed.
 | `text_encoder_device()` `vae_device()` | where each runs |
 | `unet_manual_cast()` | whether weights need casting on the fly |
 
-`intermediate_device()` is the one worth knowing. It decides whether row four of
-[the six kinds](comfyui-memory.md#the-six-kinds) is host memory or VRAM, and
+`intermediate_device()` is the one worth knowing. It decides whether [**Results**](comfyui-memory.md#4-results) live in host memory or VRAM, and
 under `--gpu-only` a cached node output holds VRAM that nothing can evict.
 
 ### Make room, and load
@@ -58,8 +57,8 @@ under `--gpu-only` a cached node output holds VRAM that nothing can evict.
 
 !!! warning "`free_memory` has a parameter that does nothing"
     `ram_required` appears in one log string and no caller in the tree passes it.
-    Host RAM is not budgeted. See row two of
-    [what nobody budgets](comfyui-memory.md#where-memory-lives).
+    Host RAM is not budgeted. See
+    [nothing budgets pageable RAM](comfyui-memory.md#making-room).
 
 ### How much is there
 

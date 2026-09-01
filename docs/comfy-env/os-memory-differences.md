@@ -14,6 +14,8 @@ each one. Every row below is something the code branches on.
 
 ## The eleven differences
 
+<div class="num-col" markdown>
+
 | # | Difference | Linux | Windows | macOS | Why you care |
 |---|---|---|---|---|---|
 | 1 | Page size | 4 KiB | 4 KiB | **16 KiB** on Apple Silicon | The unit memory is handed out in. Bigger pages mean fewer faults and more waste per page. |
@@ -27,6 +29,8 @@ each one. Every row below is something the code branches on.
 | 9 | Container limits | cgroups enforce them and most tools ignore them | A different model | Not applicable | Inside a container every "available memory" reading describes the host. |
 | 10 | Sharing memory between processes | `memfd`, anonymous and cleaned up on crash | named segments that leak on crash | named segments | Linux can hand over a nameless block of memory across a socket. |
 | 11 | Zero copy GPU handoff | CUDA IPC works | Unproven on consumer cards | Not applicable | Everywhere except Linux, a tensor crossing a process boundary is copied through host memory. |
+
+</div>
 
 Rows 6 and 7 cause the most confusion in practice, because both fail silently.
 Nothing raises an error. The machine simply gets slow.

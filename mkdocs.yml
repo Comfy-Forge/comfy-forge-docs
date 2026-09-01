@@ -35,6 +35,7 @@ extra_javascript:
 extra_css:
   - stylesheets/mermaid-zoom.css
   - stylesheets/forge-bar.css
+  - stylesheets/tables.css
 
 markdown_extensions:
   - admonition

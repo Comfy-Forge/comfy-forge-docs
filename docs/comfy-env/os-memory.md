@@ -131,7 +131,7 @@ not really the program's, and the kernel can take it back at any point.
 
 ### Compressed memory
 
-Writing a page to disk to reclaim its RAM is expensive, so both macOS and Linux
+Writing a page to disk to reclaim its RAM is expensive, so all three systems
 will do something cheaper first where they can: compress the page and keep it in
 memory.
 

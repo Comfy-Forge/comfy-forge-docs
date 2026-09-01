@@ -1,0 +1,22 @@
+/* Narrow leading number column.
+ *
+ * Material sets `min-width: 5rem` on every `th`, which reserves about 80px for
+ * a column whose widest cell is "3a". Opt in per table by wrapping it:
+ *
+ *   <div class="num-col" markdown>
+ *
+ *   | # | Place | ... |
+ *   |---|---|---|
+ *
+ *   </div>
+ *
+ * Scoped rather than global so tables whose first column is a function name
+ * keep Material's default sizing.
+ */
+.md-typeset .num-col table:not([class]) th:first-child,
+.md-typeset .num-col table:not([class]) td:first-child {
+  min-width: 0;
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}

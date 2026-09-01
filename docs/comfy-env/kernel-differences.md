@@ -25,19 +25,23 @@ to go. The differences below are what the three chose on top of that.
 
 ## The differences
 
+<div class="num-col" markdown>
+
 | # | Difference | Linux | Windows | macOS | In plain terms |
 |---|---|---|---|---|---|
 | 1 | Page size | 4 KiB | 4 KiB | **16 KiB** on Apple Silicon | The unit memory is handed out in. Larger pages mean fewer faults and more waste per page. |
 | 2 | Asking for more than exists | Says yes, then kills a process later | Says **no** immediately | Says yes, then leans on applications to free | Linux writes cheques it may not honour. Windows refuses at the counter. |
 | 3 | Whether swap exists | Often not, especially on servers | Effectively always | Always, created on demand | Without swap, running short kills something instead of slowing everything down. |
 | 4 | Compressed memory | Off unless configured | On by default | On by default | Squashing pages rather than writing them out. Two of the three do it without being asked. |
-| 5 | Pinning ceiling | May count swap toward it, up to roughly 90% of RAM | Near 40%, because the OS caps locked pages | Not applicable for the GPU | The same program can pin about twice as much on Linux as on Windows. |
+| 5 | Pinning ceiling | May count swap toward it, up to roughly 90% of RAM | Around 50%, because the OS caps locked pages | Not applicable for the GPU | The same program can pin about twice as much on Linux as on Windows. |
 | 6 | Who owns graphics memory | The driver | **The operating system** | Shared with the CPU | On Windows your allocation can be moved without you being told. |
 | 7 | Per process graphics memory | Visible | **Not visible** | Not applicable | On Windows you cannot ask which process is using the card. |
 | 8 | Moving GPU memory to RAM | Frees the card | Frees the card | **Frees nothing** | On Apple Silicon they are the same memory. |
 | 9 | Container limits | cgroups, widely ignored by tooling | A different model | Not applicable | Inside a container the usual answers describe the host. |
 | 10 | Sharing memory between processes | Anonymous, cleaned up on crash | Named, leaks on crash | Named | Linux can hand over a nameless block of memory across a socket. |
 | 11 | Handing a GPU buffer to another process | Works | Unproven on consumer cards | Not applicable | Elsewhere it round trips through host memory. |
+
+</div>
 
 ## The ones worth understanding properly
 
