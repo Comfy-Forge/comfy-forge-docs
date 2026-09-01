@@ -5,7 +5,11 @@ before it lets go.*
 
 *Last verified against ComfyUI `b133e483` (2026-08-26) with comfy-aimdo 0.4.15.*
 
-You need this page before [Sharing one GPU](sharing-one-gpu.md).
+Start here. You need this page before [Sharing one GPU](sharing-one-gpu.md).
+
+If page faults, swap, pinning or memory mapping are unfamiliar, take the detour
+through [How operating systems manage memory](os-memory.md), which defines every
+term this page borrows. Otherwise carry on.
 
 ## Why does ComfyUI manage memory?
 
@@ -27,75 +31,112 @@ the graph runs.
 - It remembers what each node produced, in case you run the graph again.
 - It retries in smaller pieces when something fails.
 
-None of that is one system. Five different things hold memory during a run, they
-are held for different reasons, and only the first three of them react at all
-when you run short.
+These memory optimizations are crucial to the good functioning of ComfyUI, especially on consumer hardware, and comfy-env aims to maintain them all.
 
 ## Where memory lives
 
-Before the five, the places. People say "RAM and VRAM" and that is close enough
+Before the six, the places. People say "RAM and VRAM" and that is close enough
 until you start moving things, at which point it matters that RAM is really three
 places and there is a fourth below it.
 
-| Place | What it is | Getting a weight back from here costs |
-|---|---|---|
-| **VRAM** | on the card | nothing. It is already there |
-| **Pinned RAM** | host memory the OS has promised not to move | the transfer, and nothing else |
-| **Pageable RAM** | ordinary host memory | a staging copy the driver makes for you, then the transfer |
-| **Page cache** | the checkpoint file, still in RAM because the kernel kept it | a page fault, then the transfer |
-| **The file** | the safetensors on disk | reading it, though ComfyUI can read straight to the card and skip host RAM entirely |
+| # | Place | What it is | Getting a weight back from here costs |
+|---|---|---|---|
+| 1 | **VRAM** | on the card | nothing. It is already there |
+| 2 | **Pinned RAM** | host memory the OS has promised not to move | the transfer, and nothing else |
+| 3 | **Pageable RAM** | ordinary host memory | a copy into the driver's own pinned buffer, still in RAM, then the transfer |
+| 4 | **Page cache** | the checkpoint file, still in RAM because the kernel kept it | the same as pageable, unless the kernel has dropped the page, in which case it is read from disk first |
+| 5 | **Swap** | pageable memory the OS moved to disk without asking | reading it back off disk, then everything pageable costs |
+| 6 | **The file** | the safetensors on disk | reading it, through a small pinned window rather than into a full copy in RAM |
+
+Numbered by cost, cheapest first.
+Rows 1 to 4 are in memory; 5 and 6 are on a disk.
 
 This is why eviction is a move and not a delete. Pushing a model out of VRAM
 puts it somewhere in that list, and where it lands decides what it costs to
 bring back. It is also why VRAM pressure becomes RAM pressure: the bytes have to
 go somewhere, and the somewhere is your machine's memory.
 
-!!! note "Pinned and pageable are both real RAM"
-    The difference is not where the bytes are, it is whether the kernel has
-    promised to leave them alone. The card's copy engine reads host memory by
-    physical address and needs that address to hold still for the length of the
-    transfer. Pageable pages do not qualify, because the kernel may relocate or
-    swap them at any moment, so the driver copies your data into a small pinned
-    buffer of its own and transfers from there. Two steps instead of one, and
-    the first is a synchronous copy on the CPU.
+Pinned and pageable are both real RAM. The difference is whether the kernel has
+promised not to move them, which is what lets the card read them directly rather
+than through a staging copy.
+[The background page](os-memory.md#pinned-memory) covers why.
 
-    That is the whole reason to pin, and the whole reason pinning has a cost:
-    pages the kernel cannot move are pages the rest of the machine cannot have.
-    Pinned RAM is the one place in this table with a budget. Pageable RAM has
-    none at all.
+Pinned RAM is the one place in this table with a budget, because pages the
+kernel cannot move are pages the rest of the machine cannot have. Pageable RAM
+has no budget at all.
 
-!!! note "The page cache row is stranger than it looks"
-    ComfyUI memory maps checkpoints, so a model can be resident in RAM without
-    ComfyUI having allocated anything. The kernel counts those pages as
-    available, and the caches in row three ask the kernel how much is available
-    before deciding whether to evict. The process uses RAM it is already using
-    to authorise using more.
+## The six kinds
 
-## The five kinds
+Everything ComfyUI holds falls into one of six, and each row is here because it
+is released by something the other five are not.
 
-| # | Kind | What it is | Lives in | Held until |
-|---|---|---|---|---|
-| 1 | **Weights** | the models themselves | VRAM, or anywhere in the table above | something needs the space |
-| 2 | **Work** | activations, attention buffers, tiling accumulators | VRAM, and RAM when tiling | the pass ends |
-| 3 | **Results** | what each node returned, kept in case you run again | RAM, and VRAM if a node returned a GPU tensor | the next prompt, and only if system RAM is short |
-| | | *above this line, something is watching and will act when memory runs short* | | |
-| 4 | **State** | what a node kept on itself between runs | RAM | you submit a different workflow |
-| 5 | **Everything else** | imports, native libraries, fragmentation | both | you restart ComfyUI |
+| # | Kind | What it is | Where it lives | Released when | What manages it, and how |
+|---|---|---|---|---|---|
+| 1 | **Weights** | the models themselves | VRAM, or anywhere in the table above | pressure arrives | **A real manager**, and this is the one people mean. It is either **comfy-aimdo** or the **legacy ledger**, [decided at startup](#first-which-memory-manager-are-you-on), never both. Either way it reads free VRAM, free host RAM, a pinned quota, and on Windows the pagefile, then picks victims and evicts them. aimdo evicts a layer at a time, the ledger a whole model |
+| 2 | **Work** | activations, attention buffers, tiling accumulators | VRAM, and RAM when tiling | the pass ends | **No manager, but not passive.** Thirteen sites read free memory and shrink what they compute: batch sizes, attention chunk sizes, tile sizes. Eleven more catch an out of memory error and retry smaller |
+| 3 | **Carry** | cast staging buffers, CUDA graph pools, the static tensors a sampler reuses between steps | VRAM | the node returns | **No policy.** Released at the node boundary unconditionally, pressure or not |
+| 4 | **Results** | what each node returned, kept in case you run again | RAM, and VRAM if a node returned a GPU tensor | the next prompt starts | **A second, separate manager**, in the execution engine. Reads free system RAM, drops cached outputs by a score |
+| 5 | **State** | what a node kept on itself between runs | RAM | you submit a different workflow | **Nothing** |
+| 6 | **Everything else** | imports, native libraries, fragmentation | both | you restart ComfyUI | **Nothing** |
 
-Each row is here because it is held until something different happens. That is
-the whole cut, and it is checkable: if you can name a sixth thing that releases
-memory in a running ComfyUI, this list is wrong.
+### The last two columns are the whole story
 
-The line between rows three and four is the point of the table. Above it, code
-exists that notices you are short and acts. Below it, nothing is watching, and
-the memory stays until you take the process away.
+**Released when.** Rows two to six are nested boundaries, each wider than the
+last:
 
-!!! note "The order is not size order"
-    It descends by how readily the memory comes back, not by how much of it there
-    is. In an ordinary install the largest single consumer is row three.
+```
+a forward pass  <  a node  <  a prompt  <  a workflow  <  the process
+```
 
-The rest of this page takes the five in order. One thing cuts across all of
-them, the number they all read, and that comes last.
+Memory survives until its boundary closes, and the boundaries contain one
+another, so anything freed by a wider one was already safe from every narrower
+one. Row one is the exception and the only one: weights are tied to no boundary
+at all, and pressure can arrive at any moment inside any of them.
+
+**What manages it.** Only two of the six have anything that measures, decides
+and acts, and they are different managers with different sensors. Row one's is
+either comfy-aimdo or the legacy ledger, which are two implementations of one
+job rather than two jobs, and the next section is how you tell which is running.
+Everything
+else either reacts locally without keeping a total, or has no policy at all. So
+"ComfyUI's memory manager" is accurate about row one and misleading about the
+rest.
+
+!!! danger "The two managers cannot see each other"
+    Row one reads VRAM and evicts models. Row four reads system RAM and drops
+    outputs. Neither can act on the other's memory, which is why a cached output
+    holding VRAM is a problem nothing in the system can solve: the manager that
+    can see VRAM cannot evict it, and the manager that owns it cannot see VRAM.
+
+!!! note "Row one's several sensors are still one trigger"
+    Free VRAM, free host RAM, a pinned quota and the Windows pagefile, through a
+    four tier eviction ladder. Those are four measurements of one question, "is
+    something short". Multiplying sensors does not multiply rows.
+
+!!! note "Row four's poll has two rules, not one"
+    Cached outputs from an **earlier prompt** are dropped after every node
+    regardless of pressure, because the target gating that sweep is set to the
+    machine's total RAM and can never be satisfied. Outputs from the **current
+    prompt** are dropped only when free RAM falls below roughly two to ten
+    gigabytes, and on the first pass only if the entry is at least half a
+    gigabyte. So it reads like a pressure system and behaves, for stale entries,
+    like a collector that runs at every node boundary.
+
+!!! warning "Anyone can short circuit rows 1, 4 and 5 at any time"
+    `POST /free` unloads every model and rebuilds both caches. The stock
+    interface has a button for it. So "released when" says the **latest** a thing
+    survives, not the earliest: an explicit request releases weights, results and
+    node state immediately, with no pressure, no next prompt and no change of
+    workflow.
+
+!!! note "Two flags move a boundary"
+    `--disable-smart-memory` retires weights at the end of every prompt rather
+    than under pressure, which moves row one onto row four's boundary. And a V3
+    node gets a fresh class clone per call, so row five does not apply to it at
+    all: its state cannot outlive a single node.
+
+The rest of this page takes the six in order. One thing cuts across all of them,
+the number they all read, and that comes last.
 
 ## First: which memory manager are you on?
 
@@ -128,10 +169,19 @@ and it is the only row with a manager whose whole job is managing it.
 ### On the aimdo path, a loaded model is mostly a promise
 
 Weights get virtual address space, which is free, and no physical pages. When a
-layer runs, `fault()` commits VRAM for that weight; `unpin()` afterwards lets it
-be reclaimed. Faulting a high priority weight evicts lower priority ones, and
-priority is address order, so the application lays weights out in the order it
-will need them.
+layer runs, `fault()` asks for VRAM to be committed for that weight, and
+`unpin()` afterwards says it is no longer in use so the memory may be taken back.
+Faulting a high priority weight evicts lower priority ones, and priority is
+address order, so the application lays weights out in the order it will need
+them.
+
+!!! note "Neither word means what it means elsewhere on these pages"
+    An aimdo **fault** is a call the application makes on purpose, not the
+    processor trapping because you touched unmapped memory. An aimdo **pin** is
+    about whether VRAM is currently in use, not about locking host pages against
+    swapping. The two operations also cost nothing alike: committing VRAM takes
+    microseconds, while locking host pages runs at a couple of gigabytes per
+    second. [The full comparison](comfyui-aimdo.md) is on the aimdo page.
 
 An eviction sets a watermark. Faults above it fail fast, so a model does not
 re-fault everything on every iteration. A failed fault is not an error: the layer
@@ -194,14 +244,24 @@ is a feedback loop rather than a plan, and it stops as soon as there is room.
 
 ### Where evicted weights go
 
-Down the table in [Where memory lives](#where-memory-lives), one rung at a time.
-`--fast-disk` makes the bottom rung preferred over pageable RAM, so a weight can
-go from the card to the file and come back without ever occupying host memory.
+Down the table in [Where memory lives](#where-memory-lives), one place at a time.
+`--fast-disk` makes place six preferred over place three, so a weight is re-read
+from the file rather than kept in host memory between uses.
+
+!!! note "This is not GPUDirect Storage"
+    The bytes still pass through host RAM. What changes is that they pass through
+    a small ring of pinned buffers rather than landing in a full size copy in
+    ordinary memory: the reader `pread`s a window into a pinned slot, sends that
+    slot to the card, and rotates slots so reading and sending overlap. There is
+    no `cuFile` and no `O_DIRECT` anywhere in the implementation.
+
+    So it trades a persistent host copy for repeated reads. Worth it on fast
+    storage, which is what the flag's help text says.
 
 On a full unload the ledger entry is popped, so nothing tracks the copy that
 lands in RAM.
 
-Pinned RAM is the one place with a real budget: `MAX_PINNED_MEMORY`, with
+Place two is the only one with a real budget: `MAX_PINNED_MEMORY`, with
 `ensure_pin_budget` gating each new pin.
 
 !!! warning "Three ways that budget is softer than it looks"
@@ -212,7 +272,7 @@ Pinned RAM is the one place with a real budget: `MAX_PINNED_MEMORY`, with
     * `ensure_pin_registerable()` returns a value its callers discard, then pin
       anyway.
 
-!!! warning "Nothing budgets pageable RAM"
+!!! warning "Nothing budgets place three"
     `free_memory` takes a `ram_required` parameter. It appears in one log string
     and no caller in the tree passes it. VRAM pressure converts into RAM pressure
     with no check that the RAM exists.
@@ -265,7 +325,39 @@ worked, so a fifty step workflow can rediscover the same fallback fifty times.
 
 ---
 
-## 3. Results
+## 3. Carry
+
+The buffers a model reuses *between* forward passes, which is why they are not
+row two. A sampler running fifty steps allocates these once and keeps them for
+all fifty.
+
+* **Weight cast staging buffers**, one per offload stream, each sized to the
+  largest weight in the model. Two streams by default on NVIDIA and AMD.
+* **A 16 GiB VRAM reservation** taken by the dynamic memory manager for the same
+  purpose.
+* **CUDA graph private pools.** A captured graph owns its intermediates for its
+  whole lifetime and `empty_cache()` cannot reach them.
+* **Static tensors a model parks on itself to survive steps**, such as the
+  reused input buffers and rotary tables in the text encoders, or the device
+  tensors an autoregressive audio decoder keeps for the whole loop.
+* **Pinned host memory holding patch weights**, and prefetched weights whose
+  pages are currently held resident.
+
+All of it is released together, in a `finally` block wrapped around **one node's
+execution**, so it survives every pass inside that node and nothing else.
+
+!!! note "This row only exists on the aimdo path"
+    The block is guarded on the dynamic memory manager being active, which is
+    the default. On the fallback path most of these structures are not created
+    at all, and the ones that are live until the process exits.
+
+!!! warning "One caller, and no other way back"
+    The function that releases these has exactly one call site in the whole
+    tree. There is no pressure path to it and no periodic sweep. If a node never
+    returns, none of this is ever freed, and a sixteen gibibyte reservation is
+    not a rounding error.
+
+## 4. Results
 
 What each node returned, kept in case you run the graph again. In an ordinary
 install this is the largest thing in the process, larger than any model.
@@ -287,7 +379,7 @@ real byte budget, which is more than rows four and five get.
 
 ---
 
-## 4. State
+## 5. State
 
 What a node kept on itself. A core LoRA loader parks the whole state dict on
 `self`, several gigabytes of it, and a hook loader does the same with a
@@ -307,7 +399,7 @@ pressure. State does not react to anything except a change of graph.
 
 ---
 
-## 5. Everything else
+## 6. Everything else
 
 Freed by restarting ComfyUI, and by nothing short of that.
 
@@ -324,7 +416,7 @@ Freed by restarting ComfyUI, and by nothing short of that.
 
 ---
 
-## The instrument all five rows read
+## The instrument all six rows read
 
 Every decision above is computed from one number:
 

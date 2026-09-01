@@ -58,9 +58,17 @@ nav:
       - Architecture: comfy-env/index.md
       - Upstream ComfyUI:
           - ComfyUI custom nodepack background: comfy-env/comfyui-background.md
-          - ComfyUI memory management background: comfy-env/comfyui-memory.md
-          - How aimdo manages weights: comfy-env/comfyui-aimdo.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
+      - Memory management:
+          - ComfyUI memory management background: comfy-env/comfyui-memory.md
+          - How operating systems manage memory:
+              - Overview: comfy-env/os-memory.md
+              - Kernel and driver differences: comfy-env/kernel-differences.md
+              - Where the operating systems differ: comfy-env/os-memory-differences.md
+          - How aimdo manages weights: comfy-env/comfyui-aimdo.md
+          - The memory management API: comfy-env/memory-api.md
+          - Memory API inventory: comfy-env/memory-api-inventory.md
+          - Sharing one GPU: comfy-env/sharing-one-gpu.md
       - Nodepack Author Reference:
           - The three calls:
               - "install()": comfy-env/install.md
@@ -76,7 +84,6 @@ nav:
           - Drives and volumes: comfy-env/drives-and-volumes.md
       - Internals:
           - Why not just conda?: comfy-env/why-not-conda.md
-          - Sharing one GPU: comfy-env/sharing-one-gpu.md
           - The process boundary: comfy-env/process-boundary.md
           - Worker lifespan: comfy-env/worker-lifespan.md
           - Zero-copy CUDA transfer: comfy-env/zero-copy-ipc.md
