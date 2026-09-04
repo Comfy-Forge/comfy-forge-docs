@@ -43,13 +43,22 @@ possible and comfy-env already does it, with `share_memory_()` for CPU
 tensors and CUDA IPC for GPU ones. What does not survive the boundary is not
 the bytes. It is the bookkeeping built on top of them.
 
-One thing is simply broken:
+Two things are simply broken, and the second is a special case of the first:
+
+- **Eviction cannot reach a worker's memory.** Making room is the one job
+  this subsystem has, and it is done by walking `current_loaded_models` and
+  asking each entry to unload. A pack's models are not in that list. So the
+  host can decline to take memory it does not have, which is useful, but it
+  cannot take memory back, which is the half that matters when the card is
+  already full. Everything comfy-env does about memory is a consequence of
+  this one sentence.
 
 - **OOM recovery frees the wrong process.** On an out-of-memory error
   ComfyUI dumps every model in its list and prints a tip about batch size
   (`execution.py:641`). The pack whose allocation exhausted the card is not
   in that list. It keeps every byte it holds, and the one process that could
-  have helped is the one that was never asked.
+  have helped is the one that was never asked. This is the previous point
+  arriving at the worst possible moment.
 
 Two more need machinery that does not exist, which is a different claim from
 impossible:
@@ -178,8 +187,9 @@ Why can't we do it? Four reasons, none of which comfy-env can engineer
 around from outside:
 
 1. **The bookkeeping does not cross, even though the bytes can,** as above.
-   OOM recovery frees the wrong process outright; the output cache and clone
-   sharing would each need machinery nobody has built.
+   Eviction cannot reach a worker at all and OOM recovery frees the wrong
+   process; the output cache and clone sharing would each need machinery
+   nobody has built.
 
 2. **The numbers each side reads do not mean the same thing.** On Linux the
    free-VRAM figure covers the whole device, so each process already sees
