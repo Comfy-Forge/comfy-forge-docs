@@ -187,6 +187,16 @@ The workspace is shared machine-wide: env names (`<plugin>-<subdir>`,
 ComfyUI installs that declare the same node reuse one materialized env
 ([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)).
 
+## Memory management
+
+ComfyUI manages RAM and VRAM well, and every bit of that assumes one process.
+Multi-process memory management does not exist upstream yet, so comfy-env
+does what it can from outside: it tells ComfyUI how much of the card the
+packs are really using, asks it to make room when a pack needs some, and has
+packs let go when they go quiet.
+
+**[comfy-env's memory management](memory-approach.md)** is the whole story.
+
 ## Import layering
 
 The modules under `src/comfy_env/` form a layered, **acyclic** import graph:
