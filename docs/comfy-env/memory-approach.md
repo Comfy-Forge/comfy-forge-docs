@@ -18,6 +18,52 @@ The rest of this page assumes that the user is already familiar with native Comf
 
 **[If you're not, please read this page first](comfyui-memory.md)**.
 
+Strip the marketing off and ComfyUI's memory management is one module-level
+list of loaded models, plus arithmetic about who gets thrown out of it.
+
+```python
+current_loaded_models = []   # comfy/model_management.py
+```
+
+Everything else hangs off that one fact: streaming weights per layer when a
+model does not fit, holding back a reserve for work it cannot size in
+advance, pinning host RAM so transfers are fast, paging through comfy-aimdo,
+caching what every node produced so a re-run skips the work. It is good code.
+It is well tested. It runs on hardware from a laptop to an H100 and mostly
+gets it right.
+
+It also assumes, everywhere and without ever saying so, that there is exactly
+one process.
+
+**Two processes do not share an address space.** That is not a limitation to
+engineer around. It is arithmetic. Three things follow immediately, and none
+of them is a degradation:
+
+- **The node output cache holds objects the other process cannot see.** Its
+  results live in the pack's process and have to be copied across a boundary
+  to be cached at all. And "is RAM tight" is measured per process while the
+  RAM is shared, so every process independently concludes it has room.
+- **Clone sharing points two names at one tensor.** Across a boundary there
+  is no one tensor. Two nodes using one checkpoint pay for it twice, and no
+  amount of bookkeeping changes that.
+- **The OOM handler frees everything in the list.** The process that actually
+  exhausted the card is not in the list. It keeps every byte it holds, and
+  the user gets a tip about their batch size.
+
+Those three do not work worse across a process boundary. They stop meaning
+anything.
+
+The rest merely go wrong, which is a different and far more tractable
+problem: two processes each keeping their own reserve, each ranking evictions
+against a list missing half the models, each computing a pinning budget from
+the same global free-RAM figure. Wrong, but wrong in ways you can measure and
+correct. That is what the rest of this page is about.
+
+<!--
+Kept for reference: the same material as a per-feature list with collapsible
+detail. Superseded by the summary above, which leads with the data structure
+rather than the feature set. Restore if the breadth is wanted back.
+
 ComfyUI memory management brings several optimizations. Open any of them for
 what a process boundary does to it, because that is the whole subject of this
 page. The three marked **cannot cross a boundary** are not merely degraded:
@@ -103,6 +149,7 @@ they lose their meaning entirely.
     **Across processes:** also per process, and a pack environment without it
     cannot even import ComfyUI, which is why comfy-env installs it into every
     worker whether the pack asked for it or not.
+-->
 
 ## Question: are we able to exactly replicate ComfyUI memory management across comfy-env isolated processes?
 
@@ -111,11 +158,8 @@ No. Not on Windows, and not with the interfaces available to us.
 Why can't we do it? Four reasons, none of which comfy-env can engineer
 around from outside:
 
-1. **There is no shared address space.** Half of what ComfyUI's memory
-   manager does is decide which object owns which bytes. A tensor in a
-   pack's process is not the same object as a tensor in ComfyUI's, so weight
-   sharing, clone deduplication and the output cache all lose their meaning
-   at the boundary.
+1. **There is no shared address space,** as above. That alone takes the
+   output cache, clone deduplication and OOM recovery off the table.
 
 2. **The numbers each side reads do not mean the same thing.** On Linux the
    free-VRAM figure covers the whole device, so each process already sees
@@ -146,14 +190,9 @@ section before treating any of this as finished.
 
 ## Part 1 — How ComfyUI decides
 
-Everything ComfyUI knows about resident models is one module-level list:
-
-```python
-current_loaded_models = []   # comfy/model_management.py
-```
-
-When something needs room, it calls `free_memory(memory_required, device)`.
-Stripped to its bones (`model_management.py:863-894`):
+`current_loaded_models` is the list from the top of this page. When something
+needs room, ComfyUI calls `free_memory(memory_required, device)`. Stripped to
+its bones (`model_management.py:863-894`):
 
 ```python
 def free_memory(memory_required, device, keep_loaded=[], ...):
