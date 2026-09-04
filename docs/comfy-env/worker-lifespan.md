@@ -65,8 +65,8 @@ When a worker is replaced (case 1), its
 [`SubprocessModelPatcher`](adr/0035-duck-typed-model-proxy.md)s are
 *deregistered but deliberately kept alive*, because the restart can fire
 **inside** ComfyUI's `free_memory` iteration -- mutating the model list or
-letting the old
-patchers be garbage-collected mid-iteration would corrupt upstream's loop.
+letting the old patchers be garbage-collected mid-iteration would corrupt
+upstream's loop.
 Stale patchers are quarantined as already-offloaded and released on the
 next registration. ADR-0019 records both halves; any change to restart
 handling must keep them.
