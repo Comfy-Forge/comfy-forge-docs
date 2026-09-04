@@ -1,10 +1,9 @@
 # Memory management context
 
-Background for [comfy-env's approach to memory
-management](memory-approach.md). None of the design makes sense without at
-least the first page here, because ComfyUI ships no documentation of its own
-memory manager and the whole problem is a consequence of how that manager
-works.
+Background for [comfy-env's memory management](memory-approach.md). None of
+the design makes sense without at least the first page here, because ComfyUI
+ships no documentation of its own memory manager and the whole problem is a
+consequence of how that manager works.
 
 These pages describe **upstream and the operating system**, not comfy-env.
 They change when ComfyUI or the platform changes, not when comfy-env does.
@@ -52,7 +51,7 @@ single difference is why comfy-env's accounting has two branches.
 
 ## Where this leads
 
-Once you have the background, [comfy-env's approach to memory
+Once you have the background, [comfy-env's memory
 management](memory-approach.md) states the problem, what shipped, and what an
 operator can switch. The decision record behind it is
 [ADR-0038](adr/0038-the-memory-floor.md).

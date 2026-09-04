@@ -21,7 +21,7 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 ## Memory management
 
 Full reference, including what each level requires of your ComfyUI:
-[comfy-env's approach to memory management](memory-approach.md). Design and measurements:
+[comfy-env's memory management](memory-approach.md). Design and measurements:
 [ADR-0038](adr/0038-the-memory-floor.md).
 
 | Env var | default | meaning |

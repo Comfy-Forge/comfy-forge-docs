@@ -1,4 +1,4 @@
-# comfy-env's approach to memory management
+# comfy-env's memory management
 
 Your packs run in separate processes. Their models occupy the same card as
 ComfyUI's, and neither side can see the other's allocations directly. This

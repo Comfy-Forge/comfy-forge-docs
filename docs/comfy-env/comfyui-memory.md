@@ -5,7 +5,7 @@ before it lets go.*
 
 *Last verified against ComfyUI `b133e483` (2026-08-26) with comfy-aimdo 0.4.15.*
 
-Start here. You need this page before [comfy-env's approach to memory management](memory-approach.md).
+Start here. You need this page before [comfy-env's memory management](memory-approach.md).
 
 If page faults, swap, pinning or memory mapping are unfamiliar, take the detour
 through [How operating systems manage memory](os-memory.md), which defines every
@@ -621,7 +621,7 @@ comfy-env runs node code in separate processes, so a worker's models are
 **Model weights** memory that ComfyUI's ledger cannot see. It registers a stand
 in so upstream can evict a worker's model the way it evicts its own. The
 mechanism is in [ADR-0036](adr/0036-mirroring-comfyui-memory-management.md), and
-the arithmetic around it is [comfy-env's approach to memory management](memory-approach.md).
+the arithmetic around it is [comfy-env's memory management](memory-approach.md).
 
 ### Isolation is what costs you aimdo
 
@@ -633,7 +633,7 @@ initialises aimdo at worker start (`memory_manager.py:306`) whenever the wheel
 imports and a CUDA device is visible. **A worker falls back to the ledger on
 CPU, on a failed init, on a comfy-aimdo PROTOCOL difference against the host,
 or when the level resolves below `paged`** -- see
-[comfy-env's approach to memory management](memory-approach.md).
+[comfy-env's memory management](memory-approach.md).
 
 The wheel is there because comfy-env puts it there. It no longer waits for a
 pack to declare `comfy-aimdo`: the host's ComfyUI imports `comfy_aimdo`
@@ -726,4 +726,4 @@ treating aimdo as the only path.
   against that. The stale risk now runs the other way: an install that
   resolves below `paged`, deliberately or because its ComfyUI is too old,
   behaves as the pre 2026-09 text described. That mode is documented in
-  [comfy-env's approach to memory management](memory-approach.md) rather than here.
+  [comfy-env's memory management](memory-approach.md) rather than here.

@@ -30,7 +30,7 @@ Details for each follow on this page or where linked.
 8. **Model events and eviction commands** -- every response can piggyback
    newly-CUDA-resident models; the parent sends `model_to_device` /
    `model_partial_load` / `model_partial_unload` from inside ComfyUI's
-   eviction loop ([comfy-env's approach to memory management](memory-approach.md)).
+   eviction loop ([comfy-env's memory management](memory-approach.md)).
 9. **HTTP requests** -- a pack's `ROUTES` become real endpoints on ComfyUI's
    server; the parent forwards the JSON body to the worker and maps the
    status back ([ADR-0029](adr/0029-parent-as-switchboard.md)).
@@ -84,7 +84,7 @@ sequenceDiagram
   `import _ipc_shared` without comfy-env being installed in its env.
 - **`SubprocessModelPatcher` is the only module that imports ComfyUI at module
   scope** -- worker-resident models participate in ComfyUI's VRAM accounting
-  through it (see [comfy-env's approach to memory management](memory-approach.md)).
+  through it (see [comfy-env's memory management](memory-approach.md)).
 
 ## Tensor serialization ladder
 
@@ -172,7 +172,7 @@ planned retirement).
   `model_partial_unload`; replies report the bytes actually moved. These
   frames are answered even while the worker is blocked waiting on its own
   callback, so eviction cannot deadlock against a running node
-  ([comfy-env's approach to memory management](memory-approach.md)).
+  ([comfy-env's memory management](memory-approach.md)).
 - **Interrupts.** There is no cancel frame. A user interrupt raises inside
   the parent's `report_progress` handler and travels back as the *error
   reply to the worker's own callback*, which the worker converts to an

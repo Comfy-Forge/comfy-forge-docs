@@ -144,5 +144,5 @@ it has not been done.
   through `pinned_hostbuf_size`, so a grant would have silently capped large
   models.
 
-See [comfy-env's approach to memory management](../memory-approach.md) for what an operator can
+See [comfy-env's memory management](../memory-approach.md) for what an operator can
 switch, and the measured range that each level requires.

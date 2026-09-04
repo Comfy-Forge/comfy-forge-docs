@@ -61,7 +61,7 @@ nav:
           - ComfyUI custom nodepack background: comfy-env/comfyui-background.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
       - Memory management:
-          - comfy-env's approach to memory management: comfy-env/memory-approach.md
+          - comfy-env's memory management: comfy-env/memory-approach.md
           - Memory management context:
               - Overview: comfy-env/memory-context.md
               - ComfyUI memory management background: comfy-env/comfyui-memory.md

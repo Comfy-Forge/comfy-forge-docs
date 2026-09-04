@@ -202,7 +202,7 @@ cuMemGetInfo`.
 
     On **Windows/WDDM**, `cuMemGetInfo` is per-process. If the NVML path is
     inert there too, the parent's aimdo cannot see a sibling process at all, and
-    the cross-process coordination in [comfy-env's approach to memory management](memory-approach.md) is
+    the cross-process coordination in [comfy-env's memory management](memory-approach.md) is
     the only thing operating. **This has not been tested on Windows** and is the
     highest-value open question about this page.
 
@@ -257,7 +257,7 @@ difference rather than a version difference. Both sides normally page. The
 asymmetry that remains is deliberate and narrow: CPU workers, failed init, and
 an explicit level below `paged` stay on the ledger, and comfy-env reports
 whichever way each worker resolved. See
-[comfy-env's approach to memory management](memory-approach.md).
+[comfy-env's memory management](memory-approach.md).
 
 Three consequences, measured against comfy-env `bda45b7` and re-checked at `f1f8260`:
 

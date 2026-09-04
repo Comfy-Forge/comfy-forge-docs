@@ -75,5 +75,5 @@ handling must keep them.
   including the `_STALE_PATCHERS` invariant in full.
 - [The process boundary](process-boundary.md) -- everything that crosses
   during each phase of this lifespan.
-- [comfy-env's approach to memory management](memory-approach.md) -- what a worker's models cost and
+- [comfy-env's memory management](memory-approach.md) -- what a worker's models cost and
   who can evict them.

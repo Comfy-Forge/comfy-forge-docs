@@ -637,4 +637,4 @@ Each step ships alone and leaves the tree better than it found it.
 ---
 
 The plain-language version of all of the above is
-[comfy-env's approach to memory management](../memory-approach.md).
+[comfy-env's memory management](../memory-approach.md).
