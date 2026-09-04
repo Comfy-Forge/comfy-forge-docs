@@ -31,8 +31,9 @@ A worker whose canary fails verification is refused, not used.
 Once up, the worker stays alive across executions -- that is the point:
 the second call skips the torch import entirely. The standing cost of a
 warm worker is **~180-550 MB host RAM plus a CUDA context** (and VRAM for
-whatever models it holds, which ComfyUI can evict through the
-[patcher machinery](memory-approach.md)).
+whatever models it holds, which the worker releases once it has been idle
+for a while -- ComfyUI no longer evicts it from outside, see
+[comfy-env's memory management](memory-approach.md)).
 
 - **One call at a time.** A worker serves a single in-flight call
   ([ADR-0020](adr/0020-concurrency-and-env-granularity.md)); eviction
@@ -61,9 +62,10 @@ this page kills it.
 ## The subtlest rule: what replacement must preserve
 
 When a worker is replaced (case 1), its
-[`SubprocessModelPatcher`](memory-approach.md)s are *deregistered but
-deliberately kept alive*, because the restart can fire **inside** ComfyUI's
-`free_memory` iteration -- mutating the model list or letting the old
+[`SubprocessModelPatcher`](adr/0035-duck-typed-model-proxy.md)s are
+*deregistered but deliberately kept alive*, because the restart can fire
+**inside** ComfyUI's `free_memory` iteration -- mutating the model list or
+letting the old
 patchers be garbage-collected mid-iteration would corrupt upstream's loop.
 Stale patchers are quarantined as already-offloaded and released on the
 next registration. ADR-0019 records both halves; any change to restart
