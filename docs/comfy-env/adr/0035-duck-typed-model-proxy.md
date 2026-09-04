@@ -1,7 +1,18 @@
 # ADR-0035: The model proxy is a duck-type, not a `ModelPatcher` subclass
 
-**Status:** accepted (2026-08-15). Replaces the proxy design shipped with
+**Status:** accepted (2026-08-15); **deprecated 2026-09-04** by
+[ADR-0038](0038-the-memory-floor.md). Replaced the proxy design shipped with
 [ADR-0025](0025-vram-co-management.md).
+
+!!! warning "The proxy is on its way out"
+
+    Everything below is still true of the object as built, and the two
+    honesty rules were the right ones. What changed is the verdict on
+    whether it should exist at all. Both of comfy-env's loud breakages in
+    twelve months came through it, and once workers release VRAM on their
+    own it buys latency rather than capability. Nothing in the memory floor
+    depends on it any more. The sanctioned pattern is now the optional
+    observer, which reports holding nothing and is off by default.
 
 ## Decision
 

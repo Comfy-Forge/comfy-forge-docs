@@ -1,7 +1,19 @@
 # ADR-0034: Admission by arithmetic, never by `mem_get_info`
 
-**Status:** accepted (2026-08-15). Supersedes the WDDM position and the
-1.1-headroom rule in [ADR-0025](0025-vram-co-management.md).
+**Status:** accepted (2026-08-15); **mechanism superseded 2026-09-04** by
+[ADR-0038](0038-the-memory-floor.md). Supersedes the WDDM position in
+[ADR-0025](0025-vram-co-management.md).
+
+!!! warning "The 1.1-headroom rule came back"
+
+    This record replaced upstream's `1.1` multiplier with comfy-env's own
+    smaller figure. That was wrong in the unsafe direction: the shipped
+    `1.02` under-freed by `weights * 0.08`, which is 680 MiB on a 12 GiB
+    model and grows linearly, because the parent asks the HOST to evict on
+    a worker's behalf. comfy-env now reproduces upstream's expression
+    verbatim (`reserve.ask_target`). The offset compensation survives, but
+    only where `mem_get_info` is genuinely process-local: on Linux it is
+    device-wide and subtracting the worker ledger double-books.
 
 ## Decision
 

@@ -1,3 +1,20 @@
+!!! info "This page is the exploration, not the outcome"
+
+    Written before any of it was built, and it says so below. It remains the
+    best statement of the PROBLEM, and several of its conclusions were later
+    measured to be wrong in ways worth knowing:
+
+    * Publishing a VRAM reserve does not work under aimdo at all. Residency
+      is decided at page-fault time and aimdo's headroom is fixed once its
+      devices initialise, so the floor is reactive on that path.
+    * The host already sees resident worker VRAM on Linux, because
+      `cudaMemGetInfo` is device-wide there. Reserving it again double-books.
+    * The model proxy was priced against doing nothing. Against a worker
+      that releases on its own it buys latency, not capability.
+
+    For what shipped, read [Memory management](memory-management.md) and
+    [ADR-0038](adr/0038-the-memory-floor.md).
+
 ## ComfyUI background
 
 The aim of comfy-env is to be completely invisible to ComfyUI, to let it manage VRAM as it already does across processes.

@@ -53,3 +53,4 @@ human endorsement.
 | [0035](0035-duck-typed-model-proxy.md) | The model proxy is a duck-type | 18 declared members instead of ~120 inherited; unknown access raises naming the attribute; a canary fails when ComfyUI drifts. |
 | [0036](0036-mirroring-comfyui-memory-management.md) | Mirroring ComfyUI's memory manager | Proxies stay in upstream's ledger; comfy-env owns only the eviction target and which worker model to evict. The target is a change of variables, not an estimate. |
 | [0037](0037-no-non-isolated-paths.md) | No non-isolated paths | One execution model: isolated. The off-flags removed (nobody set them; off-states never worked); degradation stays evidence-triggered; value-sensitive tombstones. |
+| [0038](0038-the-memory-floor.md) | The memory floor | comfy-env reads, publishes one number, and asks; it does not patch the host. Reclaim of worker VRAM is dropped for idle release. Supersedes the mechanisms of 0034 and 0036; deprecates 0035's proxy. |

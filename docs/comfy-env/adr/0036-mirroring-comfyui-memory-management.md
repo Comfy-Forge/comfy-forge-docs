@@ -1,8 +1,18 @@
 # ADR-0036: Mirroring ComfyUI's memory manager across the process boundary
 
-**Status:** accepted (2026-08-16). Amends
-[ADR-0025](0025-vram-co-management.md), and supersedes the mechanism —
+**Status:** accepted (2026-08-16); **superseded 2026-09-04** by
+[ADR-0038](0038-the-memory-floor.md). Amends
+[ADR-0025](0025-vram-co-management.md), and superseded the mechanism —
 though not the goal — of [ADR-0034](0034-admission-by-arithmetic.md).
+
+!!! warning "Mirroring was the wrong shape"
+
+    Part 1 remains the reference description of upstream's memory manager
+    and is worth reading on its own. The decision it reached, mirroring that
+    manager across the boundary, is not what shipped: comfy-env now
+    publishes one number into a knob ComfyUI already reads and lets
+    upstream's manager run unmodified. Mirroring meant re-deriving upstream
+    arithmetic, which drifts silently every time upstream edits a formula.
 
 Part 1 describes upstream's memory manager in full, because ComfyUI ships no
 documentation of it and no decision here is intelligible without it. Part 2
