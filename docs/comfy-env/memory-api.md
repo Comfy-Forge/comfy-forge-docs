@@ -3,7 +3,7 @@
 *What ComfyUI offers a caller, what it demands of a model in return, and how
 comfy-env satisfies both from another process.*
 
-*Last verified against ComfyUI `b133e483` (2026-08-26) and comfy-env `bda45b7`.*
+*Last verified against ComfyUI `bab6ee5f` (2026-08-24) and comfy-env `f1f8260` (2026-09-04).*
 
 Read [ComfyUI memory management background](comfyui-memory.md) first. This page
 is the interface rather than the design. For the exhaustive list, function by
@@ -149,10 +149,26 @@ because the worker is a real ComfyUI process in every respect except that it did
 not start the server.
 
 The one thing it does do is **correct the numbers it reads**, because
-`get_free_memory` in a worker reports that process's own view. See
-[Sharing one GPU](sharing-one-gpu.md).
+`get_free_memory` in a worker reports that process's own view -- though only
+where that is actually true. On Linux `cudaMemGetInfo` is device-wide, so the
+correction is a double count there and is applied on WDDM only. See
+[Memory management](memory-management.md).
 
-### Contract two is a duck type, deliberately
+### Contract two: a duck type, now deprecated
+
+!!! warning "This section describes a mechanism on its way out"
+
+    Registering a stand-in for a worker's model was how comfy-env let upstream
+    evict across the process boundary. Both of comfy-env's loud breakages in
+    twelve months came through that object, and once workers release VRAM on
+    their own it buys latency rather than capability, so host-driven reclaim
+    was dropped ([ADR-0038](adr/0038-the-memory-floor.md)). Nothing in the
+    memory floor depends on it. What remains sanctioned is a read-only
+    observer that reports holding nothing and is **off by default**; the
+    object below is still registered but is scheduled for removal.
+
+    The design reasoning that follows is still worth reading: it is why a
+    duck type beat a subclass, and it applies to the observer too.
 
 comfy-env registers a stand in object into `current_loaded_models` so upstream
 can evict a worker's model the way it evicts its own. That object declares its

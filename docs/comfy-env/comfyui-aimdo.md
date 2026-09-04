@@ -248,23 +248,27 @@ accounting reports success, because torch never feels pressure.
 
 ## What this changes for comfy-env
 
-The topology is **asymmetric**, and that is the thing to hold on to. The parent
-ComfyUI runs aimdo. comfy-env's workers never execute `main.py`, so in a worker
-`control.lib` is `None`, aimdo is present but inert, and models use the legacy
-`ModelPatcher`. One card, two memory disciplines: the parent's weights are
-elastic and reclaimable, the worker's are rigid.
+The topology used to be **asymmetric**: workers never execute `main.py`, so a
+worker's `control.lib` stayed `None` and its models used the legacy
+`ModelPatcher` while the parent paged. comfy-env closes that at worker start:
+`maybe_enable_aimdo` initialises aimdo whenever the wheel imports and a CUDA
+device is visible, mirroring the parent's headroom and refusing on a PROTOCOL
+difference rather than a version difference. Both sides normally page. The
+asymmetry that remains is deliberate and narrow: CPU workers, failed init, and
+an explicit level below `paged` stay on the ledger, and comfy-env reports
+whichever way each worker resolved. See
+[Memory management](memory-management.md).
 
-That is probably the right split, N sibling processes each hooking
-`cuMemAlloc` and each believing it owns the card would be worse, but nobody
-chose it. It falls out of "the worker doesn't run `main.py`."
+Three consequences, measured against comfy-env `bda45b7` and re-checked at `f1f8260`:
 
-Three consequences, all measured against comfy-env `bda45b7`:
-
-- **The eviction bridge still works.** comfy-env's stand-in answers
-  `is_dynamic()` with `False` deliberately, so upstream's dynamic-model bypass
-  does not skip it. What changed is that every *host* model is now protected by
-  that same branch, so the worker's model is the only entry upstream can
-  actually evict, and it sorts first.
+- **The eviction bridge is now optional and off.** comfy-env's stand-in
+  answered `is_dynamic()` with `False` deliberately, so upstream's
+  dynamic-model bypass did not skip it, and the worker's model was the only
+  entry upstream could actually evict. That object is deprecated
+  ([ADR-0038](adr/0038-the-memory-floor.md)): host-driven reclaim of worker
+  VRAM is dropped in favour of workers releasing on their own, and what
+  replaces it is a read-only observer that reports holding nothing and is off
+  by default.
 - **Evicting a host model here is expensive.** comfy-env's request takes
   `for_dynamic=False`, which hard-unloads aimdo models rather than letting them
   shed pages. An eviction sets that VBAR's watermark, so the host model can stay
@@ -274,11 +278,15 @@ Three consequences, all measured against comfy-env `bda45b7`:
   all pressure lands on host weights instead, visible as a slow model rather
   than an error.
 
-!!! warning "comfy-env does not currently know aimdo exists"
-    A search of comfy-env's source, docs and configuration for `aimdo`,
-    `dynamic_vram`, `vram_headroom` or `vbar` returns nothing. That is not
-    automatically a defect, but it does mean any correctness argument that
-    assumed the legacy ledger has not been re-checked against this path.
+!!! note "comfy-env initialises aimdo, matches protocols, and reports per worker"
+    This box previously carried a body from an earlier draft saying a search
+    of comfy-env for `aimdo` or `vbar` "returns nothing", which contradicted
+    its own title and is no longer true either way. comfy-env initialises
+    aimdo in each worker, injects the wheel at the host's pin, judges
+    compatibility on protocol level, and reports which manager every worker
+    resolved to. What it does NOT do is move aimdo's headroom at runtime:
+    that is fixed when devices initialise, and attempting it is inert or
+    fatal ([ADR-0038](adr/0038-the-memory-floor.md)).
 
 ## Things worth knowing before you debug
 

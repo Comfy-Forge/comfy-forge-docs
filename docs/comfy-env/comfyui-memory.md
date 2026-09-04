@@ -625,15 +625,31 @@ the arithmetic around it is [Sharing one GPU](sharing-one-gpu.md).
 
 ### Isolation is what costs you aimdo
 
-A worker never runs `main.py`, and `aimdo_enabled` is set in exactly one place:
-`main.py:300`. It defaults to `False` at `memory_management.py:173`. A worker
-also parses ComfyUI's arguments from an empty argv, so no flag can reach it
-either. **Every isolated worker resolves to the ledger**, whatever the host is
-running.
+A worker never runs `main.py`, and inside ComfyUI `aimdo_enabled` is set in
+exactly one place: `main.py:300`, defaulting to `False` at
+`memory_management.py:173`. Left alone, every isolated worker would therefore
+resolve to the ledger. comfy-env closes that gap: `maybe_enable_aimdo`
+initialises aimdo at worker start (`memory_manager.py:306`) whenever the wheel
+imports and a CUDA device is visible. **A worker falls back to the ledger on
+CPU, on a failed init, on a comfy-aimdo PROTOCOL difference against the host,
+or when the level resolves below `paged`** -- see
+[Memory management](memory-management.md).
 
-The wheel is not there to enable in any case. A generated worker manifest
-carries python, pip, setuptools, the torch family and the pack's own
-dependencies. Nothing reads ComfyUI's `requirements.txt` into it.
+The wheel is there because comfy-env puts it there. It no longer waits for a
+pack to declare `comfy-aimdo`: the host's ComfyUI imports `comfy_aimdo`
+unguarded, so a worker without it cannot import `comfy.model_management` at
+all, and the same is true of `comfy-kitchen`, which upstream imports unguarded
+from four modules on the `comfy.model_patcher` chain. Both are injected into
+every worker manifest at the host's own pin, whether or not the pack asked.
+comfy-aimdo is skipped on CPU stacks, where it has no path; comfy-kitchen is
+not, because `comfy/ldm/modules/attention.py` imports it on any stack.
+
+Compatibility is judged on the PROTOCOL LEVEL the installed wheel supports,
+read from `control.init`'s signature and `init_devices`' source, never on the
+version string. comfy-aimdo ships about three releases a month while its
+protocol moved twice in twelve, so exact-version equality dropped a worker to
+the ledger on every host patch bump. Four of nineteen environments on the
+development machine were in that state.
 
 !!! warning "This is decided per pack, not per install"
     `wrap.py` falls back to plain in process import in five separate cases: no
@@ -647,19 +663,20 @@ dependencies. Nothing reads ComfyUI's `requirements.txt` into it.
     not. Nobody configures this. It follows from install state, and it can
     change between runs when someone materialises an env.
 
-    `GET /comfy_env/memory` reports the manager for the host and every live
-    worker, and comfy-env logs a note at worker start when they disagree.
+    comfy-env logs the resolved manager at worker start and states a mismatch
+    once per process. There is no HTTP endpoint: registering one from
+    `register_nodes` collides on the second pack, because ComfyUI flushes a
+    single shared route table.
 
 ### What a worker never releases
 
-`reset_cast_buffers` has one caller, `execution.py:550`, and a worker does not
-run ComfyUI's executor. So **M3 never fires in a worker**, regardless of the
-aimdo gate. Bound: `NUM_STREAMS` times the largest single weight, in VRAM, for
-the worker's life. `NUM_STREAMS` is 2 by default on NVIDIA and AMD, and a worker
-resolves it from empty argv, so it is 2 there too.
-
-comfy-env now runs the same release at its own node boundary, but only when
-aimdo is live in the worker, which is opt in and off by default.
+Inside ComfyUI, `reset_cast_buffers` has one caller, `execution.py:550`, and a
+worker does not run ComfyUI's executor. comfy-env therefore mirrors the release
+at its own node boundary: `release_node_boundary` runs in a `finally` around
+every worker call, and fires whenever aimdo is live in that worker, which is the
+default. On a worker that fell back to the ledger nothing releases the cast
+buffers, and they are held at their high water mark, `NUM_STREAMS` (2 on NVIDIA
+and AMD) times the largest single weight, for the worker's life.
 
 ### Every process budgets pinned memory independently
 
@@ -704,7 +721,9 @@ treating aimdo as the only path.
   column depends on it.
 * **`current_loaded_models` stops being a list.** Everything comfy-env does
   registers into it.
-* **A worker starts running aimdo.** comfy-env can now install the wheel and
-  initialise it, both opt in and both off by default. When either becomes the
-  default, every claim in [Why comfy-env has to care](#why-comfy-env-has-to-care)
-  needs rechecking.
+* **The worker aimdo default changes again.** Injection and worker side
+  initialisation both happen by default, and this section was rewritten
+  against that. The stale risk now runs the other way: an install that
+  resolves below `paged`, deliberately or because its ComfyUI is too old,
+  behaves as the pre 2026-09 text described. That mode is documented in
+  [Memory management](memory-management.md) rather than here.

@@ -4,14 +4,14 @@
 one. The companion to [The memory management API](memory-api.md), which explains
 the shape; this page is the list.*
 
-*Last verified against ComfyUI `b133e483` (2026-08-26) and comfy-env `bda45b7`.*
+*Last verified against ComfyUI `bab6ee5f` (2026-08-24) and comfy-env `f1f8260` (2026-09-04). Every upstream symbol below was re-checked against the tree and all 81 resolve. The comfy-env column was spot-corrected where [ADR-0038](adr/0038-the-memory-floor.md) changed the relationship; rows marked `inherits` were not individually re-verified.*
 
 ## How to read the comfy-env column
 
 | Marking | Meaning |
 |---|---|
 | **calls** | comfy-env invokes it, in the parent or the worker |
-| **patches** | comfy-env replaces it inside the worker process |
+| **patches** | comfy-env replaces it inside the WORKER process. Never in the host: an AST test fails the build if comfy-env assigns to a comfy module outside two named wraps ([ADR-0038](adr/0038-the-memory-floor.md)) |
 | **implements** | the model proxy must provide it, because upstream reads it |
 | **inherits** | the worker gets upstream's behaviour untouched, and that is correct |
 | **watch** | not used today, but a change here would break something |
@@ -28,7 +28,7 @@ and patches three.
 | `get_total_memory(device)` | device total | **calls** |
 | `module_size(module)` | bytes of a state dict, nothing else the module holds | inherits |
 | `minimum_inference_memory()` | the floor that must stay free | **calls**, in the admission sum |
-| `extra_reserved_memory()` | the reserve on top of that floor | inherits |
+| `extra_reserved_memory()` | the reserve on top of that floor | **calls**, and comfy-env PUBLISHES into the global behind it so upstream's own arithmetic accounts for worker VRAM |
 | `maximum_vram_for_weights(device)` | what is left for weights after reserves | inherits |
 | `offloaded_memory(loaded_models, device)` | how much of the ledger is already off the card | inherits |
 | `get_disk_swap_total()` | swap size, used to raise the pin ceiling | inherits, Linux only by construction |
@@ -46,8 +46,8 @@ and patches three.
 |---|---|---|
 | `load_models_gpu(models, memory_required=, ...)` | budget, evict, load | **patches** in the worker; **calls** the real one after |
 | `load_model_gpu(model)` | one model, thin wrapper | inherits |
-| `free_memory(required, device, keep_loaded=, for_dynamic=, pins_required=, ram_required=)` | "get me this many free bytes" | **calls**, with a corrected target |
-| `unload_all_models()` | evict everything, everywhere | inherits |
+| `free_memory(required, device, keep_loaded=, for_dynamic=, pins_required=, ram_required=)` | "get me this many free bytes" | **calls**, with upstream's own target expression (`reserve.ask_target`), exactly two positionals, never `for_dynamic` |
+| `unload_all_models()` | evict everything, everywhere | **patches** in the HOST, one of two remaining wraps, behind `COMFY_ENV_FREE_BROADCAST`; calls the original first |
 | `unload_model_and_clones(model, ...)` | drop one model and its clones for a clean reload | inherits |
 | `loaded_models(only_currently_used=)` | the ledger contents | **watch**: it hands the proxy to arbitrary node code |
 | `cleanup_models()` | drop dead ledger entries | **calls** |
@@ -140,7 +140,7 @@ Three assignments, all inside the worker, all on the worker's own copy.
 
 | Name | Why |
 |---|---|
-| `EXTRA_RESERVED_VRAM` | the parent measured true device free; the worker reserves what everyone else holds so its own view stops being a lie |
+| `EXTRA_RESERVED_VRAM` | the host adds what workers hold, so its own loader backs off; the worker receives the same value so its view stops being a lie. The one value comfy-env writes in the host process |
 | `vram_state` | forced to match the parent's mode |
 | `load_models_gpu` | wrapped, so a worker load can negotiate a budget with the parent before it happens |
 
