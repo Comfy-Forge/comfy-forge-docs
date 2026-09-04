@@ -637,4 +637,4 @@ Each step ships alone and leaves the tree better than it found it.
 ---
 
 The plain-language version of all of the above is
-[Sharing one GPU](../sharing-one-gpu.md).
+[comfy-env's approach to memory management](../memory-approach.md).

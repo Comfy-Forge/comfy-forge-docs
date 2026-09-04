@@ -61,16 +61,17 @@ nav:
           - ComfyUI custom nodepack background: comfy-env/comfyui-background.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
       - Memory management:
-          - ComfyUI memory management background: comfy-env/comfyui-memory.md
-          - How operating systems manage memory:
-              - Overview: comfy-env/os-memory.md
-              - Kernel and driver differences: comfy-env/kernel-differences.md
-              - Where the operating systems differ: comfy-env/os-memory-differences.md
-          - How aimdo manages weights: comfy-env/comfyui-aimdo.md
-          - The memory management API: comfy-env/memory-api.md
-          - Memory API inventory: comfy-env/memory-api-inventory.md
-          - Sharing one GPU: comfy-env/sharing-one-gpu.md
-          - What comfy-env does about it: comfy-env/memory-management.md
+          - comfy-env's approach to memory management: comfy-env/memory-approach.md
+          - Memory management context:
+              - Overview: comfy-env/memory-context.md
+              - ComfyUI memory management background: comfy-env/comfyui-memory.md
+              - How aimdo manages weights: comfy-env/comfyui-aimdo.md
+              - How operating systems manage memory:
+                  - Overview: comfy-env/os-memory.md
+                  - Kernel and driver differences: comfy-env/kernel-differences.md
+                  - Where the operating systems differ: comfy-env/os-memory-differences.md
+              - The memory management API: comfy-env/memory-api.md
+              - Memory API inventory: comfy-env/memory-api-inventory.md
       - Nodepack Author Reference:
           - The three calls:
               - "install()": comfy-env/install.md

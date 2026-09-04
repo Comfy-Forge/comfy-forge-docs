@@ -152,7 +152,7 @@ The one thing it does do is **correct the numbers it reads**, because
 `get_free_memory` in a worker reports that process's own view -- though only
 where that is actually true. On Linux `cudaMemGetInfo` is device-wide, so the
 correction is a double count there and is applied on WDDM only. See
-[Memory management](memory-management.md).
+[comfy-env's approach to memory management](memory-approach.md).
 
 ### Contract two: a duck type, now deprecated
 

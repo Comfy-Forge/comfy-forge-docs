@@ -1,19 +1,14 @@
-!!! info "This page is the exploration, not the outcome"
+# comfy-env's approach to memory management
 
-    Written before any of it was built, and it says so below. It remains the
-    best statement of the PROBLEM, and several of its conclusions were later
-    measured to be wrong in ways worth knowing:
+Your packs run in separate processes. Their models occupy the same card as
+ComfyUI's, and neither side can see the other's allocations directly. This
+page is the whole story: what makes that hard, what comfy-env does about it,
+and what you can switch.
 
-    * Publishing a VRAM reserve does not work under aimdo at all. Residency
-      is decided at page-fault time and aimdo's headroom is fixed once its
-      devices initialise, so the floor is reactive on that path.
-    * The host already sees resident worker VRAM on Linux, because
-      `cudaMemGetInfo` is device-wide there. Reserving it again double-books.
-    * The model proxy was priced against doing nothing. Against a worker
-      that releases on its own it buys latency, not capability.
-
-    For what shipped, read [Memory management](memory-management.md) and
-    [ADR-0038](adr/0038-the-memory-floor.md).
+Parts 1 to 3 state the problem and were written before any of it was built.
+They hold up, and several of the conclusions they led to did not, which is
+noted where it matters. Part 4 is what shipped, with the measurements behind
+it. The decision record is [ADR-0038](adr/0038-the-memory-floor.md).
 
 ## ComfyUI background
 
@@ -37,17 +32,24 @@ It is written to be read start to finish before any of it is built.
 Asked plainly — is there a way to mirror ComfyUI's memory management
 exactly? No. Not on Windows, and not with the interfaces available to us.
 
-What *is* achievable is narrower and worth stating precisely:
+What *is* achievable is narrower and worth stating precisely. Two of these
+three held up when built; the middle one did not, and Part 4 says what
+replaced it:
 
-- **The eviction target can be made exact.** There is a one-line
-  substitution that makes ComfyUI's own arithmetic compute the right
-  number, in both of the regimes Windows puts us in. This part is solid
-  and provable, not a heuristic.
+- **The eviction target can be made exact.** ComfyUI's own arithmetic can be
+  made to compute the right number. What shipped goes further than this page
+  originally proposed: comfy-env reproduces upstream's expression rather than
+  correcting its own, because every place it re-derived that shape it drifted.
 - **The decision about *which* models to evict can be made correct** by
-  splitting it in two: comfy-env decides about its own models, ComfyUI
-  decides about its own. Neither can do the other's half.
-- **The measurement can be made honest** — the number we act on today is
-  wrong in three separate ways, all fixable.
+  splitting it in two, comfy-env deciding about its own models and ComfyUI
+  about its own. ~~Neither can do the other's half.~~ **This was dropped.**
+  Splitting the decision required registering a stand-in for a worker's model
+  in ComfyUI's ledger, which was the source of every loud breakage comfy-env
+  has had. Workers now release on their own instead, and the host is told to
+  reserve rather than asked to reclaim.
+- **The measurement can be made honest.** It can, and the honest number turned
+  out not to be the one this page assumed: ComfyUI's own ledger reads zero for
+  a paged model, so a worker reports what it physically holds instead.
 
 And what stays broken no matter what we build:
 
@@ -257,169 +259,144 @@ Three consequences, and they are design constraints rather than preferences:
 
 ---
 
-## Part 4 — The one line that makes the target exact
-
-Given a number that lies, the instinct is to correct it. That instinct is
-wrong, and the right move is smaller.
-
-We want ComfyUI to free the real shortfall:
-
-```
-want_to_free  =  need − true_free
-```
-
-ComfyUI computes, at `:883`:
-
-```
-memory_to_free  =  memory_required − get_free_memory(device)
-```
-
-We do not control `get_free_memory`. We control exactly one thing:
-`memory_required`. Set the two equal and solve:
-
-```
-memory_required  =  need + (blind_free − true_free)
-```
-
-**`blind_free` cancels.** That term is not an estimate of anything — it is a
-*change of variables*. Whatever `get_free_memory` returns, ComfyUI ends up
-targeting `need − true_free`.
-
-This is why it holds in both Windows regimes, which is the part that trips
-people up:
-
-| regime | `blind` | `true` | term | ComfyUI targets |
-|---|---:|---:|---:|---|
-| budget pinned | 15,221 MB | 1,331 MB | +13.9 GB | `need − 1,331 MB` ✓ |
-| after re-partition | ≈ true + 533 MB | true | +533 MB | `need − true` ✓ |
-
-When the term "collapses" from 13.9 GB to 533 MB, it collapses *because
-`blind` became honest*. The compensation shrinks by exactly as much as the
-thing it was compensating for. There is no regime where this term is wrong.
-
-### Where it does break
-
-Three things, all real, all in the current code:
-
-**1. Clamping it at zero.** `offset = max(0, blind − true)` destroys the
-cancellation in exactly the regime where `blind` legitimately sits *below*
-`true` — which, per the 583 MB bias, is every idle moment. The term must be
-allowed to go negative.
-
-**2. The parent's own cache rides along.** `get_free_memory` is not raw
-driver free:
-
-```python
-mem_free_torch = mem_reserved - mem_active
-mem_free_total = mem_free_cuda + mem_free_torch      # :1776-1778
-```
-
-Those cached-but-unused blocks are reusable, so ComfyUI is right to count
-them. NVML does not. So the term carries the parent's reclaimable cache and
-evicts live models to cover memory that `empty_cache()` would return for
-free. The fix is arithmetic, not a flush: `get_free_memory(dev,
-torch_free_too=True)` hands back `mem_free_torch` to subtract. Calling
-`soft_empty_cache()` instead would also work but costs a full device
-synchronize plus allocator teardown on every budget request — and its
-`force` argument is ignored on the CUDA path, so there is no cheap mode.
-
-**3. Worker models inside the loop.** No choice of `memory_required` fixes
-blind spot one. The loop re-derives its target from a meter that does not
-move when a worker frees memory. That is structural, and it is what the next
-section is for.
-
 ---
 
-## Part 5 — The design
+## Part 4 — What comfy-env actually does
 
-Split the decision. comfy-env owns its models; ComfyUI owns its own. Neither
-can do the other's half, and today we ask ComfyUI to do both.
+!!! success "This is the part that shipped"
 
-```mermaid
-flowchart TD
-    A[worker asks for N bytes] --> B[reconcile ledger<br/>refresh residency from worker telemetry]
-    B --> C[measure<br/>blind = get_free_memory minus torch cache<br/>true = NVML device free]
-    C --> D{shortfall = need − true<br/>&gt; 0 ?}
-    D -- no --> H[grant]
-    D -- yes --> E[PHASE ONE<br/>evict comfy-env's own worker models<br/>idle-first, LRU, never the requester]
-    E --> F[re-measure true<br/>it rose by what we freed]
-    F --> G{still short ?}
-    G -- no --> H
-    G -- yes --> I[PHASE TWO<br/>free_memory need + blind − true<br/>keep_loaded = all worker proxies]
-    I --> H
+    Everything above states the problem. Everything below is the answer
+    as built and measured, superseding the design and the work plan this
+    page used to carry. The decision record is
+    [ADR-0038](adr/0038-the-memory-floor.md).
+
+
+Your packs run in separate processes. Their models occupy the same card as
+ComfyUI's, and neither side can see the other's allocations directly. This
+page is what comfy-env does about that, what you can switch, and what each
+setting actually costs.
+
+The design and the measurements behind it are
+[ADR-0038](adr/0038-the-memory-floor.md).
+
+## What it does, in one sentence
+
+comfy-env does at runtime what `--reserve-vram` does at launch: it keeps
+ComfyUI honest about how much of the card is really available, asks ComfyUI
+to free its own models when a pack needs room, and has packs let go of VRAM
+when they go quiet.
+
+It does not patch ComfyUI to do any of that. It reads values ComfyUI already
+exposes, writes one number ComfyUI already reads, and calls two of its
+public functions.
+
+## The one setting
+
+```
+COMFY_ENV_MEMORY_MANAGEMENT=auto     # default
 ```
 
-**Phase one — our models, our policy.** comfy-env evicts worker models
-itself, from its own ledger, measuring true free between steps so it stops
-at the minimum. This is also the only place a sensible policy can be
-expressed: comfy-env knows which worker is idle and which was used last.
-ComfyUI cannot know that — its sort key is size and refcount, and refcount is
-a constant for a proxy object.
+An ordered level, not a set of flags, because the features are not
+independent: every pin feature is downstream of paging, since ComfyUI's
+eviction skips models that are not dynamic.
 
-**Phase two — ComfyUI's models only.** `free_memory` already accepts
-`keep_loaded`, and applies it *before* building the candidate list
-(`:874`), so passing every worker proxy removes them from consideration
-entirely. Now every victim is parent-local, every eviction moves `blind` and
-`true` together 1:1, the progress meter works, and the loop terminates at
-the minimum.
+| Level | What it turns on |
+|---|---|
+| `off` | Nothing. Packs load models the way any process would |
+| `ledger` | The reserve, the ask path, and idle release. ComfyUI's own low-VRAM streaming handles big models |
+| `paged` | comfy-aimdo pages weights per layer, so a pack holds a fraction of its model resident. Prompt marks come with this level, never separately |
+| `shared` | Packs also return pinned system RAM when the machine is short of it |
+| `auto` | The highest level your ComfyUI and environment actually support |
 
-`keep_loaded` is therefore **mandatory, not an optimization**. It is what
-restores the feedback loop.
+### What each level needs, measured
 
-One trap: membership uses `LoadedModel.__eq__`, which is
-`self.model is other.model` — and `.model` is a weakref deref. If a patcher
-gets collected, both sides deref to `None`, `None is None` is `True`, and an
-unrelated model is silently kept. The keep list must hold strong references.
+Computed by sweeping comfy-env's contract over 5866 upstream commits
+(`research/memory-floor/sweep_contract.py`); re-run it rather than trusting
+this table:
 
----
+| Level | Works with ComfyUI from | Bounded by |
+|---|---|---|
+| `ledger` | ~September 2024 | `EXTRA_RESERVED_VRAM` |
+| `paged` | between late 2025 and early 2026 | `ModelPatcherDynamic`, plus comfy-aimdo 0.4.10 |
+| `shared` | mid 2026 | `free_pins` |
 
-## Part 6 — What is broken today
+The floor reaching back two years is the point of the design. Features that
+need a recent ComfyUI degrade to it **by name** rather than failing.
 
-Everything below is verified against source, and all of it is live.
+### When it drops a level, it says so
 
-| # | Defect | Where | Effect |
-|---|---|---|---|
-| 1 | Proxies are registered as CUDA-resident while holding nothing | `pool.py:589-615` | `LoadedModel.device` is set to `load_device`, so a CPU-side model is a candidate on the GPU. It has the largest `offloaded_memory`, sorts **first**, skips `partially_unload`, is detached and popped — freeing **zero bytes** and burning a victim slot |
-| 2 | Popped proxies can never come back | `pool.py:575`, `_persistent_worker.py:1175,1200` | Registration skips ids already known, and the worker dedupes on `id(module)` forever. Once ComfyUI pops a proxy — which any host load or `unload_all_models` does — that VRAM is invisible and unevictable for the life of the process |
-| 3 | `detach(unpatch_all=False)` does a full offload | `model_patcher.py:237-245` | Upstream means it as bookkeeping — it skips `unpatch_model` and leaves weights on the GPU. `load_models_gpu` calls it on **every already-loaded model** (`:958`). We ship the model to CPU and reload it. Reachable with no comfy-env involvement at all via `controlnet.py:282-284` |
-| 4 | `partially_load` inverts the lowvram sentinel | `model_patcher.py:199-200` | ComfyUI maps `0 → 1e32`, so the only small value that arrives is `0.1`, meaning *load almost nothing*. `int(0.1) == 0` hits `if want <= 0: want = self.size` and we load the **entire model** — precisely when the card is full |
-| 5 | The offset is clamped at zero | `pool.py:283` | Reverts to uncompensated behaviour for every worker load below the 583 MB bias |
-| 6 | The offset carries the parent's torch cache | `pool.py:275-283` | Evicts live host models to cover reclaimable cache |
-| 7 | Two admission answers, ~20× apart | `pool.py:277-283` | NVML yields ≈533 MB where the ledger fallback yields ≈11.6 GB on the same machine at the same instant. Which one runs depends on whether `import pynvml` succeeds — and it never does, because `pynvml` is declared nowhere and installed nowhere |
-| 8 | Every budget request spawns `nvidia-smi` twice | `pool.py:277,337` | ~35 ms each. In-process `ctypes` into `nvml.dll` measures 0.002 ms and needs no dependency at all |
-| 9 | The drift canary has never run | `tests/test_model_patcher_surface.py` | No `pytest.mark.comfyui`, so `pytest -m comfyui` never collects it; it reads `COMFYUI_BASE`/`COMFYUI_PATH` while CI exports `COMFYUI_DIR`; and it falls back to a hardcoded developer path. Green on one machine, skipped everywhere else |
-| 10 | `_worker_generation` is documented but never read | `model_patcher.py:80-83,109` | The docstring credits it with stale-patcher safety that does not exist. `_worker_gone()` checks only `is_alive()`, which is true for a *respawned* worker — and worker model ids restart from zero, so a stale proxy can address a different model |
+An **unrequested** demotion is loud:
 
-Defects 3 and 4 are the two that cost real time on every run. Defects 1 and
-2 are the ones that silently get worse the longer a session lasts.
+```
+[comfy-env] memory management: auto selected ledger: comfy-aimdo is not
+usable in this worker environment
+```
 
----
+A **requested** one is silent. Choosing `ledger` on a RAM-poor machine is a
+decision, not a fault, and warning about it every time would train you to
+ignore the channel that carries the real demotions. Four environments on the
+development machine were silently running a different memory manager than
+their host, which is the failure this polarity exists to prevent.
 
-## Part 7 — Order of work
+Asking for a level the host cannot support runs the highest it can and says
+which requirement was missing, with the ComfyUI commit that would provide
+it. It never refuses to start a pack over an unavailable memory feature.
 
-Each step is independently shippable and leaves the tree better than it
-found it.
+## Why `ledger` is a real choice, not a fallback
 
-1. **Registration and orphan repair** (defects 1, 2). Re-insert a
-   `LoadedModel` when a patcher exists but has been popped; stop registering
-   zero-resident proxies as GPU-resident; let a worker re-announce a module
-   it already reported. Everything else degrades without this.
-2. **Honour `unpatch_all=False`** (defect 3), bundled with a real generation
-   check (defect 10) — the two interact, because `detach` is currently the
-   only thing that heals a stale proxy.
-3. **Drop the lowvram clamp** (defect 4).
-4. **Fix the measurement** (defects 5, 6): delete the clamp, subtract
-   `mem_free_torch` arithmetically.
-5. **In-process NVML via ctypes** (defects 7, 8): one init, cached handle,
-   resolved by UUID rather than device index.
-6. **Make the canary run** (defect 9).
-7. **Two-phase admission** — phase one plus `keep_loaded`, per Part 5.
-8. **Worker telemetry** — the worker reports instantaneous
-   `torch.cuda.memory_reserved()` on frames it already sends, replacing two
-   guessed constants. Never the high-water mark: it hit 15.2 GB transiently
-   in measurement, and a high-water mark never decays.
+It is not simply "paged minus paging":
 
----
+* **Zero pinned system RAM.** Paging costs roughly twice the model size in
+  host RAM for pinned buffers. On a RAM-poor machine that is the dominant
+  cost, and `ledger` avoids it entirely.
+* **Big models still run.** ComfyUI's own low-VRAM streaming loads what fits
+  and pulls the rest per step. Paging buys residency and speed, not
+  feasibility.
+* **The widest compatibility of any level**, by about eighteen months.
+
+## The optional observer
+
+```
+COMFY_ENV_MEMORY_OBSERVER=on         # default: off
+```
+
+Two signals exist only inside ComfyUI's loaded-model list, and this is the
+only way to hear them:
+
+* **The Free-memory button.** With the observer off, that button frees
+  ComfyUI's own models and silently leaves pack memory alone.
+* **Host memory pressure.** Being asked to free is the only in-process
+  notice that ComfyUI is short of VRAM. Idle release cannot cover this,
+  because during an out-of-memory event the packs are not idle.
+
+It is off by default because it is the one remaining piece with a breakage
+history: both of comfy-env's loud failures in a year came through an object
+registered in that list. This one is safer than its predecessor because it
+reports holding *nothing*, which is true, so ComfyUI asks, gets zero and
+moves on rather than relying on its numbers. It is still a coupling, so it
+is a switch, and the switch is off.
+
+## What you get, and what you do not
+
+**You get:** packs and host workflows coexisting on one card; the card
+coming back when a pack finishes; packs able to demand space from the host;
+big models running.
+
+**You do not get:** the host taking VRAM back from a pack that is currently
+running. It avoids over-committing and waits for the pack to finish or go
+idle. That is the deliberate price of not patching or impersonating
+anything, and the one case it does not cover is a host out-of-memory event
+while packs are busy.
+
+## Reading the logs
+
+| Line | Meaning |
+|---|---|
+| `memory management: auto selected <level>: <reason>` | A level below the maximum was chosen; the reason names what was missing |
+| `admission tight env=... need=... true_free=...` | A pack asked for more than was free; the host was asked to evict |
+| `idle release: <pack> gave back N GB` | A quiet pack returned its VRAM |
+| `PIN REGRESSION env=... active_evicted=...` | Pins were taken from a model that was still in use. Should never appear; report it |
+| `worker teardown env=... cause=...` | A pack's process was removed, with the reason |
 
 ## What this does not fix
 
@@ -470,20 +447,11 @@ sufficient; a real single-flight or ordered-lock discipline is still owed.
 
 ## Where to go next
 
-This page is the plain-language version.
-[**ADR-0036**](adr/0036-mirroring-comfyui-memory-management.md) is the precise
-one, and it is self-contained: Part 1 describes upstream's memory manager in
-full — what it tracks, how eviction and loading work, how free memory is
-measured per device and per OS, the RAM and pinned-memory budgets, the flags,
-and the upstream reading list — Part 2 covers what the process boundary
-breaks, and Part 3 is the decision.
-
-One thing from those worth repeating here. **If upstream ever makes
-`get_free_memory` WDDM-aware** — which
-[PR #11845](https://github.com/Comfy-Org/ComfyUI/pull/11845) proposes — the
-substitution in Part 4 becomes a *double* correction and has to be removed.
-That is the single upstream change most likely to break this design, and it is
-what the drift canary exists to catch.
+* [ADR-0038](adr/0038-the-memory-floor.md) is the precise version of Part 4:
+  the decision, the measurements, and what it supersedes.
+* [Memory management context](memory-context.md) is the background this page
+  assumes: upstream's manager, how operating systems differ, what aimdo does,
+  and the full API inventory.
 
 ## Related records
 

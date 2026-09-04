@@ -38,7 +38,7 @@ and patches three.
     It is the input to every decision in the system, it counts allocator cache
     that may not be returnable, and in a worker process on Windows it reports
     that process's own budget rather than the device. Correcting it is most of
-    what comfy-env does. See [Sharing one GPU](sharing-one-gpu.md).
+    what comfy-env does. See [comfy-env's approach to memory management](memory-approach.md).
 
 ## Loading and eviction
 

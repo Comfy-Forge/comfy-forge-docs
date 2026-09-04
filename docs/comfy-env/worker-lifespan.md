@@ -32,7 +32,7 @@ Once up, the worker stays alive across executions -- that is the point:
 the second call skips the torch import entirely. The standing cost of a
 warm worker is **~180-550 MB host RAM plus a CUDA context** (and VRAM for
 whatever models it holds, which ComfyUI can evict through the
-[patcher machinery](sharing-one-gpu.md)).
+[patcher machinery](memory-approach.md)).
 
 - **One call at a time.** A worker serves a single in-flight call
   ([ADR-0020](adr/0020-concurrency-and-env-granularity.md)); eviction
@@ -61,7 +61,7 @@ this page kills it.
 ## The subtlest rule: what replacement must preserve
 
 When a worker is replaced (case 1), its
-[`SubprocessModelPatcher`](sharing-one-gpu.md)s are *deregistered but
+[`SubprocessModelPatcher`](memory-approach.md)s are *deregistered but
 deliberately kept alive*, because the restart can fire **inside** ComfyUI's
 `free_memory` iteration -- mutating the model list or letting the old
 patchers be garbage-collected mid-iteration would corrupt upstream's loop.
@@ -75,5 +75,5 @@ handling must keep them.
   including the `_STALE_PATCHERS` invariant in full.
 - [The process boundary](process-boundary.md) -- everything that crosses
   during each phase of this lifespan.
-- [Sharing one GPU](sharing-one-gpu.md) -- what a worker's models cost and
+- [comfy-env's approach to memory management](memory-approach.md) -- what a worker's models cost and
   who can evict them.
