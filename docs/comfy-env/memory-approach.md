@@ -18,67 +18,91 @@ The rest of this page assumes that the user is already familiar with native Comf
 
 **[If you're not, please read this page first](comfyui-memory.md)**.
 
-ComfyUI memory management brings several optimizations. Each one below is
-followed by what a process boundary does to it, because that is the whole
-subject of this page:
+ComfyUI memory management brings several optimizations. Open any of them for
+what a process boundary does to it, because that is the whole subject of this
+page. The three marked **cannot cross a boundary** are not merely degraded:
+they lose their meaning entirely.
 
-- **It streams weights on and off the card while the graph runs.** A model
-  too large for your VRAM still runs: ComfyUI keeps as much on the GPU as
-  fits and pulls the rest across per step.
-  *Across processes:* each side sizes that against its own view of free
-  VRAM, and neither knows the other is about to do the same with the same
-  bytes.
+??? note "It streams weights on and off the card while the graph runs"
 
-- **It holds room back for work whose size it cannot predict.** Attention
-  scratch, cast buffers and activations are not knowable in advance, so a
-  reserve is kept free.
-  *Across processes:* both sides keep their own reserve, so the same
-  headroom is either booked twice or by neither.
+    A model too large for your VRAM still runs. ComfyUI keeps as much on the
+    GPU as fits and pulls the rest across per step.
 
-- **It evicts the least useful model when it needs room.** Everything
-  resident sits in one list, ordered so the cheapest thing to lose goes
-  first.
-  *Across processes:* that ordering can only rank what it can see. A pack
-  holding 6 GB is invisible, so ComfyUI discards one of its own models that
-  was more useful.
+    **Across processes:** each side sizes that against its own view of free
+    VRAM, and neither knows the other is about to do the same with the same
+    bytes.
 
-- **It remembers what every node produced, so a re-run skips the work, and
-  drops those results when RAM gets tight.** RAM-pressure caching is the
-  default (`--cache-ram`).
-  *Across processes:* **this cannot work as it stands.** A pack's outputs
-  live in the pack's process and have to be copied across the boundary to be
-  cached at all, and "is RAM tight" is measured per process while the RAM is
-  shared, so every process independently concludes it has room.
+??? note "It holds room back for work whose size it cannot predict"
 
-- **It shares weights between clones of the same model,** so two nodes using
-  one checkpoint pay for it once.
-  *Across processes:* **impossible with the current structure.** A clone in
-  another process cannot point at the same tensor, so the checkpoint is paid
-  for twice.
+    Attention scratch, cast buffers and activations are not knowable in
+    advance, so a reserve is kept free.
 
-- **It recovers when it runs out of memory** by dumping every loaded model
-  and telling you what happened (`execution.py:641`).
-  *Across processes:* `unload_all_models()` frees ComfyUI's own models. The
-  pack whose allocation caused the failure is not in that list and keeps
-  everything it holds.
+    **Across processes:** both sides keep their own reserve, so the same
+    headroom is either booked twice or by neither.
 
-- **It pins host RAM so weights reach the GPU faster,** and budgets how much
-  it may pin against the machine's free RAM.
-  *Across processes:* every process computes that budget from the same
-  global free-RAM figure, so each one separately concludes it may take it.
+??? note "It evicts the least useful model when it needs room"
 
-- **comfy-aimdo pages weights per layer** through a virtual address
-  reservation, so a model can be "loaded" while only a slice is physically
-  resident.
-  *Across processes:* its accounting is per process and its headroom is
-  fixed when it starts, so it cannot be told that something else just took
-  the card.
+    Everything resident sits in one list, ordered so the cheapest thing to
+    lose goes first.
 
-- **comfy-kitchen supplies the fused kernels and fp8 paths** the rest of it
-  assumes.
-  *Across processes:* also per process, and a pack environment without it
-  cannot even import ComfyUI, which is why comfy-env installs it into every
-  worker whether the pack asked for it or not.
+    **Across processes:** that ordering can only rank what it can see. A pack
+    holding 6 GB is invisible, so ComfyUI discards one of its own models that
+    was more useful.
+
+??? danger "It remembers what every node produced, so a re-run skips the work &mdash; cannot cross a boundary"
+
+    Results are cached and dropped again when RAM gets tight. RAM-pressure
+    caching is the default (`--cache-ram`, `cli_args.py:140`).
+
+    **Across processes:** a pack's outputs live in the pack's process and
+    have to be copied across the boundary to be cached at all. Worse, "is RAM
+    tight" is measured per process while the RAM is shared, so every process
+    independently concludes it has room.
+
+??? danger "It shares weights between clones of the same model &mdash; cannot cross a boundary"
+
+    Two nodes using one checkpoint pay for it once. Clones are tracked by a
+    shared id (`clone_base_uuid`).
+
+    **Across processes:** a clone in another process cannot point at the same
+    tensor. There is no one tensor. The checkpoint is paid for twice.
+
+??? danger "It recovers when it runs out of memory &mdash; cannot cross a boundary"
+
+    On an OOM it dumps every loaded model and tells you what happened
+    (`execution.py:641`). Note that it does not retry: recovery here means
+    clearing the decks, not doing the work in smaller pieces.
+
+    **Across processes:** `unload_all_models()` frees ComfyUI's own models.
+    The pack whose allocation caused the failure is not in that list and
+    keeps everything it holds.
+
+??? note "It pins host RAM so weights reach the GPU faster"
+
+    Pinned memory transfers to the card far faster than pageable memory, and
+    ComfyUI budgets how much it may pin against the machine's free RAM.
+
+    **Across processes:** every process computes that budget from the same
+    global free-RAM figure, so each one separately concludes it may take it.
+
+??? note "comfy-aimdo pages weights a layer at a time"
+
+    A virtual address reservation lets a model be "loaded" while only a slice
+    is physically resident, which is how a 20 GB model runs on a 12 GB card
+    without the streaming penalty.
+
+    **Across processes:** its accounting is per process and its headroom is
+    fixed when it starts, so it cannot be told that something else just took
+    the card.
+
+??? note "comfy-kitchen supplies the fused kernels and fp8 paths"
+
+    The rest of the memory strategy assumes these exist: quantised weights
+    are what make the budgets work out on consumer cards.
+
+    **Across processes:** also per process, and a pack environment without it
+    cannot even import ComfyUI, which is why comfy-env installs it into every
+    worker whether the pack asked for it or not.
 
 ## Question: are we able to exactly replicate ComfyUI memory management across comfy-env isolated processes?
 
