@@ -18,40 +18,59 @@ The rest of this page assumes that the user is already familiar with native Comf
 
 **[If you're not, please read this page first](comfyui-memory.md)**.
 
-Strip the marketing off and ComfyUI's memory management is one module-level
-list of loaded models, plus arithmetic about who gets thrown out of it.
+ComfyUI's memory management can be summarised as a module-level
+list of loaded models and cached results on RAM and VRAM, plus arithmetic about what gets thrown out of it when we run out of RAM/VRAM.
 
 ```python
 current_loaded_models = []   # comfy/model_management.py
 ```
 
-Everything else hangs off that one fact: streaming weights per layer when a
-model does not fit, holding back a reserve for work it cannot size in
-advance, pinning host RAM so transfers are fast, paging through comfy-aimdo,
-caching what every node produced so a re-run skips the work. It is good code.
-It is well tested. It runs on hardware from a laptop to an H100 and mostly
-gets it right.
+Everything else hangs off that one fact:
+- ComfyUI streams weights per layer when a
+model does not fit
+- It holds back a reserve for work it cannot size in
+advance
+- It pins host RAM so transfers are fast
+- It runs paging through comfy-aimdo
+- It caches what every node produced so a re-run skips the work.
 
-It also assumes, everywhere and without ever saying so, that there is exactly
-one process.
+It is truly good code, well tested and runs on all operating systems on hardware ranging from a shitty laptop to an H100 server and is probably SOTA in its category.
 
-**Two processes do not share an address space.** That is not a limitation to
-engineer around. It is arithmetic. Three things follow immediately, and none
-of them is a degradation:
+Unfortunately for us, it also assumes that there is ever only exactly one process.
 
-- **The node output cache holds objects the other process cannot see.** Its
-  results live in the pack's process and have to be copied across a boundary
-  to be cached at all. And "is RAM tight" is measured per process while the
-  RAM is shared, so every process independently concludes it has room.
-- **Clone sharing points two names at one tensor.** Across a boundary there
-  is no one tensor. Two nodes using one checkpoint pay for it twice, and no
-  amount of bookkeeping changes that.
-- **The OOM handler frees everything in the list.** The process that actually
-  exhausted the card is not in the list. It keeps every byte it holds, and
-  the user gets a tip about their batch size.
+**Two processes do not share an address space by default.** Sharing bytes is
+possible and comfy-env already does it, with `share_memory_()` for CPU
+tensors and CUDA IPC for GPU ones. What does not survive the boundary is not
+the bytes. It is the bookkeeping built on top of them.
 
-Those three do not work worse across a process boundary. They stop meaning
-anything.
+One thing is simply broken:
+
+- **OOM recovery frees the wrong process.** On an out-of-memory error
+  ComfyUI dumps every model in its list and prints a tip about batch size
+  (`execution.py:641`). The pack whose allocation exhausted the card is not
+  in that list. It keeps every byte it holds, and the one process that could
+  have helped is the one that was never asked.
+
+Two more need machinery that does not exist, which is a different claim from
+impossible:
+
+- **The node output cache can only cache what it can reach.** There is one
+  cache and it lives in the host; workers do not run the execution engine at
+  all. A pack's results therefore have to be copied across the boundary to be
+  cached, so the bytes exist twice. And the eviction trigger reads
+  machine-wide free RAM (`psutil.virtual_memory().available`,
+  `caching.py:551`), so memory a worker holds makes the host evict its own
+  cached results, while the host can evict nothing the worker holds. The
+  signal is global and the lever is local.
+
+- **Clone weight sharing needs plumbing nobody has written.** Two nodes using
+  one checkpoint pay once in-process because clones point at the same tensors
+  and are tracked by a shared id. Across processes the mapping is mechanically
+  available, but ComfyUI's loaders read checkpoints from disk into
+  process-local tensors and nothing tells a worker the host already has those
+  weights mapped. The harder half is not the mapping: clones exist so each can
+  be patched differently, and a shared mapping makes one clone's patch visible
+  to the other unless something coordinates it.
 
 The rest merely go wrong, which is a different and far more tractable
 problem: two processes each keeping their own reserve, each ranking evictions
@@ -158,8 +177,9 @@ No. Not on Windows, and not with the interfaces available to us.
 Why can't we do it? Four reasons, none of which comfy-env can engineer
 around from outside:
 
-1. **There is no shared address space,** as above. That alone takes the
-   output cache, clone deduplication and OOM recovery off the table.
+1. **The bookkeeping does not cross, even though the bytes can,** as above.
+   OOM recovery frees the wrong process outright; the output cache and clone
+   sharing would each need machinery nobody has built.
 
 2. **The numbers each side reads do not mean the same thing.** On Linux the
    free-VRAM figure covers the whole device, so each process already sees
