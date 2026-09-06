@@ -30,6 +30,31 @@ one sibling process growing while an observer polls:
 The card is down to 1.3 GB physically free and the observer still believes
 it has 15 GB.
 
+### Re-measured at the driver, 2026-09-06
+
+The table above came through torch. Since the whole platform branch rests on
+it, it was repeated on the same card against `nvcuda.dll` directly, with no
+torch in the process at all, so that torch's caching allocator could not be
+the explanation. `cuMemGetInfo_v2`, two processes, one allocating with
+`cuMemAlloc_v2` and one only looking:
+
+| | holder's own free | sibling's own free | `nvidia-smi` free |
+|---|---:|---:|---:|
+| idle | 15,223 | 15,223 | 15,948 |
+| holder takes 4 GiB | **11,127** | **15,223** | 14,037 |
+| holder takes 10 GiB | **4,983** | **15,223** | 14,101 |
+
+The holder's own number tracks its own allocation exactly, to the MiB. The
+sibling's number does not move at all, at either size. The card does move.
+So this is not a torch artefact and not a rounding effect: the driver is
+answering a different question depending on who asks.
+
+A second reading from the same run: a bare CUDA context, created and
+otherwise unused, costs **119 MiB** device-wide here, reproducibly. That is
+the floor before torch loads a single cuBLAS or cuDNN handle, which is why
+comfy-env books more than it (see the context floor in row 3), and it is the
+first time that constant has been measured on the platform that uses it.
+
 ## What the number actually is
 
  `mem_get_info` on WDDM reports the calling
