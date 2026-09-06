@@ -17,11 +17,11 @@ it.
 > calls ComfyUI's own public functions. Host-driven reclaim of worker VRAM
 > is deliberately dropped; workers release on their own instead.
 >
-> Two wraps survive as a named, switched exception, each calling the
-> original first: `unload_all_models` (the Free-memory broadcast) and
-> `should_free_pins_for_ram_pressure` (RAM reclaim). Both are on the list to
-> go. An AST test fails the build if anything else assigns to a comfy
-> module.
+> Two wraps survived this ADR as a named, switched exception. **Both were
+> deleted on 2026-09-05**: the rule is that comfy-env replaces no host
+> function, switched or not. An AST test fails the build if anything assigns
+> to a comfy module apart from `EXTRA_RESERVED_VRAM`, the knob
+> `--reserve-vram` writes.
 
 The floor is always on and has four moving parts:
 
@@ -121,9 +121,18 @@ the optional observer exists for.
 **Also lost by default.** ComfyUI's Free-memory button no longer reaches
 workers unless the observer is enabled.
 
-**Unresolved.** The proxy is still registered. Nothing in the floor depends
-on it any more, so removing it is now a deletion rather than a redesign, but
-it has not been done.
+**Corrected, 2026-09-05.** This ADR treated the proxy as a leftover that
+nothing depended on. That was wrong, and the error mattered: reclaim depends
+on it entirely. `_insert_loaded_model` registers a stand-in for every worker
+model on every node boundary, and that is what lets ComfyUI's own eviction
+loop, the Free button and the out-of-memory handler reach memory in another
+process. Deleting it would not be a tidy-up, it would remove the only
+mechanism by which the host can take VRAM back from a pack.
+
+What this ADR got right stands: the proxy is the fragile part, both loud
+breaks came through it, and the surface it presents should be as small as
+comfy-env can make it. What replaces it is an upstream holder interface, not
+a deletion.
 
 ## What this replaces, precisely
 
