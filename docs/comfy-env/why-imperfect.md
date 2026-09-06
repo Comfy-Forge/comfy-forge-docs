@@ -30,8 +30,10 @@ were a legacy one. In practice this matters least where you would expect: the
 worker runs its own copy of ComfyUI's manager and pages its own models
 correctly, so the *behaviour* is right and only the host's *description* of it
 is wrong. What is genuinely lost is that worker pinned RAM never enters the
-host's pin eviction ladder, which is listed separately under
-[what this does not fix](memory-approach.md#what-this-does-not-fix).
+host's pin eviction ladder. The worker backs off on its own, against a system
+wide figure that already sees every process, so nothing runs away; but it
+backs off at a different threshold than the host, and the host cannot ask it
+to do anything.
 
 ## 2. One number stands in for three questions
 
