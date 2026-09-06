@@ -6,32 +6,58 @@ Unfortunately, every bit of its current strategy assumes that everything is runn
 
 comfy-env isolated nodepacks instead run in separate subprocesses, and models occupy the same RAM and GPU/accelerator memory as ComfyUI's. Neither side can see the other's allocations directly.
 
-Two rules, and the second one is not the one you would guess:
+In trying to implement a solution for comfy-env, it was tried to abide by two rules:
 
-- **comfy-env never patches the host ComfyUI.** No function is replaced, no
-  class is hooked. Upstream ships a file whose whole job is to undo custom
-  node patching, on a timer, so anything built that way is built on sand.
-- **comfy-env puts one object per worker model in ComfyUI's list, and this
-  is the part we are not happy with.** Nothing outside a process can free
-  that process's memory, so the host has to be able to ask, and the only
-  place ComfyUI does any asking is the list it walks in `free_memory`. So we
-  put a stand-in there. It holds no weights; when ComfyUI evicts it, it
-  forwards the request over IPC and the worker does the real unload.
+1. **comfy-env never patches the host ComfyUI.** No function is replaced, no
+   class is hooked. Upstream ships a file whose whole job is to undo custom
+   node patching, on a timer, so anything built that way is built on sand.
+2. **comfy-env never duck types**, for stability, correctness and
+   maintainability reasons, in that order.
+
+Unfortunately we weren't able to do something satisfactory.
+Currently, comfy-env puts one object per worker model in ComfyUI's list, and this is the part we are not happy with.
+Nothing outside a process can free that process's memory, so the host has to be able to ask, and the only place ComfyUI does any asking is the list it walks in `free_memory`. So we put a stand-in there. It holds no weights; when ComfyUI evicts it, it forwards the request over IPC and the worker does the real unload.
 
 ### Why that second rule is a compromise, and what would replace it
 
-The stand-in is not a design we would choose. It is what is available. It
-has to answer eighteen attributes of ComfyUI's internals, none of which
-upstream ever promised, and both of comfy-env's user-visible breakages in a
-year were a new attribute read landing on it during someone's workflow.
+The stand-in is not a design we would choose. It is what is available to
+guarantee functioning, and it fails all three of the tests in rule two.
+
+**It is not stable.** It has to answer eighteen attributes of ComfyUI's
+internals, none of which upstream ever promised, and both of comfy-env's
+user-visible breakages in a year were a new attribute read landing on it
+during someone's workflow. The eviction loop grew a whole new branch when
+comfy-aimdo landed; `loaded_size` was reimplemented for the paged patcher;
+the pinned-memory tuple layout it must not touch moved twice in one year.
+None of those were breaking changes to anyone else, because none of it is an
+interface.
+
+**It is not correct.** It answers questions whose true answers live in
+another process, and some of its answers are knowingly false. It reports
+`is_dynamic()` as False even when the model it stands for is paged, on
+purpose, to stay out of the pinned-memory paths where most upstream churn
+lives: ComfyUI then reasons about a paged model as though it were a legacy
+one. Its sizes are a single measured scalar standing in for three different
+questions ComfyUI asks. And an eviction it cannot deliver, because the
+worker is mid-forward, is reported to ComfyUI as done: upstream's
+`model_unload` returns True even when nothing was freed, so the entry is
+dropped from the list while the memory is still resident, and comfy-env has
+to put it back at the next node boundary. Every one of those is a small lie
+told to keep a larger thing working.
+
+**It is not easily maintainable.** There is no contract to check against, so
+the way we track upstream is a test that greps ComfyUI's source for the
+places it reads a list entry and fails when that set moves. That catches a
+change once we have the new ComfyUI in front of us. It cannot catch it
+before a user does, which is exactly how both breakages were found: not by
+our test suite, which passes against the version it was written for, but by
+somebody's workflow stopping mid-run.
 
 We went looking for alternatives properly, and the search is closed:
 
 * `load_models_gpu` and `free_memory` call out to exactly three things:
   entries in that list, the pinned-memory helpers, and `logging`. There is
-  no callback, no event and no registry on either path. That is the reason
-  the stand-in exists, established by reading every line of both rather than
-  by assumption.
+  no callback, no event and no registry on either path.
 * The operating system cannot substitute. There is no push notification for
   device memory anywhere: NVML's event API has no memory bit, CUDA has no
   callback, and VRAM is charged to no cgroup, so kernel pressure primitives
@@ -40,10 +66,10 @@ We went looking for alternatives properly, and the search is closed:
   Windows.
 * Host-side precursors are too late. On ComfyUI's real loading path, host
   RSS leads the device allocation by 0.1 s, because the copy to the card is
-  what faults the pages in.
+  what faults the pages.
 
-**What we actually want is a hook in ComfyUI.** Something small: a way for
-software outside the process to say how much of the card it needs kept
+**What we actually want is a hook in ComfyUI.**
+Something small: a way for software outside the process to say how much of the card it needs kept
 free, and to be asked to give memory back when the host runs short. Two
 methods, a registry, no knowledge of subprocesses in core, and no object
 pretending to be a model. `free_memory` would consult registered holders
