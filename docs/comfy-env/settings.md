@@ -26,7 +26,6 @@ Full reference, including what each level requires of your ComfyUI:
 
 | Env var | default | meaning |
 |---|---|---|
-| `COMFY_ENV_MEMORY_MANAGEMENT` | `auto` | Ordered level: `off`, `ledger`, `paged`, `shared`, or `auto`. `auto` picks the highest your ComfyUI and pack environment support and logs a line naming what stopped it. An explicit level too high for the host runs the highest available, loudly; it never refuses to start a pack. |
 | `COMFY_ENV_MEMORY_OBSERVER` | **off** | Registers a read-only listener in ComfyUI's loaded-model list so the Free-memory button reaches packs and host memory pressure is visible. Off because this is the one remaining coupling with a breakage history; see [ADR-0038](adr/0038-the-memory-floor.md). |
 
 !!! note "Replaces seven separate variables"

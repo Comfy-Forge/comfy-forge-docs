@@ -26,6 +26,7 @@ current_loaded_models = []   # comfy/model_management.py
 ```
 
 Everything else hangs off that one fact:
+
 - ComfyUI streams weights per layer when a
 model does not fit
 - It holds back a reserve for work it cannot size in
@@ -33,20 +34,23 @@ advance
 - It pins host RAM so transfers are fast
 - It runs paging through comfy-aimdo
 - It caches what every node produced so a re-run skips the work.
+- ....
 
-It is truly good code, well tested and runs on all operating systems on hardware ranging from a shitty laptop to an H100 server and is probably SOTA in its category.
+It is truly good code, well tested and runs on all operating systems on hardware ranging from a shitty laptop to an H100 server.
+Within its category, ComfyUI's memory management is SOTA.
 
 Unfortunately for us, it also assumes that there is ever only exactly one process.
 
 **Two processes do not share an address space by default.** Sharing bytes is
 possible and comfy-env already does it, with `share_memory_()` for CPU
-tensors and CUDA IPC for GPU ones. What does not survive the boundary is not
-the bytes. It is the bookkeeping built on top of them.
+tensors and CUDA IPC for GPU ones.
+
+What does not survive the boundary is bookkeeping.
 
 Two things are simply broken, and the second is a special case of the first:
 
-- **Eviction cannot reach a worker's memory.** Making room is the one job
-  this subsystem has, and it is done by walking `current_loaded_models` and
+- **Eviction cannot reach a worker's memory.** Making room is the main job
+  memory management has, and it is done by walking `current_loaded_models` and
   asking each entry to unload. A pack's models are not in that list. So the
   host can decline to take memory it does not have, which is useful, but it
   cannot take memory back, which is the half that matters when the card is
@@ -54,8 +58,8 @@ Two things are simply broken, and the second is a special case of the first:
   this one sentence.
 
 - **OOM recovery frees the wrong process.** On an out-of-memory error
-  ComfyUI dumps every model in its list and prints a tip about batch size
-  (`execution.py:641`). The pack whose allocation exhausted the card is not
+  ComfyUI dumps every model in its list and prints a tip about batch size.
+  The pack whose allocation exhausted the card is not
   in that list. It keeps every byte it holds, and the one process that could
   have helped is the one that was never asked. This is the previous point
   arriving at the worst possible moment.
@@ -67,8 +71,7 @@ impossible:
   cache and it lives in the host; workers do not run the execution engine at
   all. A pack's results therefore have to be copied across the boundary to be
   cached, so the bytes exist twice. And the eviction trigger reads
-  machine-wide free RAM (`psutil.virtual_memory().available`,
-  `caching.py:551`), so memory a worker holds makes the host evict its own
+  machine-wide free RAM (`psutil.virtual_memory().available`), so memory a worker holds might make the host evict its own
   cached results, while the host can evict nothing the worker holds. The
   signal is global and the lever is local.
 
@@ -178,6 +181,175 @@ they lose their meaning entirely.
     cannot even import ComfyUI, which is why comfy-env installs it into every
     worker whether the pack asked for it or not.
 -->
+
+## What ComfyUI's memory management does, ranked
+
+Everything above is the shape of the problem. This is the inventory: every
+global behaviour of ComfyUI's memory management, ordered by how much it
+matters when a subprocess is invisible to it, with what comfy-env can reach
+today and what it could reach with more coupling. It was compiled by three
+independent reads of `comfy/model_management.py`, `model_patcher.py`,
+`execution.py`, `server.py` and `comfy_execution/` (ComfyUI `bab6ee5f`,
+2026-08-24), merged and rechecked line by line.
+
+**Ordering rule.** How often it fires in a normal workflow, times how many
+bytes it decides, times how bad it is when a subprocess is invisible to it.
+Rank 1 fires on every load and moves gigabytes; rank 27 moves nothing.
+
+**The three reachability columns:**
+
+| Column | Meaning |
+|---|---|
+| **Today** | Everything comfy-env ships by default: it reads ComfyUI's values, publishes one number into `EXTRA_RESERVED_VRAM` and forwards the same reserve to the pager, calls `mm.free_memory`, translates a worker OOM into the host's real exception class, asks idle workers to shrink when the card is tight, and registers a stand-in for every worker model in `current_loaded_models` so ComfyUI's own eviction reaches it. |
+| **How exposed that leaves us** | The stand-in above is a fake model in ComfyUI's own list. It is how the host reclaims from a worker at all, and it is also the single most fragile thing comfy-env does: ComfyUI reads whatever it likes off anything in that list, and both of comfy-env's loud breaks in twelve months were a new attribute read landing on it. This column says how exposed each row is. |
+| **Upstream** | ComfyUI merges an external memory holder interface (a shrinker consulted by `free_memory` after its own models, plus a reserve provider registry) or full model registration. |
+
+Cells are yes, partial or no, with at most one clause of reason. Exposure is stable, fragile or broke: stable means nothing reads the stand-in on that path, fragile means the host reads internals off it that upstream has already changed once, broke means a read on that path has taken comfy-env down before.
+
+<!-- Styling for the ranked table lives in the page rather than in a stylesheet on
+     purpose: browsers cache extra_css across mkdocs serve rebuilds, the page HTML
+     they do not. -->
+<style>
+/* Reachability verdicts in the ranked memory table.
+ *
+ * Each verdict word is wrapped in <span class="v v-yes|v-partial|v-no">.
+ * The cell background follows the BEST verdict in the cell (a cell that
+ * says "no for the listener; yes for a holder" is reachable, so it reads
+ * green), because the later rule wins; the words themselves keep their
+ * own colour so a mixed cell still shows both. Muted on purpose.
+ */
+.md-typeset .reach-table td:has(.v-no)      { background: #f3e3e1; }
+.md-typeset .reach-table td:has(.v-partial) { background: #f5edd6; }
+.md-typeset .reach-table td:has(.v-yes)     { background: #e3efe1; }
+.md-typeset .reach-table .v { font-weight: 600; }
+.md-typeset .reach-table .v-no      { color: #8e3b33; }
+.md-typeset .reach-table .v-partial { color: #7d5d12; }
+.md-typeset .reach-table .v-yes     { color: #2f6b34; }
+
+[data-md-color-scheme="slate"] .md-typeset .reach-table td:has(.v-no)      { background: rgba(190, 80, 70, 0.20); }
+[data-md-color-scheme="slate"] .md-typeset .reach-table td:has(.v-partial) { background: rgba(200, 160, 50, 0.18); }
+[data-md-color-scheme="slate"] .md-typeset .reach-table td:has(.v-yes)     { background: rgba(80, 170, 90, 0.18); }
+[data-md-color-scheme="slate"] .md-typeset .reach-table .v-no      { color: #e9a39a; }
+[data-md-color-scheme="slate"] .md-typeset .reach-table .v-partial { color: #e5c46b; }
+[data-md-color-scheme="slate"] .md-typeset .reach-table .v-yes     { color: #9fd8a3; }
+
+/* Seven columns do not fit Material's 61rem content column. On any page that
+ * carries the ranked table, let the grid use the whole window. Scoped with
+ * :has so every other page keeps the default width. */
+.md-main:has(.reach-table) .md-grid,
+.md-header:has(+ .md-container .reach-table) .md-grid {
+  max-width: 100%;
+}
+.md-typeset .reach-table table {
+  font-size: 0.62rem;
+}
+
+/* The number column: num-col already collapses its width, but Material's
+ * 1.25em cell padding still makes it wide. Tighten the padding here. */
+.md-typeset .reach-table th:first-child,
+.md-typeset .reach-table td:first-child {
+  padding-left: 0.4em;
+  padding-right: 0.4em;
+}
+
+/* Same pages: pull the two sidebars in and trim the content gutters so the
+ * table gets the width, not the whitespace around it. */
+@media screen and (min-width: 76.25em) {
+  .md-main:has(.reach-table) .md-sidebar {
+    width: 10.5rem;
+  }
+  .md-main:has(.reach-table) .md-content__inner {
+    margin-left: 0.8rem;
+    margin-right: 0.8rem;
+  }
+  .md-main:has(.reach-table) .md-sidebar .md-nav--primary > .md-nav__title { padding-left: 0.4rem; }
+  .md-main:has(.reach-table) .md-sidebar--primary .md-sidebar__scrollwrap,
+  .md-main:has(.reach-table) .md-sidebar--secondary .md-sidebar__scrollwrap {
+    margin: 0;
+  }
+}
+</style>
+
+<div class="reach-table num-col" markdown>
+
+| # | What ComfyUI does | Today | How exposed that leaves us | Upstream |
+|---|---|---|---|---|
+| 1 | `free_memory` eviction ladder: when the card is short, the host walks its list of loaded models oldest first and asks each to leave until there is room. A model it never listed is never asked. | <span class="v v-yes">yes</span>: ComfyUI's own eviction loop reaches the stand-in we register for each worker model, and the worker unloads. This is the mechanism, and the whole of it: nothing else lets the host take memory from another process | <span class="v v-partial">fragile</span>: every pass reads `.device`, `.is_dead()`, `.model_offloaded_memory()`, `.model_memory()`, `.currently_used`, `.model.is_dynamic()` and `.model_unload()` on the fake; the loop body grew a dynamic branch (`:884-888`) when aimdo landed | <span class="v v-yes">yes</span> |
+| 2 | `load_models_gpu` admission: before loading a model, the host adds up model size plus 10 percent plus the reserve and frees that much first. | <span class="v v-yes">yes</span>: we can accurately detect free space from both host and subprocesses, and the reserve term is mirrored across the boundary; via the registered stand-in, the sum is over incoming models, the fake is never read | <span class="v v-yes">stable</span>: nothing reads the fake here | <span class="v v-yes">yes</span> |
+| 3 | The reserve, `EXTRA_RESERVED_VRAM` and `--reserve-vram`: how much of the card the host must always leave alone. Read on every load; the pager reads it only once, at startup. | <span class="v v-yes">yes</span>: preventive on the legacy path, inert under aimdo; via the registered stand-in, the reserve is global, unchanged | <span class="v v-yes">stable</span>: not a list path | <span class="v v-yes">yes</span>, plus a runtime headroom setter for the paged half |
+| 4 | `get_free_memory`: "how much room is left", which also sizes batches. Driver free plus torch's idle cache; on Linux it covers the whole card, on Windows only the calling process. | <span class="v v-yes">yes</span> to read, not modifiable; via the registered stand-in, the fake's size never enters this number. Eviction targets are `required minus free`, and free already includes what the worker holds | <span class="v v-yes">stable</span>: ledger sizes only order the eviction candidates; the one way to double count is row 23, a node handing the fake back to `load_models_gpu` | <span class="v v-partial">partial</span>: upstream must choose free-side or ledger-side, never both |
+| 5 | `unload_all_models` and the Free button: an eviction ask for an absurd number (1e30) sent to every listed model between prompts. | <span class="v v-no">no</span>: nothing comfy-env reads changes when the button is pressed, so workers keep their memory; via the registered stand-in, the 1e30 ask reaches the fake and the worker releases | <span class="v v-yes">stable</span>: one method call with one argument; the sentinel value is a convention, not an API | <span class="v v-yes">yes</span> |
+| 6 | Partial load budget (`lowvram_model_memory`): load only as much of a model as fits after the reserve and keep the rest in RAM. The pager ignores this and decides page by page. | <span class="v v-yes">yes</span> on legacy; <span class="v v-no">no</span> under aimdo; via the registered stand-in, when the fake itself is loaded, `model_load` reads its budget and calls `partially_load` | <span class="v v-partial">fragile</span>: seven reads on the fake (`model_patches_to`, `model_dtype`, `partially_load`, `model_loaded_memory`, `load_device`, `is_dynamic`, `loaded_ram_size`); the last two arrived with aimdo in 2026 | <span class="v v-yes">yes</span> |
+| 7 | `LoadedModel` size questions: how the host asks each listed model how big it is and how much is on the card. The legacy count reads 0 for a paged model; only the pager's own count is right. | <span class="v v-no">no</span> for entries; the floor sums the worker's measured scalar into the reserve instead; via the registered stand-in, the fake must answer one scalar, max of aimdo and torch, and that scalar is double-booked on Linux | <span class="v v-partial">fragile</span>: `model_size`, `loaded_size`, `current_loaded_device`; `loaded_size` was reimplemented for the dynamic patcher (`mp.py:1809`) and the legacy one reads 0 for a paged model | <span class="v v-yes">yes</span> |
+| 8 | aimdo headroom fixed at init: each process's paging engine has a safety margin set once at startup that nobody can change afterwards. The setter is inert and a second init segfaults. | <span class="v v-partial">partial</span>: mirrored to workers at spawn only | n/a | <span class="v v-partial">partial</span>: needs a runtime setter |
+| 9 | Per-layer fault and aimdo's C-side eviction: each layer is fetched onto the card when needed and the pager decides for itself what to drop, from device-wide pressure. Torch never sees these pages. | <span class="v v-yes">yes</span>, with no coordination and none possible from Python | n/a | <span class="v v-partial">partial</span>: needs a cross-process priority signal nobody has proposed |
+| 10 | `model_unload` partial versus full: ask a model to shrink by the shortfall, else throw it out entirely. Returns True even if nothing was freed. | <span class="v v-no">no</span>; via the registered stand-in, the fake implements `loaded_size`, `partially_unload` returning real bytes, and `detach` | <span class="v v-partial">fragile</span>: `partially_unload` has a return contract (a short answer escalates to `detach`) and a second dynamic implementation via `vbar_free_memory`, both 2026 | <span class="v v-yes">yes</span> |
+| 11 | OOM branch in `execution.py`: on out-of-memory the host logs a summary, clears every model and stops the run. No retry. | <span class="v v-partial">partial</span>: a worker OOM crosses as the real class so the branch fires; host models are freed, worker models are not; via the registered stand-in, same call as row 5 | <span class="v v-yes">stable</span>: same call as row 5 | <span class="v v-partial">partial</span>: only a holder adds its own line to the summary |
+| 12 | `/free` with `free_memory`: the stronger button also throws away every remembered step result, including results a worker sent back. | <span class="v v-no">no</span>; via the registered stand-in, the fake hears the unload, never the cache reset | <span class="v v-yes">stable</span>: for the half it hears | <span class="v v-partial">partial</span>: needs a cache reset hook |
+| 13 | `cleanup_models` prune: whenever a model object dies, the host erases every list entry whose `real_model()` is gone. | <span class="v v-yes">yes</span>, nothing to do; via the registered stand-in, the fake's wrapper carries a `real_model` weakref | <span class="v v-partial">fragile</span>: the prune assumes every entry went through `model_load`; comfy-env sets `real_model` and `model_finalizer` by hand (`pool.py:1318-1324`), matching internals upstream never promised | <span class="v v-yes">yes</span> |
+| 14 | Prompt boundary signals: the prompt id in `comfy_execution.progress`, and the merged cache provider hooks for job start and end. | <span class="v v-yes">yes</span> for the id; the provider is merged and comfy-env registers none | n/a | <span class="v v-yes">yes</span>, already merged |
+| 15 | `model_load` and the finalizer tripwire: loading a listed model also plants a weakref that erases its entry when the model dies. | <span class="v v-no">no</span>; via the registered stand-in, the host calls `partially_load` on the fake and takes a weakref on `.model.model` | <span class="v v-partial">fragile</span>: `.model.model` must be a stable weakref-able object forever; `model_patches_to` and `model_dtype` are read on the way | <span class="v v-yes">yes</span> |
+| 16 | Entry identity and the dead-entry sweep: the list holds a weak grip on each model; if the owner vanishes while weights remain, the host runs a full garbage sweep. | <span class="v v-partial">partial</span>: effect yes, visibility no; via the registered stand-in, comfy-env must hold the fake's patcher strongly or the sweep reports it dead on every load | <span class="v v-partial">fragile</span>: `__eq__` is `.model` identity, `is_dead` reads the weakref, and `_switch_parent` rebinds to `.parent` when a clone dies, all 2026 | <span class="v v-yes">yes</span> |
+| 17 | Clone dedup and `is_clone` probing: before every load the host checks whether this model or a twin is already listed and throws out the twin. | <span class="v v-no">no</span>, and not needed; via the registered stand-in, `is_clone` answers False and `__eq__` never matches | <span class="v v-no">broke</span>: this is where the proxy broke twice; every load runs `is_clone`, `__eq__` and `model_patches_models()` against the fake first, so any new read lands here | <span class="v v-yes">yes</span> |
+| 18 | `is_dynamic` gate and the per-node ledger walk: a yes or no tag deciding whether the host digs into a model's pinned-RAM internals after every step. | <span class="v v-yes">yes</span>: the worker resets its own; via the registered stand-in, the fake answers `is_dynamic()` False and nothing deeper is read | <span class="v v-no">broke</span>: answering True means faking six positional tuples in `dynamic_pins`, a layout that moved twice this year (2026-05, 2026-07) | <span class="v v-yes">yes</span> |
+| 19 | Pin eviction ladder: when machine RAM gets tight, listed models let go of their locked RAM, models not used by this job first. Reads machine-wide available RAM. | <span class="v v-partial">partial</span>: worker pins are invisible, but the worker stops at the same 2 GiB floor; via the registered stand-in, only by faking that tuple layout | <span class="v v-no">broke</span>: the most churned surface in the file | <span class="v v-partial">partial</span>: needs a pin facet nobody has described |
+| 20 | `--disable-smart-memory`: forget every model after each run; every eviction ask becomes 1e32. | <span class="v v-yes">yes</span> to read; the prompt-end unload is invisible; via the registered stand-in, every ask is 1e32 and the fake unloads every time, which is what the flag means | <span class="v v-yes">stable</span> | <span class="v v-yes">yes</span> |
+| 21 | Node output cache and RAM-pressure release: the host keeps every step's results and drops the oldest and biggest when RAM runs low. Worker results are in that pile. | <span class="v v-yes">yes</span> for outputs | n/a | <span class="v v-partial">partial</span> |
+| 22 | Allocator cache release (`soft_empty_cache`): hand the driver back the memory torch kept in its pocket, after an eviction, after a run, before a retry. | <span class="v v-yes">yes</span>: every floor `free_memory` call reaches it; via the registered stand-in, no entry reads | <span class="v v-yes">stable</span> | <span class="v v-yes">yes</span> |
+| 23 | `loaded_models()` leak into node code: controlnet and a few extras nodes borrow the list and hand it straight back to `load_models_gpu`, so anything in it is treated as a real model. | <span class="v v-no">no</span>; via the registered stand-in, with `currently_used` True the fake is handed back to `load_models_gpu` and runs rows 2, 6, 15, 17 again; `multigpu.py` reads `load_device`, `clone_base_uuid` and calls `clone()` | <span class="v v-no">broke</span>: four callers outside `model_management.py` read the list unfiltered, and node code can read anything | <span class="v v-yes">yes</span> |
+| 24 | Interrupt flag: the stop button, checked before every node and every cast. It returns memory mid-step by unwinding. | <span class="v v-partial">partial</span>: forwarded at progress callbacks only | n/a | <span class="v v-no">no</span>: it is a call into the worker, not a holder interface |
+| 25 | `unload_model_and_clones`: throw out one model and its copies but keep everything else, using the same 1e30 as the button. | <span class="v v-no">no</span>; via the registered stand-in, the fake's `clone_base_uuid` must never be None, or it is dropped from the keep list and freed on someone else's eviction | <span class="v v-partial">fragile</span>: `clone_base_uuid` is an internal identity two callers compare directly | <span class="v v-yes">yes</span> |
+| 26 | `GET /system_stats`: the numbers the UI gauge shows. Worker allocations show as used, never as reclaimable. | <span class="v v-partial">partial</span> | n/a | <span class="v v-partial">partial</span> |
+| 27 | `MAX_PINNED_MEMORY` and hostbuf ceilings: every process assumes it may lock most of the machine's RAM, so N processes promise N times the RAM. | <span class="v v-partial">partial</span>: mirrored, but not what binds | n/a | <span class="v v-partial">partial</span>: needs a coordinator |
+
+</div>
+
+Three things fall out of the table:
+
+- **The stand-in is the mechanism, not an option.** Rows 1, 5, 10, 11 and 15
+  are reachable only because a fake model for each worker model sits in
+  ComfyUI's list. Without it the host can decline to take memory it does not
+  have, which is useful, but it cannot take memory back, which is the half
+  that matters when the card is already full.
+- **That is also the whole of the risk.** Rows 17, 18, 19 and 23 are marked
+  broke: the host runs those reads against the stand-in on every load, and
+  that is where both historical breaks landed. Everything else comfy-env
+  does is reading values and publishing one number.
+- **Only upstream fixes** rows 4, 8, 9, 12, 19, 26 and 27. Row 14 is the
+  counterexample: the cache provider is already merged and comfy-env does
+  not register one.
+
+??? note "Twenty-three more behaviours already work inside a worker and need no bridge"
+
+    These are per process by nature. A worker runs the same manager on the
+    same tree, so it already gets them right for its own models. Listed so
+    the reader can see what a bridge does *not* have to carry.
+
+    | # | Behaviour | ELI5 | Why it already works in a worker |
+    |---|---|---|---|
+    | 1 | `ModelPatcher.clone` | A second remote control for the same TV, not a second TV | A MODEL never crosses the boundary, so the host never clones a worker model |
+    | 2 | LoRA patching, baked or applied per forward | Stickers on the weights | Entirely inside the process that owns the module |
+    | 3 | Legacy load, partial load, partial unload, unpatch | Put as much on the card as fits, move layers back when told | The worker runs the real code on its own models |
+    | 4 | `ModelPatcherDynamic.load` and per-layer paging | Reserve the seats, walk people in only when called | Each process owns its vbars and its aimdo context |
+    | 5 | aimdo's own accounting (`get_total_vram_usage`, `loaded_size`) | The pager's own scoreboard, the only one right for a paged model | The worker reads its own context and publishes one scalar |
+    | 6 | Pinned RAM registration | Lock the weights' RAM pages so the card can pull them fast | The worker pins into its own ledger and its own hostbufs |
+    | 7 | `ensure_pin_budget` against machine-wide available RAM | Before locking more RAM, check the whole machine still has 2 GB spare | One machine-wide number, so every process stops at the same floor with no coordination |
+    | 8 | `set_ram_cache_release_state` | Before locking RAM, ask the results cache to make space first | Per process; a worker can set its own headroom without touching the host |
+    | 9 | Model files through the page cache (`load_safetensors`, `safe_open`) | Point at the file instead of copying it; two programs pointing at one file share one copy | The kernel shares pristine pages across processes under both mappings |
+    | 10 | `read_tensor_file_slice_into` | Read the layer straight from the file into the fast lane | Per process |
+    | 11 | Cast buffers and their per-node reset | Scratch space on the card for the layer being copied, wiped after every step | The worker runs its own reset at its node boundary |
+    | 12 | `PromptModelTracker` marks | A sticky note "in use by this job" so the RAM bouncer picks someone else first | The worker reads the prompt id at its call boundary and marks its own models |
+    | 13 | Dtype decisions (`should_use_fp16`, `unet_dtype`) | Whether a model is stored at full, half or quarter size | All dtype flags are mirrored as resolved values |
+    | 14 | `vram_state` (`--lowvram`, `--highvram`, ...) | The big dial for how aggressively models stay on the card | Crosses per call on the budget request; the three vram flags are deliberately not mirrored |
+    | 15 | Placement (`unet_offload_device`, `vae_device`, ...) | Where each kind of model is born and parked | Per process, and Linux free memory already sees worker VRAM |
+    | 16 | `get_total_memory` | How big the card is | Each process reads the same card |
+    | 17 | aimdo enable and pressure flags | Whether paging is on and how it senses pressure | Exported to workers as env vars; the worker follows the host's resolved state |
+    | 18 | Stream, pinning, mmap and allocator flags | How many lanes copy weights, whether RAM is locked, which allocator is used | Mirrored as resolved values; `cudaMallocAsync` is inherited |
+    | 19 | Cache type flags (`--cache-ram`, `--cache-none`, ...) | How much the host remembers between runs | Executor side; workers run no queue |
+    | 20 | OOM recognition and retry smaller (VAE tiling, attention halving) | Recognise "out of memory" and retry at a smaller size | Runs on the worker's own allocator, which is the right process |
+    | 21 | Interrupt checks inside node loops | Long loops peek at the Cancel flag | The code runs unchanged on the worker's own flag; the host never sets it (see row 24 above) |
+    | 22 | `set_cudnn_benchmark` after node import | Undo plugins that turned on a memory-hungry speed setting | The worker sets its own policy at import |
+    | 23 | `hook_breaker` save and restore | ComfyUI repeatedly undoes a specific kind of plugin tampering | Not a worker behaviour; listed because a planted list entry is data rather than a patched function, so it is immune, while a wrap is not |
 
 ## Question: are we able to exactly replicate ComfyUI memory management across comfy-env isolated processes?
 
@@ -440,69 +612,42 @@ It does not patch ComfyUI to do any of that. It reads values ComfyUI already
 exposes, writes one number ComfyUI already reads, and calls two of its
 public functions.
 
-## The one setting
+## What an operator can switch
 
-```
-COMFY_ENV_MEMORY_MANAGEMENT=auto     # default
-```
+Nothing, by default, and that is deliberate: the floor is either right or it
+is a bug, not a preference. Two switches exist.
 
-An ordered level, not a set of flags, because the features are not
-independent: every pin feature is downstream of paging, since ComfyUI's
-eviction skips models that are not dynamic.
+`COMFY_ENV_MEMORY_OBSERVER=on` adds a read-only listener to ComfyUI's loaded
+model list, which reports holding nothing and exists only to hear the calls
+that never leave the host process. It is off because it is a second object
+of ours in that list, and objects in that list are what broke comfy-env
+twice.
 
-| Level | What it turns on |
-|---|---|
-| `off` | Nothing. Packs load models the way any process would |
-| `ledger` | The reserve, the ask path, and idle release. ComfyUI's own low-VRAM streaming handles big models |
-| `paged` | comfy-aimdo pages weights per layer, so a pack holds a fraction of its model resident. Prompt marks come with this level, never separately |
-| `shared` | Packs also return pinned system RAM when the machine is short of it |
-| `auto` | The highest level your ComfyUI and environment actually support |
+`COMFY_ENV_WORKER_AIMDO=0` stops a worker from paging even when the host
+does. A worker follows its host by default, because the two share a card and
+must decide residency the same way.
 
-### What each level needs, measured
+There used to be a third, `COMFY_ENV_MEMORY_MANAGEMENT`, an ordered level
+from `off` to `shared`. It was deleted in favour of saying so here: nothing
+read it. What it claimed to gate is decided instead where it can actually be
+known, by each worker, from the manager and the library versions it resolved
+to at startup.
 
-Computed by sweeping comfy-env's contract over 5866 upstream commits
-(`research/memory-floor/sweep_contract.py`); re-run it rather than trusting
-this table:
+## Why a worker on the legacy ledger is fine
 
-| Level | Works with ComfyUI from | Bounded by |
-|---|---|---|
-| `ledger` | ~September 2024 | `EXTRA_RESERVED_VRAM` |
-| `paged` | between late 2025 and early 2026 | `ModelPatcherDynamic`, plus comfy-aimdo 0.4.10 |
-| `shared` | mid 2026 | `free_pins` |
-
-The floor reaching back two years is the point of the design. Features that
-need a recent ComfyUI degrade to it **by name** rather than failing.
-
-### When it drops a level, it says so
-
-An **unrequested** demotion is loud:
-
-```
-[comfy-env] memory management: auto selected ledger: comfy-aimdo is not
-usable in this worker environment
-```
-
-A **requested** one is silent. Choosing `ledger` on a RAM-poor machine is a
-decision, not a fault, and warning about it every time would train you to
-ignore the channel that carries the real demotions. Four environments on the
-development machine were silently running a different memory manager than
-their host, which is the failure this polarity exists to prevent.
-
-Asking for a level the host cannot support runs the highest it can and says
-which requirement was missing, with the ComfyUI commit that would provide
-it. It never refuses to start a pack over an unavailable memory feature.
-
-## Why `ledger` is a real choice, not a fallback
-
-It is not simply "paged minus paging":
+A worker follows its host, so this is the case where the host itself is not
+paging. It is not simply "paging minus the paging":
 
 * **Zero pinned system RAM.** Paging costs roughly twice the model size in
   host RAM for pinned buffers. On a RAM-poor machine that is the dominant
-  cost, and `ledger` avoids it entirely.
+  cost, and the ledger avoids it entirely.
 * **Big models still run.** ComfyUI's own low-VRAM streaming loads what fits
   and pulls the rest per step. Paging buys residency and speed, not
   feasibility.
-* **The widest compatibility of any level**, by about eighteen months.
+* **The widest compatibility**, by about eighteen months.
+* **The reserve is preventive there**, which it is not on the paged path:
+  ComfyUI's partial-load budget shrinks with the reserve, while the pager
+  decides residency at fault time and has to be told separately.
 
 ## The optional observer
 
@@ -542,7 +687,6 @@ while packs are busy.
 
 | Line | Meaning |
 |---|---|
-| `memory management: auto selected <level>: <reason>` | A level below the maximum was chosen; the reason names what was missing |
 | `admission tight env=... need=... true_free=...` | A pack asked for more than was free; the host was asked to evict |
 | `idle release: <pack> gave back N GB` | A quiet pack returned its VRAM |
 | `PIN REGRESSION env=... active_evicted=...` | Pins were taken from a model that was still in use. Should never appear; report it |
