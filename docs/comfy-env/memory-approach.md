@@ -17,7 +17,7 @@ Two rules were meant to keep this honest:
    correct until you have to lie about one field, and maintainable until
    the person who wrote it moves on.
 
-We kept the first rule. We broke the second one, and we knew we were doing it.
+Unfortunately while we were able to keep the first rule, we could not avoid breaking the second one to guarantee a modicum of usability for comfy-env.
 
 Nothing outside a process can free that process's memory. The host has to be
 able to ask, and the only place ComfyUI asks anything is the list it walks in
@@ -25,8 +25,7 @@ able to ask, and the only place ComfyUI asks anything is the list it walks in
 It holds no weights. When ComfyUI evicts it, it forwards the request over IPC
 and the worker does the real unload.
 
-That is the compromise, it is the only part of this design that keeps us up
-at night, and the next section is the case against it.
+That is the compromise, it is the only part of comfy-env's design that we truly dislike, and the next section is the case against it.
 
 ### Why that second rule is a compromise, and what would replace it
 
@@ -34,7 +33,7 @@ The stand-in is not a design we would choose. It is what is available to
 guarantee functioning, and it fails all three of the tests in rule two.
 
 **It is not stable.** It has to answer eighteen attributes of ComfyUI's
-internals, none of which upstream ever promised, and both of comfy-env's
+internals, none of which upstream ever promised to keep stable, and both of comfy-env's
 user-visible breakages in a year were a new attribute read landing on it
 during someone's workflow. The eviction loop grew a whole new branch when
 comfy-aimdo landed; `loaded_size` was reimplemented for the paged patcher;
@@ -42,18 +41,15 @@ the pinned-memory tuple layout it must not touch moved twice in one year.
 None of those were breaking changes to anyone else, because none of it is an
 interface.
 
-**It is not correct.** It answers questions whose true answers live in
-another process, and some of its answers are knowingly false. It reports
-`is_dynamic()` as False even when the model it stands for is paged, on
-purpose, to stay out of the pinned-memory paths where most upstream churn
-lives: ComfyUI then reasons about a paged model as though it were a legacy
-one. Its sizes are a single measured scalar standing in for three different
-questions ComfyUI asks. And an eviction it cannot deliver, because the
-worker is mid-forward, is reported to ComfyUI as done: upstream's
-`model_unload` returns True even when nothing was freed, so the entry is
-dropped from the list while the memory is still resident, and comfy-env has
-to put it back at the next node boundary. Every one of those is a small lie
-told to keep a larger thing working.
+**It is not correct.** It has to answer for memory it does not hold, and
+four of its answers are not true: (1) it tells ComfyUI a paged model is not
+paged, to stay out of the pinned-memory paths where the churn lives; (2) it
+answers three different size questions from one measured number; (3) an
+eviction it could not deliver, because the worker was busy, is reported as
+done, because upstream's return value has no way to say "ask me later"; and
+(4) on Linux the size it reports is already counted in the host's own free
+figure. Each is deliberate, each has a cost, and they are worked through in
+[why the system is imperfect](why-imperfect.md).
 
 **It is not easily maintainable.** There is no contract to check against, so
 the way we track upstream is a test that greps ComfyUI's source for the

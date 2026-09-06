@@ -62,6 +62,7 @@ nav:
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
       - Memory management:
           - comfy-env's memory management: comfy-env/memory-approach.md
+          - Why the system is imperfect: comfy-env/why-imperfect.md
           - Memory management context:
               - Overview: comfy-env/memory-context.md
               - ComfyUI memory management background: comfy-env/comfyui-memory.md
