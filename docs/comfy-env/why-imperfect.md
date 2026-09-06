@@ -2,7 +2,7 @@
 
 comfy-env registers a stand-in object in ComfyUI's loaded-model list for
 every model a worker holds. It has to answer for memory it does not hold, and
-four of its answers are not true. Here is each one, why it is that way, and
+three of its answers are not true. Here is each one, why it is that way, and
 what it costs.
 
 These are not bugs waiting for a fix. They are what standing in for an object
@@ -56,60 +56,7 @@ from an approximation. On a card with one host model and one worker model the
 choice is between two things and the ordering barely matters; with several of
 each it can evict something more expensive than it needed to.
 
-## 3. An eviction it could not deliver is reported as done
-
-Sometimes the stand-in cannot deliver an unload. When that happens, ComfyUI
-is told the memory came back anyway.
-
-**When a send fails.** A busy worker is not the problem. Nodes run one at a
-time, so the host is not loading models while a pack's node computes, and a
-worker blocked waiting on the parent for a memory budget still services
-eviction commands from its receive loop (`_call_parent` handles
-`model_to_device` and the partial load and unload commands).
-
-The send fails when the worker is alive and does not answer: wedged,
-deadlocked, or past the command timeout. The weights are still on the card.
-
-**Why it gets reported as done.** ComfyUI's own code, in
-`model_management.py`:
-
-```python
-if memory_to_free < self.model.loaded_size():
-    freed = self.model.partially_unload(self.model.offload_device, memory_to_free)
-    if freed >= memory_to_free:
-        return False          # the partial unload was enough, keep it listed
-self.model.detach(unpatch_weights)
-return True                   # fully unloaded, caller pops it from the list
-```
-
-The stand-in honestly reports freeing zero bytes. Zero is less than what was
-asked, so the code falls through to `detach()` and returns **True
-unconditionally**. True means "this model is gone, remove it from the list",
-and the caller does exactly that, while the memory is still resident in a
-process nobody could reach.
-
-`model_unload` has no way to express "I could not reach it". Its return value
-is a boolean meaning "did you fully unload", and there is no third answer for
-"ask me again later". A real in-process model can always be unloaded, so
-upstream never needed one.
-
-**What it costs.** ComfyUI's ledger loses track of resident memory. That is
-worse than it sounds, because the entry being gone means the model is never
-picked for eviction again, and every later admission decision is computed
-against a card believed to have that much more free than it does.
-
-comfy-env repairs it rather than preventing it. The stand-in keeps
-`loaded_size` unchanged, so ComfyUI keeps escalating instead of believing the
-bytes came back, and the entry goes back into the list at the next node
-boundary. The window is one node.
-
-This is also why the stand-in separates "no answer" from "the process died".
-A dead worker took its VRAM with it, so reporting that model as offloaded is
-true and the entry should stay gone. Collapsing the two into one failure
-would either strand memory that is genuinely free or discard memory that is
-genuinely resident.
-
-## 4. On Linux, its size is already counted
+## 3. On Linux, its size is already counted
 
 `get_free_memory` on Linux reports device-wide free memory, so every byte a
 worker holds is already missing from it. The stand-in also reports those bytes
@@ -129,9 +76,9 @@ sum. comfy-env keeps it out by holding `currently_used` permanently False, so
 the filtered version of that list never contains it, which works and is one
 line away from not working.
 
-## What would remove all four
+## What would remove all three
 
-Not a better stand-in. All four exist because the object must answer for
+Not a better stand-in. All three exist because the object must answer for
 memory it does not hold, and no amount of care makes an approximation exact.
 
 They are removed by ComfyUI gaining a way for an outside process to say how
