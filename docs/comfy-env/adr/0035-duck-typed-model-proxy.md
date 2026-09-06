@@ -11,9 +11,11 @@
     exist at all has swung back to yes. ADR-0038 briefly deprecated it in
     favour of a default-off observer; that was corrected on 2026-09-05, when
     it turned out reclaim depends on this object entirely, and the observer
-    was deleted in September 2026. Both of comfy-env's loud breakages came
-    through this object, which is an argument for the honesty rules below,
-    not for removing the only bridge upstream eviction has into a worker.
+    was deleted in September 2026. Every defect ever found in this object
+    came through it, which is an argument for the honesty rules below, not
+    for removing the only bridge upstream eviction has into a worker. The
+    defects are listed further down, and they are worth reading for what
+    they are NOT: not one of them is an attribute read.
 
 ## Decision
 

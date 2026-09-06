@@ -167,9 +167,11 @@ correction is a double count there and is applied on WDDM only. See
     workers through the stand-in's own `detach`, and host pressure now arrives
     on the stand-in's `partially_unload`, which is handed the exact shortfall.
 
-    Both of comfy-env's loud breakages did come through this object, and the
+    Every defect found in this object so far has come through it, and the
     design reasoning below is why a duck type beat a subclass. That reasoning
-    is the reason it is safe to keep, not an argument for replacing it.
+    is the reason it is safe to keep, not an argument for replacing it. Note
+    what the defects actually were: wrong numbers, found by audit, not
+    attribute reads found by users.
 
 comfy-env registers a stand in object into `current_loaded_models` so upstream
 can evict a worker's model the way it evicts its own. That object declares its

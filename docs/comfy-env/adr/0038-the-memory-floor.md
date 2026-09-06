@@ -78,8 +78,13 @@ partition only when aimdo pages.
 ### Reclaim was priced wrong
 
 [ADR-0035](0035-duck-typed-model-proxy.md)'s proxy exists so ComfyUI can
-evict a worker's model. Both of comfy-env's loud breakages in twelve months
-came through it: a new unguarded `.model.<x>` read landing on a fake object.
+evict a worker's model. Every defect ever found in comfy-env's stand-in
+came through it, though not in the shape this ADR assumed. It assumed a new
+unguarded `.model.<x>` read landing on a fake object. What the audit of
+2026-08-15 actually found was four wrong numbers and one raise of our own
+making, and no user has yet seen an `AttributeError` from this object.
+comfy-env has been public since 2026-04-25, so the record is 134 days long
+and contains zero instances of the failure the design is built around.
 Against *nothing* that is a fair trade. Against a worker that releases on
 its own it buys only latency, in one narrow window:
 
