@@ -6,17 +6,27 @@ Unfortunately, every bit of its current strategy assumes that everything is runn
 
 comfy-env isolated nodepacks instead run in separate subprocesses, and models occupy the same RAM and GPU/accelerator memory as ComfyUI's. Neither side can see the other's allocations directly.
 
-In trying to implement a solution for comfy-env, it was tried to abide by two rules:
+Two rules were meant to keep this honest:
 
-1. **comfy-env never patches the host ComfyUI.** No function is replaced, no
-   class is hooked. Upstream ships a file whose whole job is to undo custom
-   node patching, on a timer, so anything built that way is built on sand.
-2. **comfy-env never duck types**, for stability, correctness and
-   maintainability reasons, in that order.
+1. **Do not patch the host.** Replace no function, hook no class. Upstream
+   ships a file whose entire job is to undo custom node patching, and it
+   runs on a timer. Build on that and you have built on sand.
+2. **Do not pretend to be something you are not.** No object of ours
+   impersonating one of theirs. Anything that works by imitating an
+   interface nobody wrote down is stable until they change their minds,
+   correct until you have to lie about one field, and maintainable until
+   the person who wrote it moves on.
 
-Unfortunately we weren't able to do something satisfactory.
-Currently, comfy-env puts one object per worker model in ComfyUI's list, and this is the part we are not happy with.
-Nothing outside a process can free that process's memory, so the host has to be able to ask, and the only place ComfyUI does any asking is the list it walks in `free_memory`. So we put a stand-in there. It holds no weights; when ComfyUI evicts it, it forwards the request over IPC and the worker does the real unload.
+We kept the first rule. We broke the second one, and we knew we were doing it.
+
+Nothing outside a process can free that process's memory. The host has to be
+able to ask, and the only place ComfyUI asks anything is the list it walks in
+`free_memory`. So there is one object of ours in that list per worker model.
+It holds no weights. When ComfyUI evicts it, it forwards the request over IPC
+and the worker does the real unload.
+
+That is the compromise, it is the only part of this design that keeps us up
+at night, and the next section is the case against it.
 
 ### Why that second rule is a compromise, and what would replace it
 
