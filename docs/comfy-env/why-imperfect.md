@@ -65,14 +65,10 @@ is told the memory came back anyway.
 time, so the host is not loading models while a pack's node computes, and a
 worker blocked waiting on the parent for a memory budget still services
 eviction commands from its receive loop (`_call_parent` handles
-`model_to_device` and the partial load and unload commands). Two things
-actually fail:
+`model_to_device` and the partial load and unload commands).
 
-* the worker process is **dead**. comfy-env handles this correctly: its VRAM
-  died with it, so reporting the model as offloaded is true;
-* the worker is **alive and did not answer**. Wedged, deadlocked, or past the
-  command timeout. The weights are still on the card, and this is the one
-  that matters.
+The send fails when the worker is alive and does not answer: wedged,
+deadlocked, or past the command timeout. The weights are still on the card.
 
 **Why it gets reported as done.** ComfyUI's own code, in
 `model_management.py`:
@@ -103,9 +99,15 @@ picked for eviction again, and every later admission decision is computed
 against a card believed to have that much more free than it does.
 
 comfy-env repairs it rather than preventing it. The stand-in keeps
-`loaded_size` unchanged when a live worker did not answer, so ComfyUI keeps
-escalating instead of believing the bytes came back, and the entry goes back
-into the list at the next node boundary. The window is one node.
+`loaded_size` unchanged, so ComfyUI keeps escalating instead of believing the
+bytes came back, and the entry goes back into the list at the next node
+boundary. The window is one node.
+
+This is also why the stand-in separates "no answer" from "the process died".
+A dead worker took its VRAM with it, so reporting that model as offloaded is
+true and the entry should stay gone. Collapsing the two into one failure
+would either strand memory that is genuinely free or discard memory that is
+genuinely resident.
 
 ## 4. On Linux, its size is already counted
 
