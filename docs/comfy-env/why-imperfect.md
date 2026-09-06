@@ -69,12 +69,41 @@ order the candidates, never to compute the target. So the double count has
 nowhere to land on the normal path.
 
 **Where it does land.** Node code outside `model_management.py` reads the
-loaded-model list and hands entries straight back to `load_models_gpu`:
-controlnet does it, three of the bundled extras nodes do it, and the multi-GPU
-node reads deeper still. There, the stand-in's size does enter an admission
-sum. comfy-env keeps it out by holding `currently_used` permanently False, so
-the filtered version of that list never contains it, which works and is one
-line away from not working.
+loaded-model list and hands entries straight back to `load_models_gpu`.
+controlnet does it, three of the bundled extras nodes do it, and the
+multi-GPU node reads it unfiltered. The stand-in is in that list with
+`currently_used` set True whenever its worker's model is on the card, so it
+is handed back along with the rest.
+
+The admission sum survives this, for a reason that is upstream's doing rather
+than ours. `model_memory_required` asks for the *offloaded remainder* when a
+model is already on the device it is being loaded to, not for its full size:
+
+```python
+def model_memory_required(self, device):
+    if device == self.model.current_loaded_device():
+        return self.model_offloaded_memory()      # size minus what is loaded
+    else:
+        return self.model_memory()                # full size
+```
+
+A resident worker model has nothing offloaded, so it contributes zero. The
+same memory is not counted twice.
+
+**What it does cost, and where the margin is thin.** Two things, neither
+fatal and neither comfortable:
+
+* `load_models_gpu` will call `model_load` on the stand-in, which for us means
+  IPC telling the worker to load. A controlnet node reloading the host's VAE
+  can therefore make a worker re-fault a model it had let go. That is latency,
+  not incorrectness, and only for a stand-in that was partly offloaded.
+* `multigpu.py` reads the list **unfiltered**, ignores `currently_used`
+  entirely, and calls `clone()` on entries that pass its filters. The stand-in
+  raises on `clone()`, because a worker model has no clone semantics the host
+  could use. It never gets there today: the checks above it compare
+  `load_device`, then `clone_base_uuid`, then an internal flag, and the
+  stand-in fails one of those first. That is line ordering in somebody else's
+  file, not a guarantee, and it is the single thinnest margin in this design.
 
 ## What would remove all three
 
