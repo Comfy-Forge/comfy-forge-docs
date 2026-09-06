@@ -1,15 +1,13 @@
 # Why the system is imperfect
 
-[comfy-env's memory management](memory-approach.md) states that the stand-in
-comfy-env registers in ComfyUI's loaded-model list is not stable, not
-correct, and not maintainable. This page is the long version of the middle
-one: the four places where the stand-in gives ComfyUI an answer that is not
-true, why each one is that way, and what it costs.
+comfy-env registers a stand-in object in ComfyUI's loaded-model list for
+every model a worker holds. It has to answer for memory it does not hold, and
+four of its answers are not true. Here is each one, why it is that way, and
+what it costs.
 
-None of these are bugs in the sense of "somebody will fix this". They are
-consequences of standing in for an object that lives in another process,
-against an interface nobody wrote down. They go away when
-[the upstream hook](memory-approach.md#the-ask-if-you-are-reading-this-from-upstream)
+These are not bugs waiting for a fix. They are what standing in for an object
+in another process costs, against an interface nobody wrote down. They go away
+when [the upstream hook](memory-approach.md#the-ask-if-you-are-reading-this-from-upstream)
 exists, and not before.
 
 ## 1. It says a paged model is not paged
@@ -60,23 +58,21 @@ each it can evict something more expensive than it needed to.
 
 ## 3. An eviction it could not deliver is reported as done
 
-The stand-in can fail to deliver an unload, and when it does, ComfyUI is told
-the memory came back anyway. Both halves of that need explaining, because the
-first is rarer than it sounds and the second is the actual problem.
+Sometimes the stand-in cannot deliver an unload. When that happens, ComfyUI
+is told the memory came back anyway.
 
-**When a send fails.** Not, as you might assume, because a worker is busy
-computing. Nodes run one at a time, so the host is not loading models while a
-pack's node is mid-forward, and even when a worker is blocked waiting on the
-parent for a memory budget, it keeps servicing eviction commands while it
-waits (`_call_parent` handles `model_to_device` and the partial load and
-unload commands in its receive loop). The realistic failures are narrower:
+**When a send fails.** A busy worker is not the problem. Nodes run one at a
+time, so the host is not loading models while a pack's node computes, and a
+worker blocked waiting on the parent for a memory budget still services
+eviction commands from its receive loop (`_call_parent` handles
+`model_to_device` and the partial load and unload commands). Two things
+actually fail:
 
-* the worker process is **dead**, which comfy-env distinguishes and handles
-  correctly, because a dead worker's VRAM died with it and reporting it as
-  offloaded is true;
-* the worker is **alive but did not answer**, which is the case that matters:
-  wedged, deadlocked, or slow enough to pass the command timeout. The weights
-  are still on the card.
+* the worker process is **dead**. comfy-env handles this correctly: its VRAM
+  died with it, so reporting the model as offloaded is true;
+* the worker is **alive and did not answer**. Wedged, deadlocked, or past the
+  command timeout. The weights are still on the card, and this is the one
+  that matters.
 
 **Why it gets reported as done.** ComfyUI's own code, in
 `model_management.py`:
@@ -106,12 +102,10 @@ worse than it sounds, because the entry being gone means the model is never
 picked for eviction again, and every later admission decision is computed
 against a card believed to have that much more free than it does.
 
-comfy-env catches it: the stand-in distinguishes "the worker died" from "the
-worker is alive and did not answer", keeps `loaded_size` unchanged in the
-second case so ComfyUI keeps escalating rather than believing the bytes came
-back, sets a flag, and re-inserts the entry at the next node boundary. The
-window is one node. It is a repair for a hazard we cannot prevent, not a
-design.
+comfy-env repairs it rather than preventing it. The stand-in keeps
+`loaded_size` unchanged when a live worker did not answer, so ComfyUI keeps
+escalating instead of believing the bytes came back, and the entry goes back
+into the list at the next node boundary. The window is one node.
 
 ## 4. On Linux, its size is already counted
 
