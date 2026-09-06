@@ -115,11 +115,21 @@ freeing by 680 MiB on a 12 GiB model and growing linearly.
 
 **Bad, and accepted.** The host cannot take VRAM back from a busy worker. It
 avoids over-committing and waits. During a host out-of-memory event, idle
-release cannot help, because the workers are not idle then. That is the case
-the optional observer exists for.
+release cannot help, because the workers are not idle then. What covers that
+case is the pressure hook on the stand-in's `partially_unload`: being asked at
+all is the notice that the host is short, and it posts an ask to idle siblings
+without blocking the eviction loop it fires from.
 
-**Also lost by default.** ComfyUI's Free-memory button no longer reaches
-workers unless the observer is enabled.
+**Amended, September 2026.** The optional observer this ADR introduced for the
+two paragraphs above was deleted. Its stated first purpose, making the
+Free-memory button reach workers, was already false: `unload_all_models` asks
+for 1e30, `LoadedModel.model_unload` compares that against `loaded_size`,
+loses, and calls `detach(True)` on the stand-in, so the button works with the
+observer off. Its second, hearing host pressure, moved onto the object
+upstream already calls. Keeping two objects in `current_loaded_models` with
+different defences was the direct cause of three wrong rows in the memory
+table, and one of them credited the stand-in with a clone sentinel that only
+the observer had.
 
 **Corrected, 2026-09-05.** This ADR treated the proxy as a leftover that
 nothing depended on. That was wrong, and the error mattered: reclaim depends

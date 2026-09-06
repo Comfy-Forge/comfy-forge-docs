@@ -7,12 +7,13 @@
 !!! warning "The proxy is on its way out"
 
     Everything below is still true of the object as built, and the two
-    honesty rules were the right ones. What changed is the verdict on
-    whether it should exist at all. Both of comfy-env's loud breakages in
-    twelve months came through it, and once workers release VRAM on their
-    own it buys latency rather than capability. Nothing in the memory floor
-    depends on it any more. The sanctioned pattern is now the optional
-    observer, which reports holding nothing and is off by default.
+    honesty rules were the right ones, and the verdict on whether it should
+    exist at all has swung back to yes. ADR-0038 briefly deprecated it in
+    favour of a default-off observer; that was corrected on 2026-09-05, when
+    it turned out reclaim depends on this object entirely, and the observer
+    was deleted in September 2026. Both of comfy-env's loud breakages came
+    through this object, which is an argument for the honesty rules below,
+    not for removing the only bridge upstream eviction has into a worker.
 
 ## Decision
 

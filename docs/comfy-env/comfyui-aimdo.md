@@ -261,14 +261,12 @@ whichever way each worker resolved. See
 
 Three consequences, measured against comfy-env `bda45b7` and re-checked at `f1f8260`:
 
-- **The eviction bridge is now optional and off.** comfy-env's stand-in
-  answered `is_dynamic()` with `False` deliberately, so upstream's
-  dynamic-model bypass did not skip it, and the worker's model was the only
-  entry upstream could actually evict. That object is deprecated
-  ([ADR-0038](adr/0038-the-memory-floor.md)): host-driven reclaim of worker
-  VRAM is dropped in favour of workers releasing on their own, and what
-  replaces it is a read-only observer that reports holding nothing and is off
-  by default.
+- **The eviction bridge is the stand-in, and it is on.** comfy-env's stand-in
+  answers `is_dynamic()` with `False` deliberately, so upstream's
+  dynamic-model bypass does not skip it, and the worker's model stays an entry
+  upstream can actually evict. This is the only path by which upstream's own
+  code takes VRAM from another process, and comfy-env registers one for every
+  worker model unconditionally.
 - **Evicting a host model here is expensive.** comfy-env's request takes
   `for_dynamic=False`, which hard-unloads aimdo models rather than letting them
   shed pages. An eviction sets that VBAR's watermark, so the host model can stay

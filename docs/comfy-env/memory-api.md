@@ -158,17 +158,18 @@ correction is a double count there and is applied on WDDM only. See
 
 !!! warning "This section describes a mechanism on its way out"
 
-    Registering a stand-in for a worker's model was how comfy-env let upstream
-    evict across the process boundary. Both of comfy-env's loud breakages in
-    twelve months came through that object, and once workers release VRAM on
-    their own it buys latency rather than capability, so host-driven reclaim
-    was dropped ([ADR-0038](adr/0038-the-memory-floor.md)). Nothing in the
-    memory floor depends on it. What remains sanctioned is a read-only
-    observer that reports holding nothing and is **off by default**; the
-    object below is still registered but is scheduled for removal.
+    An earlier revision of this page said the object below was deprecated and
+    scheduled for removal, replaced by a read-only observer that held nothing.
+    Both halves are now false. Registering a stand-in is the ONLY mechanism by
+    which upstream's own eviction reaches another process, and nothing else
+    can be substituted for it ([ADR-0038](adr/0038-the-memory-floor.md)). The
+    observer was deleted in turn: the Free-memory button already reaches
+    workers through the stand-in's own `detach`, and host pressure now arrives
+    on the stand-in's `partially_unload`, which is handed the exact shortfall.
 
-    The design reasoning that follows is still worth reading: it is why a
-    duck type beat a subclass, and it applies to the observer too.
+    Both of comfy-env's loud breakages did come through this object, and the
+    design reasoning below is why a duck type beat a subclass. That reasoning
+    is the reason it is safe to keep, not an argument for replacing it.
 
 comfy-env registers a stand in object into `current_loaded_models` so upstream
 can evict a worker's model the way it evicts its own. That object declares its
