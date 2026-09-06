@@ -11,15 +11,50 @@ Two rules, and the second one is not the one you would guess:
 - **comfy-env never patches the host ComfyUI.** No function is replaced, no
   class is hooked. Upstream ships a file whose whole job is to undo custom
   node patching, on a timer, so anything built that way is built on sand.
-- **comfy-env puts exactly one kind of object in ComfyUI's list, and keeps
-  its surface as small as it can.** Not zero. One stand-in per worker model,
-  because that is the only mechanism that exists: nothing outside a process
-  can free that process's memory, so the host has to be able to ask, and
-  asking means being in the list it walks.
+- **comfy-env puts one object per worker model in ComfyUI's list, and this
+  is the part we are not happy with.** Nothing outside a process can free
+  that process's memory, so the host has to be able to ask, and the only
+  place ComfyUI does any asking is the list it walks in `free_memory`. So we
+  put a stand-in there. It holds no weights; when ComfyUI evicts it, it
+  forwards the request over IPC and the worker does the real unload.
 
-The second rule is a cost, not a preference. It is also the entire fragile
-part of this system, and the rest of this page is largely about keeping it
-small enough to survive upstream changing things.
+### Why that second rule is a compromise, and what would replace it
+
+The stand-in is not a design we would choose. It is what is available. It
+has to answer eighteen attributes of ComfyUI's internals, none of which
+upstream ever promised, and both of comfy-env's user-visible breakages in a
+year were a new attribute read landing on it during someone's workflow.
+
+We went looking for alternatives properly, and the search is closed:
+
+* `load_models_gpu` and `free_memory` call out to exactly three things:
+  entries in that list, the pinned-memory helpers, and `logging`. There is
+  no callback, no event and no registry on either path. That is the reason
+  the stand-in exists, established by reading every line of both rather than
+  by assumption.
+* The operating system cannot substitute. There is no push notification for
+  device memory anywhere: NVML's event API has no memory bit, CUDA has no
+  callback, and VRAM is charged to no cgroup, so kernel pressure primitives
+  never see it. Polling device free is a lagging indicator, and per-process
+  attribution, which is what makes it usable at all, is unavailable on
+  Windows.
+* Host-side precursors are too late. On ComfyUI's real loading path, host
+  RSS leads the device allocation by 0.1 s, because the copy to the card is
+  what faults the pages in.
+
+**What we actually want is a hook in ComfyUI.** Something small: a way for
+software outside the process to say how much of the card it needs kept
+free, and to be asked to give memory back when the host runs short. Two
+methods, a registry, no knowledge of subprocesses in core, and no object
+pretending to be a model. `free_memory` would consult registered holders
+after its own models, exactly where it consults the pinned-memory helpers
+today. Upstream has accepted this shape before, for the results cache and
+for external pinned-memory pressure.
+
+Until that exists, the stand-in stays, because the alternative is that a
+pack's memory cannot be reclaimed at all. The rest of this page is largely
+about keeping it small enough to survive upstream changing things
+underneath it.
 
 ## ComfyUI background
 
@@ -740,6 +775,15 @@ There is no fix from inside comfy-env.
 worker has been measured holding, and before its first load there is nothing
 to measure. A pack could declare its own envelope; none does yet.
 
+**The stand-in is a compromise, and it is the thing most likely to break.**
+comfy-env answers eighteen attributes of ComfyUI's internals from an object
+that is not a model, because there is no other way for the host to ask a
+subprocess for memory back. Both user-visible breakages in a year came
+through it. It survives upstream changes by being watched, not by being
+safe: a test greps ComfyUI for the real access sites and fails when the set
+moves. The fix is not on our side. It is a small hook upstream, and the case
+for it is at the top of this page.
+
 **Multi-GPU accounting is wrong, not merely absent.** The budget callback,
 the stand-ins' load device, the device-total probe and the pager headroom
 are all the primary device or process-global, so a pack on the second card
@@ -772,6 +816,23 @@ report progress cannot be stopped mid-node. It finishes, then the queue
 stops.
 
 ---
+
+## The ask, if you are reading this from upstream
+
+Two methods and a registry, modelled on `set_ram_cache_release_state` and
+the cache provider registry, both of which already live in the tree:
+
+```python
+class MemoryHolder:
+    def reserved_memory(self, device) -> int: ...   # keep this much free
+    def release_memory(self, device) -> None: ...   # give it back now
+```
+
+`load_models_gpu` sums the reserves once per load and adds them to what it
+already computes. `free_memory` asks registered holders after its own
+models, where it already asks the pinned-memory helpers. Nothing changes
+when nobody registers, core learns nothing about subprocesses, and
+comfy-env deletes the stand-in and the eighteen attributes with it.
 
 ## Where to go next
 
