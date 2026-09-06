@@ -49,6 +49,16 @@ sibling's number does not move at all, at either size. The card does move.
 So this is not a torch artefact and not a rounding effect: the driver is
 answering a different question depending on who asks.
 
+One thing on the same card is NOT blind, and it matters: comfy-aimdo's pager.
+With a sibling holding 8 GiB, aimdo's own pressure reading fell 8311 MiB and
+tracked `nvidia-smi` to within 1 MiB, in the same process whose
+`cuMemGetInfo` moved zero. It loads `nvml.dll` itself rather than going
+through the CUDA driver, so on Windows the pager sees the card while ComfyUI
+sees only itself. Disabling NVML pressure collapses it back to the blind
+number exactly, which is how that was confirmed. Note the pager does this for
+itself; nothing forwards that view to ComfyUI, which keeps asking
+`mem_get_info`.
+
 A second reading from the same run: a bare CUDA context, created and
 otherwise unused, costs **119 MiB** device-wide here, reproducibly. That is
 the floor before torch loads a single cuBLAS or cuDNN handle, which is why
