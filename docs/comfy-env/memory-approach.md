@@ -323,12 +323,12 @@ Cells are yes, partial or no, with at most one clause of reason. Exposure is sta
 | # | What ComfyUI does | Today | How exposed that leaves us | Upstream |
 |---|---|---|---|---|
 | 1 | `free_memory` eviction ladder: when the card is short, the host walks its list of loaded models oldest first and asks each to leave until there is room. A model it never listed is never asked. | <span class="v v-yes">yes</span>: ComfyUI's own eviction loop reaches the stand-in we register for each worker model, and the worker unloads. This is the mechanism, and the whole of it: nothing else lets the host take memory from another process | <span class="v v-partial">fragile</span>: every pass reads `.device`, `.is_dead()`, `.model_offloaded_memory()`, `.model_memory()`, `.currently_used`, `.model.is_dynamic()` and `.model_unload()` on the fake; the loop body grew a dynamic branch (`:884-888`) when aimdo landed | <span class="v v-yes">yes</span> |
-| 2 | `load_models_gpu` admission: before loading a model, the host adds up model size plus 10 percent plus the reserve and frees that much first. | <span class="v v-yes">yes</span>: we can accurately detect free space from both host and subprocesses, and the reserve term is mirrored across the boundary; via the registered stand-in, the sum is over incoming models, the fake is never read | <span class="v v-yes">stable</span>: nothing reads the fake here | <span class="v v-yes">yes</span> |
-| 3 | The reserve, `EXTRA_RESERVED_VRAM` and `--reserve-vram`: how much of the card the host must always leave alone. Read on every load; the pager reads it only once, at startup. | <span class="v v-yes">yes</span>: preventive on the legacy path, where the partial load budget shrinks with it. On the paged path ComfyUI never forwards it, so comfy-env forwards its own copy to the pager (row 8) | <span class="v v-yes">stable</span>: not a list path | <span class="v v-yes">yes</span>, plus a runtime headroom setter for the paged half |
+| 2 | `load_models_gpu` admission: before loading a model, the host adds up model size plus 10 percent plus the reserve and frees that much first. | <span class="v v-yes">yes</span>: on Linux both sides read the same device wide free figure, so the sum is right without anything being declared; on Windows comfy-env supplies what the host cannot see. The stand-in is not read here, the sum is over incoming models | <span class="v v-yes">stable</span>: nothing reads the fake here | <span class="v v-yes">yes</span> |
+| 3 | The reserve, `EXTRA_RESERVED_VRAM` and `--reserve-vram`: how much of the card the host must always leave alone. Read on every load; the pager reads it only once, at startup. | <span class="v v-yes">yes</span>, and mostly not needed: on Linux the host already sees what packs hold, so comfy-env publishes only the operator's own `--reserve-vram`. On Windows, where the host sees nothing of a pack, it publishes what each pack holds now. Preventive on the legacy path, where the partial load budget shrinks with it; forwarded to the pager (row 8) for the paged one | <span class="v v-yes">stable</span>: not a list path | <span class="v v-yes">yes</span>, plus a runtime headroom setter for the paged half |
 | 4 | `get_free_memory`: "how much room is left", which also sizes batches. Driver free plus torch's idle cache; on Linux it covers the whole card, on Windows only the calling process. | <span class="v v-yes">yes</span> to read, not modifiable; via the registered stand-in, the fake's size never enters this number. Eviction targets are `required minus free`, and free already includes what the worker holds | <span class="v v-yes">stable</span>: ledger sizes only order the eviction candidates; the one way to double count is row 23, a node handing the fake back to `load_models_gpu` | <span class="v v-partial">partial</span>: upstream must choose free-side or ledger-side, never both |
 | 5 | `unload_all_models` and the Free button: an eviction ask for an absurd number (1e30) sent to every listed model between prompts. | <span class="v v-yes">yes</span>: the 1e30 ask reaches the stand-in and the worker releases. The button works | <span class="v v-yes">stable</span>: one method call with one argument; the sentinel value is a convention, not an API | <span class="v v-yes">yes</span> |
 | 6 | Partial load budget (`lowvram_model_memory`): load only as much of a model as fits after the reserve and keep the rest in RAM. The pager ignores this and decides page by page. | <span class="v v-yes">yes</span> on legacy: the host computes a budget for the stand-in and calls `partially_load`, which the worker performs. <span class="v v-no">no</span> under aimdo, where the pager ignores the budget and decides at fault time | <span class="v v-partial">fragile</span>: seven reads on the fake (`model_patches_to`, `model_dtype`, `partially_load`, `model_loaded_memory`, `load_device`, `is_dynamic`, `loaded_ram_size`); the last two arrived with aimdo in 2026 | <span class="v v-yes">yes</span> |
-| 7 | `LoadedModel` size questions: how the host asks each listed model how big it is and how much is on the card. The legacy count reads 0 for a paged model; only the pager's own count is right. | <span class="v v-partial">partial</span>: the stand-in answers one scalar, the max of aimdo and torch, never their sum. On Linux that scalar is also in the driver free figure, so a reserve built from it would double book; the floor charges growth beyond residency instead | <span class="v v-partial">fragile</span>: `model_size`, `loaded_size`, `current_loaded_device`; `loaded_size` was reimplemented for the dynamic patcher (`mp.py:1809`) and the legacy one reads 0 for a paged model | <span class="v v-yes">yes</span> |
+| 7 | `LoadedModel` size questions: how the host asks each listed model how big it is and how much is on the card. The legacy count reads 0 for a paged model; only the pager's own count is right. | <span class="v v-partial">partial</span>: the stand-in answers one scalar, the max of aimdo and torch, never their sum. On Linux that scalar is already in the driver free figure, so nothing is declared from it; on Windows, where it is not, it is what gets declared | <span class="v v-partial">fragile</span>: `model_size`, `loaded_size`, `current_loaded_device`; `loaded_size` was reimplemented for the dynamic patcher (`mp.py:1809`) and the legacy one reads 0 for a paged model | <span class="v v-yes">yes</span> |
 | 8 | aimdo headroom: each process's pager keeps a safety margin, and ComfyUI seeds it once at startup from `--reserve-vram` and never touches it again. The setter itself is live: changing it steers the next page fault. | <span class="v v-yes">yes</span> now: comfy-env forwards its published reserve into the pager's headroom at runtime, which is live at the next fault (measured: 6016 to 3456 MiB). ComfyUI itself still seeds it once at startup and never again | n/a | <span class="v v-partial">partial</span>: ComfyUI should forward its own reserve too, rather than leaving it to us |
 | 9 | Per-layer fault and aimdo's C-side eviction: each layer is fetched onto the card when needed and the pager decides for itself what to drop, from device-wide pressure. Torch never sees these pages. | <span class="v v-yes">yes</span>, with no coordination and none possible from Python | n/a | <span class="v v-partial">partial</span>: needs a cross-process priority signal nobody has proposed |
 | 10 | `model_unload` partial versus full: ask a model to shrink by the shortfall, else throw it out entirely. Returns True even if nothing was freed. | <span class="v v-yes">yes</span>: the stand-in implements `loaded_size`, `partially_unload` returning bytes actually moved, and `detach`. A short return escalates to detach, which is upstream's own contract | <span class="v v-partial">fragile</span>: `partially_unload` has a return contract (a short answer escalates to `detach`) and a second dynamic implementation via `vbar_free_memory`, both 2026 | <span class="v v-yes">yes</span> |
@@ -652,16 +652,29 @@ The design and the measurements behind it are
 
 ## What it does, in one sentence
 
-comfy-env does at runtime what `--reserve-vram` does at launch: it keeps
-ComfyUI honest about how much of the card is really available, asks ComfyUI
-to free its own models when a pack needs room, asks idle packs to shrink
-when the card is tight, and lets ComfyUI evict a pack's model through a
-stand-in in its own list.
+comfy-env lets ComfyUI evict a pack's model through a stand-in in its own
+list, asks ComfyUI to free its own models when a pack needs room, asks idle
+packs to shrink when the card is tight, and tells ComfyUI about the memory
+it cannot see for itself.
+
+That last part is smaller than it sounds, and deliberately so. On Linux the
+host's free-memory reading covers the whole card, so it already sees every
+byte a pack holds, models and CUDA context alike, and comfy-env declares
+**nothing**: the operator's own `--reserve-vram` is published unchanged. On
+Windows the same reading is the calling process's private budget and shows
+nothing of a pack, so comfy-env declares what each pack holds right now.
+
+**A reserve is a measurement here, never a prediction.** There used to be a
+forecast: a pack that had once held 6 GB had 6 GB held for it against the
+next time. It was one observation extrapolated, wrong when a pack spiked
+once on a big input and wrong again when a pack was about to need far more
+than it ever had. It is gone. The host takes memory back when it needs it,
+so it does not have to be stopped from taking it in advance.
 
 It patches nothing. It reads values ComfyUI already exposes, writes two
-numbers that already exist for this purpose (ComfyUI's `EXTRA_RESERVED_VRAM`
-and the pager's own headroom, both of which `--reserve-vram` sets at
-launch), calls public functions, and registers one object per worker model.
+numbers that exist for this purpose (`EXTRA_RESERVED_VRAM` and the pager's
+own headroom, both of which `--reserve-vram` sets at launch), calls public
+functions, and registers one object per worker model.
 
 ## What an operator can switch
 
@@ -698,7 +711,9 @@ paging. It is not simply "paging minus the paging":
 * **The widest compatibility**, by about eighteen months.
 * **The reserve is preventive there**, which it is not on the paged path:
   ComfyUI's partial-load budget shrinks with the reserve, while the pager
-  decides residency at fault time and has to be told separately.
+  decides residency at fault time and has to be told separately. On Linux
+  there is usually no added reserve to be preventive with, since the host
+  can see the packs, and reclaim does the work instead.
 
 ## The optional observer
 
@@ -771,9 +786,14 @@ process creating a CUDA context re-partitions VidMm — 50 MB was enough.
 Between our sample and ComfyUI's next iteration, the term can go stale.
 There is no fix from inside comfy-env.
 
-**The first load of each pack is a guess.** The reserve is built from what a
-worker has been measured holding, and before its first load there is nothing
-to measure. A pack could declare its own envelope; none does yet.
+**Nothing is held for a pack before it needs it.** comfy-env declares only
+what the host cannot see, so on Linux a pack that is about to load gets no
+space held in advance. The host may take that space first, and the pack then
+takes it back by evicting host models, which costs a reload rather than an
+error. On a card that is full either way, a workflow alternating between
+host nodes and pack nodes can pay that reload repeatedly. The fix is not a
+forecast, which was tried and removed; it is a pack declaring its own
+envelope in its manifest. None does yet.
 
 **The stand-in is a compromise, and it is the thing most likely to break.**
 comfy-env answers eighteen attributes of ComfyUI's internals from an object
