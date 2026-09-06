@@ -30,6 +30,30 @@ one sibling process growing while an observer polls:
 The card is down to 1.3 GB physically free and the observer still believes
 it has 15 GB.
 
+### The Linux control, same probe, same day
+
+The point of the table below is a contrast, so here is the other half of it,
+run with the same code on an RTX 3090, driver 580.126.20:
+
+| | holder's own free | sibling's own free | `nvidia-smi` free |
+|---|---:|---:|---:|
+| idle | 23,687 | 23,687 | 23,688 |
+| holder takes 4 GiB | 19,591 | **19,329** | 19,592 |
+| holder takes 10 GiB | 13,447 | **13,185** | 13,448 |
+
+The sibling tracks the holder to within 2 MiB, and its own reading agrees with
+`nvidia-smi` to within 1 MiB. VMM and legacy allocations behave identically
+here too. So the assumption the whole Linux branch rests on, that
+`reserve.charge()` may return zero because the host already sees what packs
+hold, is correct, and is now executed rather than read.
+
+Two numbers from that run are worth carrying elsewhere. A bare CUDA context
+costs **264 MiB** on this 3090, against 119 MiB on the 4060 Ti, so the context
+is a card and driver property and not a constant. And `cuMemGetInfo` reports a
+total of **24,122 MiB** where `nvidia-smi` reports 24,576: 454 MiB of the card
+is driver reserved and never appears in the CUDA total, so any arithmetic that
+starts from the `nvidia-smi` total and subtracts is 454 MiB optimistic.
+
 ### Re-measured at the driver, 2026-09-06
 
 The table above came through torch. Since the whole platform branch rests on
