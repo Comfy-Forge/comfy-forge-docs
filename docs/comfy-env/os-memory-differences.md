@@ -158,14 +158,19 @@ unexplained 10x slowdowns"*.
 
 ## What neither of them does
 
-**Neither reads a cgroup limit.** A full search of both repositories for
-`cgroup`, `memory.max` and `memory.limit_in_bytes` returns nothing. Every memory
-reading in both projects comes from `psutil`, which reports the host.
+**ComfyUI reads a cgroup limit. comfy-env does not.** This section used to say
+neither did, and that a search for `cgroup`, `memory.max` and
+`memory.limit_in_bytes` returned nothing across both repositories. That stopped
+being true on 2026-08-27, when ComfyUI merged `comfy/system_memory.py`, which
+reads all three and clamps total and available RAM to the container's limit.
+Everything downstream now honours it: the pin ceiling, the pin budget floor,
+the Windows swap gate, CPU free memory, and both cache eviction targets.
 
-Inside a container with a memory limit this means the pinned budget is computed
-against memory the process cannot use, the cache eviction thresholds never fire,
-and the container is killed before any of the careful arithmetic above gets a
-chance to act. Row 9 is not mitigated anywhere.
+comfy-env's own memory readings still come from `psutil`, which reports the
+host. So inside a container the two sides now disagree: ComfyUI sizes its pin
+budget and cache headroom against the cgroup, comfy-env sizes its against the
+machine. That is a smaller problem than the one this section described, and a
+different one.
 
 **WSL is treated as Linux.** There is a helper that detects it, and nothing calls
 it. So WSL takes the Linux branch of every decision on this page, including the

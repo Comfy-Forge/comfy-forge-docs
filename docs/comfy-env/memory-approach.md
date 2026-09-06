@@ -116,9 +116,10 @@ The stand-in is not a design we would choose. It is what is available to
 guarantee functioning, and it fails all three of the tests in rule two.
 
 **It is not stable.** It has to answer eighteen attributes of ComfyUI's
-internals, none of which upstream ever promised to keep stable, and both of comfy-env's
-user-visible breakages in a year were a new attribute read landing on it
-during someone's workflow. The eviction loop grew a whole new branch when
+internals, none of which upstream ever promised to keep stable. Every defect
+ever found in it came through that surface, though not in the shape this
+paragraph used to claim: they were wrong numbers found by audit, not attribute
+reads found by users. The eviction loop grew a whole new branch when
 comfy-aimdo landed; `loaded_size` was reimplemented for the paged patcher;
 the pinned-memory tuple layout it must not touch moved twice in one year.
 None of those were breaking changes to anyone else, because none of it is an
@@ -132,13 +133,16 @@ Linux the size it reports is already counted in the host's own free figure.
 Each is deliberate, each has a cost, and they are worked through in
 [why the system is imperfect](why-imperfect.md).
 
-**It is not easily maintainable.** There is no contract to check against, so
-the way we track upstream is a test that greps ComfyUI's source for the
-places it reads a list entry and fails when that set moves. That catches a
-change once we have the new ComfyUI in front of us. It cannot catch it
-before a user does, which is exactly how both breakages were found: not by
-our test suite, which passes against the version it was written for, but by
-somebody's workflow stopping mid-run.
+**It is not easily maintainable.** There is a contract, and it does not cover
+this. `contract.py` checks sixteen symbols comfy-env reads OFF ComfyUI, at
+startup, and refuses to start on a fatal gap. Every entry runs in that one
+direction; not one describes what ComfyUI reads off us, which is the direction
+that breaks. What covers this direction is a single test that greps ComfyUI's
+source for the places it reads a list entry and fails when that set moves.
+That catches a change once we have the new ComfyUI in front of us, never
+before. It also spent its entire life never executing, unmarked in a lane with
+no ComfyUI and deselected from the lane that had one, until it was wired up on
+2026-09-06.
 
 We went looking for alternatives properly, and the search is closed:
 

@@ -537,9 +537,12 @@ real byte budget, which is more than **State** and **Everything else** get.
       shortfall, nothing can act on it.
     * **`--cache-lru N` bounds item count, not bytes.** A hundred entries of
       unbounded size.
-    * **The poll reads the host's memory inside a container.** Nothing in the tree
-      reads a cgroup limit, so under `docker --memory` it sees the whole
-      machine's RAM and never evicts.
+    * **The poll now honours a cgroup limit, since 2026-08-27.**
+      `comfy/system_memory.py` reads `memory.max` and
+      `memory.limit_in_bytes` and clamps to the container's budget, so under
+      `docker --memory` the eviction threshold is the container's, not the
+      machine's. comfy-env's own readings still come from `psutil` and see the
+      machine, so the two sides disagree inside a container.
 
 ---
 

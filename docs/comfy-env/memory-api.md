@@ -143,10 +143,14 @@ loop. It is the single highest leverage member on the list.
 
 ### Contract one is not intercepted at all
 
-The worker imports `comfy.model_management` from the host ComfyUI tree and calls
-the real functions. There is no shim, no reimplementation and no divergence,
-because the worker is a real ComfyUI process in every respect except that it did
-not start the server.
+The worker imports `comfy.model_management` from the host ComfyUI tree and
+calls the real functions, with one exception that this section used to deny.
+`load_models_gpu` IS replaced: the worker assigns its own
+`_shimmed_load_models_gpu` over it, which measures the incoming models, asks
+the host to free room for them, writes back what the host says, and only then
+calls the original it saved. Nothing is reimplemented, and the real function
+still does the loading, but a reader who takes "no shim" literally will not
+understand where a worker's reserve comes from.
 
 The one thing it does do is **correct the numbers it reads**, because
 `get_free_memory` in a worker reports that process's own view -- though only
