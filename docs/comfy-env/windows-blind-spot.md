@@ -49,15 +49,39 @@ sibling's number does not move at all, at either size. The card does move.
 So this is not a torch artefact and not a rounding effect: the driver is
 answering a different question depending on who asks.
 
+The API family makes no difference, which is worth stating because it is the
+obvious objection to the table above. comfy-aimdo does not page with
+`cuMemAlloc`; it uses the CUDA virtual memory APIs, `cuMemCreate`, `cuMemMap`
+and `cuMemSetAccess`. Repeating the experiment with those, and again through
+aimdo's own `VRAMBuffer`, gives deltas identical to the legacy numbers to the
+MiB, at both 4 GiB and 10 GiB. The holder sees its allocation, the card moves,
+the sibling does not. VMM memory is charged to a WDDM process budget exactly
+as legacy memory is.
+
 One thing on the same card is NOT blind, and it matters: comfy-aimdo's pager.
 With a sibling holding 8 GiB, aimdo's own pressure reading fell 8311 MiB and
 tracked `nvidia-smi` to within 1 MiB, in the same process whose
 `cuMemGetInfo` moved zero. It loads `nvml.dll` itself rather than going
 through the CUDA driver, so on Windows the pager sees the card while ComfyUI
-sees only itself. Disabling NVML pressure collapses it back to the blind
-number exactly, which is how that was confirmed. Note the pager does this for
-itself; nothing forwards that view to ComfyUI, which keeps asking
+sees only itself. Nothing forwards that view to ComfyUI, which keeps asking
 `mem_get_info`.
+
+Two of its three sources are blind, though, so this is a default rather than a
+property. `poll_budget_deficit` picks between a DXGI WDDM budget, `cuMemGetInfo`
+and NVML, and logs which one prevailed. Measured with a 4 GiB sibling present:
+
+| source | idle | sibling holding 4 GiB | sees it |
+|---|---:|---:|:--:|
+| DXGI WDDM budget | available 7798 MB | available 7798 MB | no |
+| `cuMemGetInfo` | free 15203 MB | free 15203 MB | no |
+| NVML | free 15927 MB | free 11712 MB | **yes** |
+
+The DXGI budget line is byte identical idle and under load, so the WDDM budget
+path is exactly as blind as the CUDA one. In the same process at the same
+moment, `cuMemGetInfo` says 15203 MB free and NVML says 11712, a gap of
+3491 MB. `comfy_aimdo.control.init` defaults `nvml_pressure` to False; ComfyUI
+passes it True unless `--disable-nvml-pressure` is given. So the pager sees the
+card because ComfyUI asks it to, not because it does by nature.
 
 A second reading from the same run: a bare CUDA context, created and
 otherwise unused, costs **119 MiB** device-wide here, reproducibly. That is
