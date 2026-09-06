@@ -63,6 +63,7 @@ nav:
       - Memory management:
           - comfy-env's memory management: comfy-env/memory-approach.md
           - Why the system is imperfect: comfy-env/why-imperfect.md
+          - Why Windows needs its own branch: comfy-env/windows-blind-spot.md
           - Memory management context:
               - Overview: comfy-env/memory-context.md
               - ComfyUI memory management background: comfy-env/comfyui-memory.md
