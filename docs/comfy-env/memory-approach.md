@@ -45,8 +45,8 @@ interface.
 four of its answers are not true: (1) it tells ComfyUI a paged model is not
 paged, to stay out of the pinned-memory paths where the churn lives; (2) it
 answers three different size questions from one measured number; (3) an
-eviction it could not deliver, because the worker was busy, is reported as
-done, because upstream's return value has no way to say "ask me later"; and
+eviction it could not deliver, because the worker did not answer, is reported
+as done, since upstream's return value has no way to say "ask me later"; and
 (4) on Linux the size it reports is already counted in the host's own free
 figure. Each is deliberate, each has a cost, and they are worked through in
 [why the system is imperfect](why-imperfect.md).

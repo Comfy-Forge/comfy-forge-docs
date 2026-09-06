@@ -60,14 +60,26 @@ each it can evict something more expensive than it needed to.
 
 ## 3. An eviction it could not deliver is reported as done
 
-This is the sharpest one, and it is worth walking through.
+The stand-in can fail to deliver an unload, and when it does, ComfyUI is told
+the memory came back anyway. Both halves of that need explaining, because the
+first is rarer than it sounds and the second is the actual problem.
 
-The host needs 4 GB. It reaches the stand-in for a worker's model and asks it
-to unload. The stand-in sends that over the socket to the worker, but the
-worker is mid-forward, running a kernel and not reading its socket. Nothing
-happens. The stand-in reports honestly that it freed zero bytes.
+**When a send fails.** Not, as you might assume, because a worker is busy
+computing. Nodes run one at a time, so the host is not loading models while a
+pack's node is mid-forward, and even when a worker is blocked waiting on the
+parent for a memory budget, it keeps servicing eviction commands while it
+waits (`_call_parent` handles `model_to_device` and the partial load and
+unload commands in its receive loop). The realistic failures are narrower:
 
-Then ComfyUI's own code does this (`model_management.py`):
+* the worker process is **dead**, which comfy-env distinguishes and handles
+  correctly, because a dead worker's VRAM died with it and reporting it as
+  offloaded is true;
+* the worker is **alive but did not answer**, which is the case that matters:
+  wedged, deadlocked, or slow enough to pass the command timeout. The weights
+  are still on the card.
+
+**Why it gets reported as done.** ComfyUI's own code, in
+`model_management.py`:
 
 ```python
 if memory_to_free < self.model.loaded_size():
@@ -78,27 +90,28 @@ self.model.detach(unpatch_weights)
 return True                   # fully unloaded, caller pops it from the list
 ```
 
-Zero is less than what was asked, so it falls through to `detach()` and
-returns **True unconditionally**. True means "this model is gone, remove it
-from the list", and the caller does exactly that. The worker never heard
-anything. The memory is still on the card.
+The stand-in honestly reports freeing zero bytes. Zero is less than what was
+asked, so the code falls through to `detach()` and returns **True
+unconditionally**. True means "this model is gone, remove it from the list",
+and the caller does exactly that, while the memory is still resident in a
+process nobody could reach.
 
-Put another way: you ask your flatmate to move his boxes out of the hallway,
-he is in the shower and does not hear you, and you cross him off the list of
-people with boxes in the hallway. The boxes are still there.
+`model_unload` has no way to express "I could not reach it". Its return value
+is a boolean meaning "did you fully unload", and there is no third answer for
+"ask me again later". A real in-process model can always be unloaded, so
+upstream never needed one.
 
-**Why it is not comfy-env's to fix.** `model_unload` has no way to say "I
-could not reach it". The return value is a boolean meaning "did you fully
-unload", and there is no third answer for "ask me again later". A real
-in-process model can always be unloaded, so upstream never needed one.
+**What it costs.** ComfyUI's ledger loses track of resident memory. That is
+worse than it sounds, because the entry being gone means the model is never
+picked for eviction again, and every later admission decision is computed
+against a card believed to have that much more free than it does.
 
-**What it costs, and what limits it.** For one node boundary, ComfyUI's
-bookkeeping says memory was reclaimed that was not. comfy-env detects this
-(the stand-in sets a flag when the send fails) and re-inserts the entry at the
-next node boundary. Two things keep it survivable: the host's free-memory
-reading did not move, because nothing was actually freed, so ComfyUI's
-eviction loop correctly carries on to the next candidate rather than stopping
-early; and the window is one node, not the rest of the session.
+comfy-env catches it: the stand-in distinguishes "the worker died" from "the
+worker is alive and did not answer", keeps `loaded_size` unchanged in the
+second case so ComfyUI keeps escalating rather than believing the bytes came
+back, sets a flag, and re-inserts the entry at the next node boundary. The
+window is one node. It is a repair for a hazard we cannot prevent, not a
+design.
 
 ## 4. On Linux, its size is already counted
 
