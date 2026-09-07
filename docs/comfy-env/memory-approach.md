@@ -376,20 +376,44 @@ table and never re-derived after it grew.
 
 ## The ask, if you are reading this from upstream
 
-Two methods and a registry, modelled on `set_ram_cache_release_state` and
-the cache provider registry, both of which already live in the tree:
+One method and a registry, modelled on `set_ram_cache_release_state` and the
+cache provider registry, both of which already live in the tree:
 
 ```python
 class MemoryHolder:
-    def reserved_memory(self, device) -> int: ...   # keep this much free
-    def release_memory(self, device) -> None: ...   # give it back now
+    def release_memory(self, device, size) -> int: ...   # bytes actually freed
 ```
 
-`load_models_gpu` sums the reserves once per load and adds them to what it
-already computes. `free_memory` asks registered holders after its own
-models, where it already asks the pinned-memory helpers. Nothing changes
-when nobody registers, core learns nothing about subprocesses, and
+`free_memory` asks registered holders after its own models and before it
+gives up, where it already asks the pinned-memory helpers. It may return 0.
+It may answer from cached state and do the real work afterwards. Nothing
+changes when nobody registers, core learns nothing about subprocesses, and
 comfy-env deletes the stand-in and the eighteen attributes with it.
+
+Three things about that signature, because an earlier draft of this ask got
+all three wrong and would have been right to refuse.
+
+**It takes a size.** Without one a holder cannot be asked for a shortfall,
+only told to drop everything, which is the 1e30 hammer this design already
+has. comfy-env's own `partial_release` takes a size and its planner computes
+a per-worker ask, so the caller side already exists.
+
+**It returns bytes.** Without a return `free_memory` cannot terminate its
+loop on the result, and cannot tell "freed nothing" from "freed enough". That
+is exactly the contract `partially_unload` already has, and honouring it is
+what lets upstream's escalation ladder keep working.
+
+**It must be answerable synchronously.** This runs on ComfyUI's thread,
+inside `free_memory`, inside a node, and a holder that blocks there stalls
+every host load. comfy-env's own pressure hook says so in its docstring and
+posts rather than waits. A holder is therefore allowed to answer from what it
+already knows and do the freeing behind the call; an interface that requires a
+blocking round trip is one its only proposed consumer could not implement.
+
+**There is no `reserved_memory` half.** An earlier draft asked for one. It
+already exists: `EXTRA_RESERVED_VRAM` is read live on every load and
+comfy-env already writes it, which is what row 3 means by "yes, and mostly
+not needed". Wrapping a working global in a registry is not worth a patch.
 
 ## Where the arithmetic lives
 
