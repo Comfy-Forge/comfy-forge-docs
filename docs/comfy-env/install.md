@@ -5,7 +5,23 @@
 from comfy_env import install; install()
 ```
 
-The **build-time** entry point, called once when a pack is installed or updated.
+*The build-time entry point, called once when a pack is installed or updated.*
+{: .subtitle }
+
+In the standard install path, ComfyUI-Manager pip-installs the pack's
+`requirements.txt` and then executes its `install.py`. A user cloning by hand
+should do the same.
+
+Of the [three calls](index.md#the-three-call-contract), this is the **only** one
+that does network and disk work. `install()` is the sole builder of isolated
+envs: nothing materializes one at runtime. A missing env means
+[`register_nodes()`](register-nodes.md) falls back to in-process import for that
+pack, and stays that way until `install()` is run successfully.
+
+If an install has already failed and you are here to find out why, skip to
+[When it fails](#when-it-fails).
+
+## What `install()` does
 
 **Three things happen, in order:**
 
@@ -18,35 +34,7 @@ stale `comfy-env` pins, *always*;
 (3) every isolated env declared anywhere under
 `custom_nodes/` is built or refreshed. **Only (3) is slow**, but if the isolated envs had already been built it exits without touching the network.
 
-## When it runs
-
-In the standard install path, ComfyUI-Manager pip-installs the pack's
-`requirements.txt` and then executes its `install.py`.
-A user cloning by hand should do the same.
-
-Of the [three calls](index.md#the-three-call-contract), this is the **only** one
-that does network and disk work. `install()` is the sole builder of isolated
-envs: nothing materializes one at runtime.
-
-A missing env means [`register_nodes()`](register-nodes.md) falls back to in-process import for that
-pack, and stays that way until `install()` is run successfully.
-
-## What `install()` does
-
-```mermaid
-flowchart TD
-    entry["install()"]
-    entry --> cfg["load the pack's config"]
-    cfg --> nrq{"declares [node_packs]?"}
-    nrq -->|"yes"| peers["install peer packs"]
-    nrq -->|"no"| pins
-    peers --> pins["scan sibling requirements.txt files for stale comfy-env pins, warn if problematic pins found"]
-    pins --> found{"ComfyUI base dir found?"}
-    found -->|"no"| warn["warn, skip the workspace"]
-    found -->|"yes"| ws["build the workspace"]
-```
-
-### 1. Peer packs from `[node_packs]`
+## 1. Peer packs from `[node_packs]`
 
 *Runs only if the config declares `[node_packs]`; every accepted spelling is
 tabulated in the [config reference](config.md#node_packs).*
@@ -55,10 +43,8 @@ Peer nodepacks are cloned from GitHub or downloaded from the Comfy Registry, the
 `requirements.txt` and `install.py` run.
 
 The pack's own `requirements.txt` is then re-run in the main env
-(`install/plugin.py:_reinstall_main_requirements`). The intent was the
-sibling-pin hazard ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md)):
-a peer pins its **own** comfy-env version and may have downgraded ours, so
-reinstalling was meant to reassert this pack's pin.
+(`install/plugin.py:_reinstall_main_requirements`); the reason it exists is
+recorded in [ADR-0022](adr/0022-comfy-env-placement-in-host-env.md).
 
 !!! warning "A peer pack cannot change the installed comfy-env"
     **Every mention of `comfy-env` / `comfy_env` is stripped** from requested nodepacks' `requirements.txt`.
@@ -67,17 +53,13 @@ A peer that is not itself comfy-env'd installs its dependencies straight into
 the shared host env. That is permitted today and [tracked as a
 direction](../roadmap.md) to close.
 
-### 2. Stale sibling pin check
+## 2. Stale sibling pin check
 
-*Always runs* (`install/__init__.py:73`).
-Every sibling `requirements.txt` under `custom_nodes/` is scanned for `comfy-env` pins
-that would downgrade the installed version:
+*Always runs* (`install/sibling_pins.py`). **Warn-only: it changes nothing and
+never fails an install.**
 
-| Pin form | Flagged? |
-|---|---|
-| `comfy-env==0.3.9` | yes |
-| `comfy-env<=0.4.0`, `<0.4` | yes |
-| `comfy-env>=…`, `~=…`, unpinned | no |
+Every sibling `requirements.txt` is scanned for a `comfy-env` pin older than
+the installed version, and prints this if it finds one:
 
 ```
 [comfy-env] WARNING: ComfyUI-OldPack/requirements.txt pins 'comfy-env==0.3.9'
@@ -85,11 +67,17 @@ but comfy-env 0.4.12 is installed. If that pack reinstalls its requirements,
 comfy-env will be DOWNGRADED for every pack -- update ComfyUI-OldPack (or
 relax its pin).
 ```
-Warn-only; never fails an install.
 
-### 3. The workspace build (`install_workspace()`)
+It cannot prevent that downgrade, only name the pack that would cause it.
+[ADR-0022](adr/0022-comfy-env-placement-in-host-env.md) plans the split that
+deletes this step.
 
-#### Bootstrap and discovery
+## 3. The workspace build (`install_workspace()`)
+
+*Runs only if the ComfyUI base directory can be located; if it cannot,
+`install()` warns and skips the workspace entirely, leaving no envs built.*
+
+### Bootstrap and discovery
 
 - We run `ensure_pixi()` **first**
 - Discovery then walks `custom_nodes/` for bindable configs (comfy-env.toml files).
@@ -104,7 +92,7 @@ Warn-only; never fails an install.
   share one env directory and rebuild over each other forever
   (`workspace.py:226`).
 
-#### The skip gate
+### The skip gate
 
 Two hashes decide whether any environments are rebuilt:
 
@@ -113,24 +101,26 @@ Two hashes decide whether any environments are rebuilt:
 The full mechanism, including why a version bump rebuilds nothing, is
 [The three seals](seals.md).
 
-#### Torch pin vs wheel combo
-
-In this following paragraph, **pin** is used to refer to the (cuda × torch × python) **combo** that *ComfyUI itself runs*.
+### Which combo the envs get
 
 Usually the [cuda-wheels index](../cuda-wheels/index.md) has every needed wheel
-for the host's own *pin* and we can match it perfectly.
+for the **host combo** -- the (cuda × torch × python) triple ComfyUI itself
+runs -- and we can match it perfectly.
 
 When any of the cuda packages is not yet built for
 the host combo (imagine we are using CUDA 13.0, have [cumesh, flash-attn, spconv] as cuda packages in comfy-env.toml and we only have cumesh and flash-attn for CUDA 13.0) the **requested combo** for the cuda wheels drops to a known-good fallback cell.
 
 The fallback is **per CPU architecture**:
+
 - `cu12.8 / torch 2.8` on x86_64
 - `cu13.0 / torch 2.10` on linux aarch64.
 
-The reasoning is a bit long but can be summarised as follows:
-- 12.8 / 2.8 is a blessed combo in terms of backwards and forward compatibility
-- 12.8 / 2.8 was never published for aarch64
-- Most aarch64 + CUDA GPU users have a DGX Spark or some other late model, so we use the latest CUDA major (13).
+ARM needs its own cell because `(12.8, 2.8)` has no aarch64 wheels at all; the
+full argument is [Why ARM gets its own fallback
+cell](../cuda-wheels/coverage.md#why-arm-gets-its-own-fallback-cell).
+
+The CUDA wheels are **inside** the generated manifest, as direct-URL
+pypi-dependencies: they land in `pixi.lock`.
 
 !!! warning "No GPU means CPU torch, whatever the host's torch says"
     Portable ComfyUI ships `torch+cu128` inside `python_embeded` even on
@@ -138,14 +128,14 @@ The reasoning is a bit long but can be summarised as follows:
     torch build (`workspace.py:83-88`): with no GPU detected, envs pin **CPU
     torch** and `[cuda]` packages are not resolved or installed at all.
 
-#### Building each env
+### Building each env
 
 The work is **phase-major, not env-major**: every env goes through a phase
 before any env goes through the next.
 
 - Manifests are written for each env
 
-- All installs runs
+- All installs run
 
 - All stamps are produced
 
@@ -161,9 +151,26 @@ That ordering is deliberate and produces three behaviours worth knowing:
   So if any env fails, the run leaves no hash bookkeeping for the envs that
   succeeded alongside it, and they are re-derived next time.
 
-The CUDA wheels are **inside** the generated manifest, as direct-URL
-pypi-dependencies: they land in `pixi.lock`.
+## When it fails
 
-**Start here when debugging:** every workspace install tees its full output to
-`<workspace>/install.log` (`workspace.py:717`), including the discovery list,
-the resolved combo, and each `pixi install` invocation.
+**Start here:** a workspace install that does any work tees its full output to
+`<workspace>/install.log` (`workspace.py:717`) -- the discovery list, the
+resolved combo, and each `pixi install` invocation with its output.
+
+!!! warning "The log is from the last run that did work"
+    A run where every env is already current returns at `workspace.py:710`,
+    **before** the log is opened at `:717`. So after a clean run the file on
+    disk is an older transcript, and its timestamp is the only tell. To force
+    a fresh one, delete an env's `install.hash` -- which is what the skip
+    message itself tells you to do.
+
+Because failures are batched and raised at the end, one log names *every*
+broken env rather than stopping at the first. Re-run with:
+
+```
+comfy-env install --dir custom_nodes/<pack>
+```
+
+Two failures produce no envs and no `pixi` output at all: the ComfyUI base
+directory could not be located (see section 3), or two configs derived the
+same env name and raised a `ValueError` before any build started.
