@@ -50,7 +50,7 @@ flowchart TD
 
 *Runs only if the config declares `[node_packs]`;
 every accepted spelling for requirements is tabulated in the
-[config reference](config.md#node_packs-every-spelling-the-code-accepts)).
+[config reference](config.md#node_packs)).
 
 Peer node packs are cloned from GitHub or downloaded from the Comfy Registry, then their own
 `requirements.txt` and `install.py` run.

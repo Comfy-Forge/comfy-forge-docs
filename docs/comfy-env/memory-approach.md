@@ -177,16 +177,14 @@ underneath it.
 
 **Ordering rule.** How often it fires in a normal workflow, times how many
 bytes it decides, times how bad it is when a subprocess is invisible to it.
-Rank 1 fires on every load and moves gigabytes; rank 41 moves nothing.
+Rank 1 fires on every load and moves gigabytes; rank 42 moves nothing.
 
-**What this list covers, and what it does not.** It used to stop at 27 and
-call itself comprehensive while covering only `model_management.py`, which is
-to say only the manager. Two things were missing and are now in: the memory
-decisions made INSIDE models and nodes rather than by the manager (the batch
-sizers at 5, the activation estimate at 17, hook and unpatch backups at 28 and
-29), and three whole upstream modules that had no row at all, two of which
-landed within the last 40 days (cgroup accounting at 6, cast buffers at 8, the
-model compiler and CUDA graph capture at 12).
+**What this list covers.** Not only `model_management.py`, and not only the
+manager. It also covers the memory decisions made INSIDE models and nodes
+rather than by the manager (the batch sizers at 5, the activation estimate at
+17, hook and unpatch backups at 28 and 29), and three upstream modules that
+sit outside the memory manager entirely: cgroup accounting at 6, cast buffers
+at 8, and the model compiler and CUDA graph capture at 12.
 
 **What "legacy" means here.** It does not mean aimdo is absent. `main.py`
 imports `comfy_aimdo.control` unconditionally, so the pager is always
@@ -319,10 +317,10 @@ Cells are yes, partial or no, with at most one clause of reason. Exposure is sta
 
 </div>
 
-Three things fall out of the table. Each set below is derived from the rows
-rather than remembered; an earlier version of these bullets named rows that
-said the opposite of the bullet, because they were written against a 27 row
-table and never re-derived after it grew.
+Three things fall out of the table. The row NUMBERS below are derived from the
+rows; the descriptions beside them are not, and the first version of this note
+got two of them wrong while claiming otherwise. If a description here disagrees
+with the row it names, believe the row.
 
 - **The stand-in is the mechanism, not an option.** Row 1 is reachable only
   because a fake model for each worker model sits in ComfyUI's list. Without
@@ -336,9 +334,8 @@ table and never re-derived after it grew.
   under it before. Everything else comfy-env does is reading values and
   publishing one number.
 - **Only upstream can fix** rows **14** (the model compiler and CUDA graph
-  capture), **19** (the OOM retry ladder), **33** (the pin eviction ladder)
-  and **39** (`unload_model_and_clones`). Nothing has been proposed for any
-  of them. The counterexample runs the other way: row **25**, the cache
+  capture), **19** (the OOM retry ladder), **33** (multigpu deepclones) and
+  **39** (the interrupt flag). Nothing has been proposed for any of them. The counterexample runs the other way: row **25**, the cache
   provider, is already merged upstream and comfy-env simply does not
   register one.
 
@@ -417,7 +414,7 @@ not needed". Wrapping a working global in a registry is not worth a patch.
 
 ## Where the arithmetic lives
 
-Everything above describes effects. The terms are in five modules, and until
+Everything above describes effects. The terms are in six modules, and until
 2026-09-07 none of them was named in any document, which meant a reader who
 wanted to know what a number *was* had to find it by reading 2,400 lines cold.
 

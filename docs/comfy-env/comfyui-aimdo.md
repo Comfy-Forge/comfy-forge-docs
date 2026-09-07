@@ -277,14 +277,15 @@ Three consequences, measured against comfy-env `bda45b7` and re-checked at `f1f8
   than an error.
 
 !!! note "comfy-env initialises aimdo, matches protocols, and reports per worker"
-    This box previously carried a body from an earlier draft saying a search
-    of comfy-env for `aimdo` or `vbar` "returns nothing", which contradicted
-    its own title and is no longer true either way. comfy-env initialises
-    aimdo in each worker, injects the wheel at the host's pin, judges
-    compatibility on protocol level, and reports which manager every worker
-    resolved to. What it does NOT do is move aimdo's headroom at runtime:
-    that is fixed when devices initialise, and attempting it is inert or
-    fatal ([ADR-0038](adr/0038-the-memory-floor.md)).
+    comfy-env initialises aimdo in each worker, injects the wheel at the
+    host's pin, and reports which manager every worker resolved to. It also
+    moves aimdo's headroom at runtime: `set_simple_vram_headroom` is live at
+    the next page fault, measured, and comfy-env forwards its published
+    reserve into it on every publish. An earlier draft of this page said the
+    headroom was fixed once devices initialise; that was wrong, and the
+    experiment behind it used plain `nn.Linear` modules which never page.
+    What is fixed once devices initialise is `init_devices` itself: a second
+    call returns `False`, and a second `control.init` segfaults the process.
 
 ## Things worth knowing before you debug
 

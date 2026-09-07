@@ -16,16 +16,19 @@ find src/comfy_env -name '*.py' | xargs wc -l | sort -rn
 
 | Subsystem | Lines | % |
 |---|--:|--:|
-| Transport / worker IPC | 4,662 | 36% |
-| Environment build / install / wheels | 3,525 | 28% |
-| Node registration / proxy / ComfyUI glue | 2,874 | 22% |
-| Config / CLI / misc | 1,169 | 9% |
-| Hardware detection | 567 | 4% |
-| **Total** | **12,797** | 100% |
+| Transport / worker IPC (`isolation/workers/`) | 5,412 | 30% |
+| Node registration / proxy / ComfyUI glue (`isolation/`, excl. workers) | 5,150 | 28% |
+| Memory floor, shared and worker side (`memory_manager`, `state_sync`, `reserve`, `contract`, `mirrored_args`) | 2,437 | 13% |
+| Environment build / install / wheels (`install/`, `packages/`, `environment/`) | 3,706 | 20% |
+| Hardware detection | 574 | 3% |
+| Config / CLI / misc | 1,062 | 6% |
+| **Total** | **18,341** | 100% |
 
-Two subsystems -- the transport and the env builder -- are **64% of the
-project**. That is the honest shape of comfy-env: a serialization stack and a
-manifest compiler, with a ComfyUI adapter bolted on.
+Two subsystems -- the transport and the ComfyUI glue -- are **58% of the
+project**, and the memory floor is now a third of the size of either. That is
+the honest shape of comfy-env: a serialization stack, a ComfyUI adapter, and a
+manifest compiler, with a memory floor that did not exist a version ago and is
+already the fastest growing part.
 
 ## What shrank, and why
 

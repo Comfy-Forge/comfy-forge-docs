@@ -25,7 +25,7 @@ that page applies; the flags are the only CLI-specific part:
 | `--dry-run` | Runs the whole derivation and stops before `pixi install`: discovers every env, resolves the torch/CUDA combo and the CUDA-wheel URLs, and **writes each env's `pixi.toml`** -- the manifests plus the printed log *are* the report. Nothing is downloaded and no env is created or modified. (It does rewrite the per-env manifests on disk; harmless to a live install, since workers launch with `pixi run --as-is` and a real install re-derives from config, not from these files.) |
 
 Exit is non-zero on failure, with the reasons batched per
-[When it fails](install.md#when-it-fails).
+[What `install()` does](install.md#what-install-does).
 
 ## `comfy-env init`
 

@@ -144,7 +144,7 @@ loop. It is the single highest leverage member on the list.
 ### Contract one is not intercepted at all
 
 The worker imports `comfy.model_management` from the host ComfyUI tree and
-calls the real functions, with one exception that this section used to deny.
+calls the real functions, with one exception.
 `load_models_gpu` IS replaced: the worker assigns its own
 `_shimmed_load_models_gpu` over it, which measures the incoming models, asks
 the host to free room for them, writes back what the host says, and only then
