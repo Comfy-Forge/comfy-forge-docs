@@ -1,4 +1,4 @@
-# Why the system is imperfect
+# Where the stand-in is inaccurate
 
 comfy-env registers a stand-in object in ComfyUI's loaded-model list for
 every model a worker holds. It has to answer for memory it does not hold, and

@@ -2,7 +2,7 @@
 
 Nodes in ComfyUI exchange objects along edges.
 
-A socket type is defined by [just a string](comfyui-background.md#data-types) (`IMAGE`, `VIDEO`, `LATENT`) and vanilla ComfyUI never looks inside the
+A socket type is defined by [just a string](comfyui-custom-nodepack-background.md#data-types) (`IMAGE`, `VIDEO`, `LATENT`) and vanilla ComfyUI never looks inside the
 object. The same instance is handed from one node to the next, in one process.
 
 ComfyUI ships ~85 built-in types (`comfy_api/latest/_io.py`). By the shape of

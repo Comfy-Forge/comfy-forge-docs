@@ -6,7 +6,7 @@ management and automatic CUDA wheel resolution for ComfyUI custom node packs.
 !!! abstract "The promise"
     *You click the install button for a node pack in ComfyUI Manager, and after install the pack just runs, without breaking any other pre existing node pack.*
 
-    No build tools. No CUDA toolkit. No hunting for the one torch version that
+    No missing build tools. No CUDA toolkit needed. No hunting for the one torch version that
     satisfies everything. **No PhD in dependency management**. 100% certainty that installing a node pack from ComfyUI Manager won't destroy your existing setup.
 
     That is the whole point: **node packs should behave like real software**
@@ -20,7 +20,7 @@ comfy-env addresses two of them:
    incompatible versions of the same library cannot coexist. Installing a custom node pack can potentially damage the existing installation.
 2. **CUDA / prebuilt wheels / conda packages**: dependencies pip alone
    cannot deliver (conda-only native libraries),
-   dependencies (like compiled CUDA extensions) that can take a long time and manual work to find or compile for the user's exact machine and operating system.
+   dependencies (like compiled CUDA extensions) that can take a long time and manual work to find or compile (compiled CUDA extensions) for the user's exact machine and operating system.
 
 ## ComfyUI background
 
@@ -29,7 +29,7 @@ pack is discovered, what `__init__.py` must export, which hooks run when etc.
 
 The rest of this page assumes that the user is already familiar with this crucial context.
 
-**[If you're not, please read this page first](comfyui-background.md)**.
+**[If you're not, please read this page first](comfyui-custom-nodepack-background.md)**.
 
 ## The two problems: environment isolation and CUDA/conda packages
 

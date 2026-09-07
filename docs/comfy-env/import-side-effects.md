@@ -1,7 +1,7 @@
 # Import-time side effects in the wild
 
 ComfyUI does not sandbox a pack's `__init__.py`. It calls
-`exec_module()` on it ([ComfyUI custom nodepack background](comfyui-background.md)), so every
+`exec_module()` on it ([ComfyUI custom nodepack background](comfyui-custom-nodepack-background.md)), so every
 statement at module level runs, in ComfyUI's process, with ComfyUI's
 permissions, before the server starts. Whatever a pack does there, it does to
 everybody.
@@ -55,7 +55,7 @@ file in it, and copies its own JS in -- on every launch.
 
 Why it exists: this predates `WEB_DIRECTORY`, when shipping frontend JS meant
 putting files where ComfyUI would serve them. The mechanism it replaces
-([WEB_DIRECTORY](comfyui-background.md#frontend-javascript))
+([WEB_DIRECTORY](comfyui-custom-nodepack-background.md#frontend-javascript))
 does the same job by *registering* a directory rather than copying into
 someone else's.
 

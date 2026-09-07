@@ -131,7 +131,7 @@ paged, to stay out of the pinned-memory paths where the churn lives; (2) it
 answers three different size questions from one measured number; and (3) on
 Linux the size it reports is already counted in the host's own free figure.
 Each is deliberate, each has a cost, and they are worked through in
-[why the system is imperfect](why-imperfect.md).
+[where the stand-in is inaccurate](model-stand-in-inaccuracies.md).
 
 **It is not easily maintainable.** There is a contract, and it does not cover
 this. `contract.py` checks sixteen symbols comfy-env reads OFF ComfyUI, at
@@ -434,7 +434,7 @@ decision in the subsystem.
 
 ## Where to go next
 
-* [Why the system is imperfect](why-imperfect.md) is the case against the
+* [Where the stand-in is inaccurate](model-stand-in-inaccuracies.md) is the case against the
   stand-in, one answer at a time.
 * [Why Windows needs its own branch](windows-blind-spot.md) is the
   measurement behind every platform branch in the memory code.

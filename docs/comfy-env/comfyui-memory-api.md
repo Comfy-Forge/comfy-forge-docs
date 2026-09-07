@@ -1,4 +1,4 @@
-# The memory management API
+# ComfyUI's memory management API
 
 *What ComfyUI offers a caller, what it demands of a model in return, and how
 comfy-env satisfies both from another process.*
@@ -8,7 +8,7 @@ comfy-env satisfies both from another process.*
 Read [ComfyUI memory management background](comfyui-memory.md) first. This page
 is the interface rather than the design. For the exhaustive list, function by
 function, with what comfy-env does about each, see
-[Memory API inventory](memory-api-inventory.md).
+[ComfyUI memory API inventory](comfyui-memory-api-inventory.md).
 
 ## There are two contracts, and they point in opposite directions
 
@@ -245,5 +245,5 @@ it False, so on the path comfy-env drives the bypass does not fire at all and
 host dynamic models are fully evictable. Where the asymmetry does appear, it is
 downstream of comfy-env's own choice to answer `is_dynamic()` False, which
 [ADR-0035](adr/0035-duck-typed-model-proxy.md) calls load-bearing and
-[why the system is imperfect](why-imperfect.md) prices honestly. It is the cost
+[where the stand-in is inaccurate](model-stand-in-inaccuracies.md) prices honestly. It is the cost
 of the safe answer, not a tilt in the field.

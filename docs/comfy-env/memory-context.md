@@ -39,7 +39,7 @@ disagreement is load bearing here.
 * [**Overview**](os-memory.md) — how the major platforms manage memory
 * [**Kernel and driver differences**](kernel-differences.md) — what the GPU
   driver does on each
-* [**Where the operating systems differ**](os-memory-differences.md) — the
+* [**Working around OS differences**](os-memory-workarounds.md) — the
   specific divergences that reach comfy-env
 
 The one that matters most: on Windows WDDM the free-VRAM reading is the
@@ -48,10 +48,10 @@ single difference is why comfy-env's accounting has two branches.
 
 ## The surface, function by function
 
-* [**The memory management API**](memory-api.md) — what ComfyUI offers a
+* [**ComfyUI's memory management API**](comfyui-memory-api.md) — what ComfyUI offers a
   caller and what it demands of a model in return, and how comfy-env
   satisfies both from another process
-* [**Memory API inventory**](memory-api-inventory.md) — every symbol on that
+* [**ComfyUI memory API inventory**](comfyui-memory-api-inventory.md) — every symbol on that
   surface with comfy-env's relationship to each, exhaustively
 
 ## Where this leads

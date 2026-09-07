@@ -1,7 +1,7 @@
-# Memory API inventory
+# ComfyUI memory API inventory
 
 *Every part of ComfyUI's memory surface, and comfy-env's relationship to each
-one. The companion to [The memory management API](memory-api.md), which explains
+one. The companion to [ComfyUI's memory management API](comfyui-memory-api.md), which explains
 the shape; this page is the list.*
 
 *Last verified against ComfyUI `bab6ee5f` (2026-08-24) and comfy-env `f1f8260` (2026-09-04). Every upstream symbol below was re-checked against the tree and all 81 resolve. The comfy-env column was spot-corrected where [ADR-0038](adr/0038-the-memory-floor.md) changed the relationship; rows marked `inherits` were not individually re-verified.*

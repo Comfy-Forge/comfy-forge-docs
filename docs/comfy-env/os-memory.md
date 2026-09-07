@@ -10,7 +10,7 @@ separate: it is true regardless of what upstream does next.
 
 Two subpages go further. [Kernel and driver differences](kernel-differences.md)
 covers where Linux, Windows and macOS diverge and how the graphics driver sits
-differently on each. [Where the operating systems differ](os-memory-differences.md)
+differently on each. [Working around OS differences](os-memory-workarounds.md)
 covers what ComfyUI and comfy-env actually do about those divergences.
 
 ## The kernel
@@ -294,7 +294,7 @@ All eleven are set out, along with how the graphics driver sits differently on
 each system and whether AMD, Intel and Apple use different concepts, in
 [Kernel and driver differences](kernel-differences.md). What ComfyUI and
 comfy-env actually do about them is
-[Where the operating systems differ](os-memory-differences.md).
+[Working around OS differences](os-memory-workarounds.md).
 
 ## Why all of this shows up in the ComfyUI pages
 

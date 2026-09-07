@@ -37,6 +37,26 @@ extra_css:
   - stylesheets/forge-bar.css
   - stylesheets/tables.css
 
+# NOTE: MkDocs defaults `plugins` to ['search'] only while the key is absent.
+# Declaring it here REPLACES that default, so `search` must be listed
+# explicitly or site search silently disappears.
+plugins:
+  - search
+  # Renaming a page changes its published URL, and nothing else catches that:
+  # `mkdocs build --strict` fails on a broken INTERNAL link, but an external
+  # bookmark just 404s. It already happened once -- comfy-env's
+  # research/pool-ipc/README.md still cites adr/0030-gpu-floors-and-zero-copy-contract/,
+  # renamed to 0030-gpu-platform-floors. Every entry below is permanent: an old
+  # URL is a promise, and this map is the only thing keeping it.
+  - redirects:
+      redirect_maps:
+        comfy-env/worker-lifespan.md: comfy-env/worker-lifecycle.md
+        comfy-env/os-memory-differences.md: comfy-env/os-memory-workarounds.md
+        comfy-env/memory-api.md: comfy-env/comfyui-memory-api.md
+        comfy-env/memory-api-inventory.md: comfy-env/comfyui-memory-api-inventory.md
+        comfy-env/comfyui-background.md: comfy-env/comfyui-custom-nodepack-background.md
+        comfy-env/why-imperfect.md: comfy-env/model-stand-in-inaccuracies.md
+
 markdown_extensions:
   - admonition
   - md_in_html
@@ -58,11 +78,11 @@ nav:
   - comfy-env:
       - Architecture: comfy-env/index.md
       - Upstream ComfyUI:
-          - ComfyUI custom nodepack background: comfy-env/comfyui-background.md
+          - ComfyUI custom nodepack background: comfy-env/comfyui-custom-nodepack-background.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
       - Memory management:
           - comfy-env's memory management: comfy-env/memory-approach.md
-          - Why the system is imperfect: comfy-env/why-imperfect.md
+          - Where the stand-in is inaccurate: comfy-env/model-stand-in-inaccuracies.md
           - Why Windows needs its own branch: comfy-env/windows-blind-spot.md
           - Memory management context:
               - Overview: comfy-env/memory-context.md
@@ -71,18 +91,18 @@ nav:
               - How operating systems manage memory:
                   - Overview: comfy-env/os-memory.md
                   - Kernel and driver differences: comfy-env/kernel-differences.md
-                  - Where the operating systems differ: comfy-env/os-memory-differences.md
-              - The memory management API: comfy-env/memory-api.md
-              - Memory API inventory: comfy-env/memory-api-inventory.md
-      - Nodepack Author Reference:
+                  - Working around OS differences: comfy-env/os-memory-workarounds.md
+              - ComfyUI's memory API: comfy-env/comfyui-memory-api.md
+              - ComfyUI memory API inventory: comfy-env/comfyui-memory-api-inventory.md
+      - Nodepack author reference:
           - The three calls:
               - "install()": comfy-env/install.md
               - "setup_env()": comfy-env/setup-env.md
               - "register_nodes()": comfy-env/register-nodes.md
           - Config reference: comfy-env/config.md
           - Accelerator declarations: comfy-env/accelerators.md
-          - Custom wire types: comfy-env/serializers.md
-      - Nodepack User Reference:
+          - Custom wire types (serializers): comfy-env/serializers.md
+      - Nodepack user reference:
           - Commands: comfy-env/commands.md
           - Settings reference: comfy-env/settings.md
           - System footprint: comfy-env/system-footprint.md
@@ -90,7 +110,7 @@ nav:
       - Internals:
           - Why not just conda?: comfy-env/why-not-conda.md
           - The process boundary: comfy-env/process-boundary.md
-          - Worker lifespan: comfy-env/worker-lifespan.md
+          - Worker lifecycle: comfy-env/worker-lifecycle.md
           - Zero-copy CUDA transfer: comfy-env/zero-copy-ipc.md
           - Dynamic combos: comfy-env/dynamic-combos.md
           - The three seals: comfy-env/seals.md

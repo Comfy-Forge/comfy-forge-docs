@@ -1,4 +1,4 @@
-# Where the operating systems differ
+# Working around OS differences
 
 *The exceptions to [How operating systems manage memory](os-memory.md), and what
 ComfyUI and comfy-env actually do about each one.*

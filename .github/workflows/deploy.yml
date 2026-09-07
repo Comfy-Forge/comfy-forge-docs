@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install "mkdocs-material==9.*" "mkdocs<2"
+      - run: pip install "mkdocs-material==9.*" "mkdocs<2" "mkdocs-redirects"
       - run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
         with:

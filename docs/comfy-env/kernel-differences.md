@@ -5,7 +5,7 @@ driver does differently on each of them. Nothing here is specific to ComfyUI.*
 
 Read [How operating systems manage memory](os-memory.md) first. That page
 describes what all three do. This one is the exceptions, and
-[Where the operating systems differ](os-memory-differences.md) is what ComfyUI
+[Working around OS differences](os-memory-workarounds.md) is what ComfyUI
 and comfy-env do about them.
 
 ## What is actually shared

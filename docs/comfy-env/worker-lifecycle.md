@@ -1,4 +1,4 @@
-# Worker lifespan
+# Worker lifecycle
 
 *When a worker is born, what it costs while alive, and every way it dies --
 including what happens to it when ComfyUI itself stops. The policy is
