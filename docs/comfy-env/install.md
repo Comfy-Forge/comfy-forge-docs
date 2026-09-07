@@ -23,16 +23,13 @@ If an install has already failed and you are here to find out why, skip to
 
 ## What `install()` does
 
-**Three things happen, in order:**
+**Two things happen, in order:**
 
 (1) peer packs named in `[node_packs]` are
 installed, *if the config declares any*;
 
-(2) every sibling pack is scanned for
-stale `comfy-env` pins, *always*;
-
-(3) every isolated env declared anywhere under
-`custom_nodes/` is built or refreshed. **Only (3) is slow**, but if the isolated envs had already been built it exits without touching the network.
+(2) every isolated env declared anywhere under
+`custom_nodes/` is built or refreshed. **Only (2) is slow**, but if the isolated envs had already been built it exits without touching the network.
 
 ## 1. Peer packs from `[node_packs]`
 
@@ -46,26 +43,7 @@ A peer that is not itself comfy-env'd installs its dependencies straight into
 the shared host env. That is permitted today and [tracked as a
 direction](../roadmap.md) to close.
 
-## 2. Stale sibling pin check
-
-*Always runs* (`install/sibling_pins.py`). **Warn-only: it changes nothing and
-never fails an install.**
-
-Every sibling `requirements.txt` is scanned for a `comfy-env` pin older than
-the installed version, and prints this if it finds one:
-
-```
-[comfy-env] WARNING: ComfyUI-OldPack/requirements.txt pins 'comfy-env==0.3.9'
-but comfy-env 0.4.12 is installed. If that pack reinstalls its requirements,
-comfy-env will be DOWNGRADED for every pack -- update ComfyUI-OldPack (or
-relax its pin).
-```
-
-It cannot prevent that downgrade, only name the pack that would cause it.
-[ADR-0022](adr/0022-comfy-env-placement-in-host-env.md) plans the split that
-deletes this step.
-
-## 3. The workspace build (`install_workspace()`)
+## 2. The workspace build (`install_workspace()`)
 
 *Runs only if the ComfyUI base directory can be located; if it cannot,
 `install()` warns and skips the workspace entirely, leaving no envs built.*
@@ -221,5 +199,5 @@ comfy-env install --dir custom_nodes/<pack>
 ```
 
 Two failures produce no envs and no `pixi` output at all: the ComfyUI base
-directory could not be located (see section 3), or two configs derived the
+directory could not be located (see section 2), or two configs derived the
 same env name and raised a `ValueError` before any build started.

@@ -4,6 +4,27 @@
 hazard named and the relocation alternative recorded; revisit at the
 [ADR-0017](0017-pre-1-0-no-backward-compatibility.md) tripwire.
 
+!!! warning "The mitigations described below no longer exist"
+
+    **Amended 2026-09-08.** The placement decision stands, but every
+    mechanism this record built around it has been removed:
+
+    * The **sibling-pin warning** (`check_sibling_comfy_env_pins`) is
+      deleted. It only detected; it never prevented.
+    * The **requirements stripping** that deleted `comfy-env` lines from a
+      peer's `requirements.txt` before pip saw them is deleted. It edited
+      another project's declared dependencies to hide a conflict, missed
+      `git+` and `-e` spellings, and never ran on the ComfyUI-Manager path
+      where the exposure actually is.
+    * The **requirements re-run** meant to reassert this pack's pin is
+      deleted. It passed the pack's own file through the same stripping, so
+      it could never reassert the one line it removed.
+
+    What replaces them is a **compatibility promise rather than a
+    mechanism**: from 0.5.0 comfy-env is backwards compatible, so an older
+    pin is no longer a hazard to defend against. The Consequences below are
+    kept as written, and are history.
+
 ## Decision
 
 > **comfy-env is a normal pip package in the shared ComfyUI

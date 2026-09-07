@@ -137,7 +137,7 @@ hang. Merge them carelessly and a segfault reports as a ten-minute stall.
 | `packages/node_packs.py` | 188 | `[node_packs]` peer-pack install ([ADR-0016](adr/0016-node-pack-dependencies.md)). |
 | `install/helpers.py` | 121 | Install-time helpers. |
 | `environment/libomp.py` | 151 | macOS libomp dedupe, and a result record so a pass that fixed nothing says so. |
-| `install/plugin.py` | 117 | Plugin half + the sibling-pin warning ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md)). |
+| `install/plugin.py` | 26 | The `[node_packs]` peer-pack step. |
 | `pixi.py` | 111 | Pinned, sha256-verified pixi-binary provisioning. |
 | `install/__init__.py` | 83 | `install()` entry. |
 | `environment/runtime.py` | 84 | The `RuntimeEnv` contract behind `comfy-env info --json`. |
