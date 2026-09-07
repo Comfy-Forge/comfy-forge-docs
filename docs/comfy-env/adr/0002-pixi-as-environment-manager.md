@@ -18,15 +18,19 @@ Concretely: [pixi](https://pixi.sh) is a fast Rust-based manager that
 speaks conda-forge and PyPI in the same `pixi.toml`, ships a per-env
 lockfile, and installs entirely per-user with no system-Python pollution.
 
-An honesty note on what the lockfile buys (2026-08 review): **per-machine
-solve determinism and local idempotence** -- skip-if-unchanged installs,
-stamped and hash-checked. NOT cross-machine reproducibility: packs ship
-`comfy-env.toml`, each machine generates its manifest from host detection
-and solves fresh against the rolling channel, and the CUDA wheels currently
-install outside the lock entirely (the
-two-system problem). Cross-machine
-reproducibility would arrive via CI-pre-solved lockfiles per env x ABI tag
-(deferred; most valuable for the ComfyUI Desktop population).
+An honesty note on what the lockfile buys (2026-08 review, amended
+2026-09): **per-machine solve determinism and local idempotence** --
+skip-if-unchanged installs, stamped and hash-checked. NOT cross-machine
+reproducibility: packs ship `comfy-env.toml`, and each machine generates its
+manifest from host detection and solves fresh against the rolling channel.
+Cross-machine reproducibility would arrive via CI-pre-solved lockfiles per
+env x ABI tag (deferred; most valuable for the ComfyUI Desktop population).
+
+The CUDA wheels are no longer the exception they were when this note was
+written: they are inlined into the manifest as direct-URL
+`pypi-dependencies` and are inside `pixi.lock`
+([ADR-0004](0004-prebuilt-cuda-wheel-index.md)). The two-system problem is
+closed.
 
 Supporting choices:
 
@@ -106,16 +110,18 @@ Alternatives:
 
 ## Consequences
 
-- One manifest and one `pixi.lock` per env cover the conda and ordinary
-  PyPI deps; the CUDA wheels remain outside the lock until Requires-Dist
-  curation lands and the inlining path revives
-  (two-system problem).
+- One manifest and one `pixi.lock` per env cover the conda deps, the
+  ordinary PyPI deps **and the CUDA wheels**, which are inlined as
+  direct-URL `pypi-dependencies`. One package manager writes the env.
 - Env materialization is fast (uv-backed) and deterministic per machine;
   unchanged envs are skipped via install hashes and validated stamps.
 - comfy-env depends on GitHub availability to bootstrap pixi on first run.
 - Anything pixi cannot express is out of scope by construction; in practice
   the passthrough design has kept the config schema tiny. The one painful
   instance -- CUDA wheels needing no-deps installs, which pixi cannot
-  express -- forces a post-pixi uv side-channel; the exit paths (pixi
+  express -- was solved on the farm's side rather than pixi's: blanking
+  in-wheel `Requires-Dist` makes a URL dependency `--no-deps` by
+  construction, so no side-channel is needed. The upstream exits (pixi
   PR #5464, or conda-forge-native publishing once torch coverage allows)
-  are tracked in [Why not just conda?](../why-not-conda.md).
+  are still tracked in [Why not just conda?](../why-not-conda.md), now as
+  improvements rather than as the way out of a live problem.

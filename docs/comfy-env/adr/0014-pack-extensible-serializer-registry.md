@@ -1,13 +1,26 @@
 # ADR-0014: Pack-extensible serializer registry
 
-**Status:** accepted (as-built, 2026-08) -- partially superseded by
-[ADR-0015](0015-declared-wire-types.md): the `[serializers].modules`
-declaration moved to `[types]` in `comfy-env-root.toml` (path-based
-loading under mangled names), the pack-prefixed-tag guidance flipped to
-type-identity tags for shared library types, and `OpaquePayload` now
-materializes (owns) its frames on receipt instead of holding them
-verbatim (comfy-env 0.4.15). The registry mechanism itself
-(`register_serializer`, MRO lookup, wire framing) is unchanged.
+**Status:** accepted (as-built, 2026-08) -- **declaration superseded** by
+[ADR-0015](0015-declared-wire-types.md). The registry mechanism itself
+(`register_serializer`, MRO lookup, wire framing) is unchanged and is what
+this ADR is still for.
+
+!!! warning "`[serializers]` is a parse error today"
+    Declare types in `[types]` in `comfy-env-root.toml` and put custom
+    serializers in `<pack>/serialization.py`
+    ([ADR-0015](0015-declared-wire-types.md)). A `[serializers]` table in a
+    `comfy-env.toml` raises a named `ValueError` at load
+    (`config/__init__.py:76`) telling you exactly that; it is not ignored
+    and there is no shim. The declaration block further down describes the
+    superseded form and is kept only so a reader of an old pack can
+    recognise what they are looking at.
+
+    Two other things in that block are also history: the worker-side env
+    var is `COMFY_ENV_SERIALIZER_FILES` and carries file **paths**, not
+    `COMFY_ENV_SERIALIZER_MODULES` with importable module names; and
+    `OpaquePayload` now materializes (owns) its frames on receipt instead
+    of holding them verbatim (comfy-env 0.4.15). The pack-prefixed-tag
+    guidance flipped to type-identity tags for shared library types.
 
 ## Context
 
@@ -45,17 +58,18 @@ modules loaded on both sides of the boundary:
 - Wire frame: `{"__shm_custom__": <tag>, "payload": ...}` inside the
   ordinary metadata tree ([ADR-0010](0010-wire-protocol-and-transport.md)
   owns the framing around it).
-- **Pack declaration** (`comfy-env.toml`):
+- **Pack declaration** (`comfy-env.toml`) -- *superseded, see the warning
+  above; this is what the form was:*
 
   ```toml
   [serializers]
   modules = ["my_pack.wire_types"]
   ```
 
-  The listed modules are imported for their registration side effects:
+  The listed modules were imported for their registration side effects:
   parent-side at `register_nodes()` (`wrap.py`), worker-side at startup via
-  the `COMFY_ENV_SERIALIZER_MODULES` env var (`_persistent_worker.py`).
-  `[serializers]` never reaches the generated pixi manifest.
+  an env var (`_persistent_worker.py`). `[serializers]` never reached the
+  generated pixi manifest.
 - **`OpaquePayload`**: a side that cannot reconstruct a tag (e.g. the
   parent env lacks the pack's deps, or the module failed to import) holds
   the frame verbatim; re-serializing emits the identical frame. So

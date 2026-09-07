@@ -38,10 +38,13 @@ Every subsystem has an explicit fallback, and the terminal fallback is always
 | No GPU at install time | CPU-only torch build is pinned instead of failing |
 
 Feature flags followed the same philosophy: risky capabilities default off
-and overridable per env var or per user file (`~/.comfy-env/settings.env`).
-Only `COMFY_ENV_POOL_IPC` remains -- and it is documented as known-unsound,
-so the pattern now has exactly one instance and no longer carries a general
-claim. Per-node `[settings]` was removed in 0.4.25.
+and overridable per env var. Only `COMFY_ENV_POOL_IPC` remains -- and it is
+documented as known-unsound, so the pattern now has exactly one instance and
+no longer carries a general claim. Per-node `[settings]` was removed in
+0.4.25, and the `~/.comfy-env/settings.env` user file after it: nothing on
+the ComfyUI runtime path imported the module that loaded it, so the file
+degraded a toggle to a no-op rather than to a slower correct path -- the one
+kind of degradation this ADR forbids.
 
 ## Context
 

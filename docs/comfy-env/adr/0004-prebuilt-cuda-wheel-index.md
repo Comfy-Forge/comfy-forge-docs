@@ -15,12 +15,28 @@ Maintain a companion wheel farm,
 wheels automatically (`packages/cuda_wheels.py`):
 
 - Packages listed under `[cuda]` in `comfy-env.toml` are resolved against the
-  **GitHub Pages simple index** (`pozzettiandrea.github.io/cuda-wheels/v2/`)
-  for the user's exact combination; the matched wheel URLs install in a
-  post-pixi `uv pip install --no-deps` pass, outside `pixi.toml` (the
-  two-system problem -- inlining them as URL
-  pypi-dependencies returns once the farm's Requires-Dist curation ships
-  in consumers' wheels).
+  **GitHub Pages simple index** for the user's exact combination. The index
+  base is `https://comfy-forge.github.io/cuda-wheels/`
+  (`packages/cuda_wheels.py:CUDA_WHEELS_INDEX_DEFAULT`, overridable with
+  `COMFY_ENV_CUDA_WHEELS_INDEX`); the resolver fetches one page per package
+  directory under it, and the end-to-end fallback is the Releases API of
+  `Comfy-Forge/cuda-wheels`. The older `pozzettiandrea.github.io/cuda-wheels/v2/`
+  is the legacy farm and is not what comfy-env resolves against.
+- **The matched wheel URLs are inlined into the generated `pixi.toml` as
+  direct-URL `pypi-dependencies`.** They live inside `pixi.lock`, are
+  hash-verified where the index anchor carries a `#sha256=` fragment, are
+  cached by uv rather than re-downloaded, and survive a plain `pixi install`.
+
+    !!! note "This replaced a post-pixi side channel"
+        Wheels used to install in a `uv pip install --no-deps` pass *after*
+        pixi, outside `pixi.toml` -- the **two-system problem**: two package
+        managers writing one env, with the second one's work invisible to the
+        lockfile and erased by any later plain `pixi install`. Inlining became
+        possible when the farm blanked in-wheel `Requires-Dist` (a URL dep is
+        then `--no-deps` by construction). The side-channel pass was deleted
+        with it (`install/workspace.py` header); nothing about it is live, and
+        the phrase "two-system problem" now describes a closed problem
+        wherever it appears in these ADRs.
 - The resolver derives **torch family pins** so the chosen wheels and the
   env's torch agree.
 - Network resilience: transient TCP resets are retried with a real

@@ -3,7 +3,8 @@
 *The demand-paging VRAM allocator that ComfyUI uses by default, and the seam
 where ComfyUI hands it control.*
 
-*Last verified against ComfyUI `b133e483` (2026-08-26) and comfy-aimdo 0.4.15.*
+*Last verified 2026-09-07 against ComfyUI `15eb748` (2026-09-06), which pins
+`comfy-aimdo==0.5.2`, and against comfy-aimdo's own C source at that tag.*
 
 Read [ComfyUI memory management background](comfyui-memory.md) first. This page
 covers the manager that page defers to.
@@ -20,15 +21,19 @@ aimdo's README claims NVIDIA only. ComfyUI enables it on NVIDIA, and on AMD
 from ROCm 7.14, and the wheel ships `aimdo_rocm.so` beside `aimdo.so`.
 PyTorch 2.8+, CUDA 12.8+, Windows 11 and Linux.
 
-!!! note "What we have read, and what we have not"
+!!! note "What this page is read from"
     The wheel ships **seven readable Python modules**, `control.py`,
     `model_vbar.py`, `host_buffer.py`, `vram_buffer.py`, `model_mmap.py`,
     `torch.py`, plus `aimdo.so` and `aimdo_rocm.so`.
 
-    Everything on this page comes from those shims, from ComfyUI's own call
-    sites, or from aimdo's README, **quoted and attributed**. Nobody here has
-    read the compiled object. Where aimdo's behaviour and this page disagree,
-    aimdo is right.
+    Most of this page comes from those shims, from ComfyUI's own call sites,
+    or from aimdo's README, **quoted and attributed**. The pressure-sensing
+    section is different: it is read from aimdo's **C source**
+    (`src/control.c`, `src-win/shmem-detect.c`, `src-cuda/dispatch.c`), which
+    is public in the same repository, and cites it by file and symbol. An
+    earlier version of this page reasoned about the compiled object from the
+    outside and got that section wrong. Where aimdo's behaviour and this page
+    disagree, aimdo is right.
 
 ## The mechanism
 
@@ -189,22 +194,49 @@ segments. That is separate from, and additional to, the fact that
 
 ## How it senses pressure
 
-`--disable-nvml-pressure` exists and defaults to off, which suggests NVML. The
-binary says otherwise: `aimdo.so` links only `libdl`/`libpthread`/`libc`,
-`dlopen`s only `libcuda`, and its debug log reports `prevailing method
-cuMemGetInfo`.
+**The poll is a different function on each platform, and NVML exists on
+exactly one of them.** The whole NVML block in `src-cuda/dispatch.c` -- the
+`nvml.dll` load, `nvmlDeviceGetHandleByUUID`, `nvmlDeviceGetMemoryInfo` -- is
+inside `#if defined(_WIN32) || defined(_WIN64)`. On Linux it is not compiled
+at all, which is why `aimdo.so` links only `libdl`/`libpthread`/`libc` and
+`dlopen`s only `libcuda`. That observation was right; the conclusion drawn
+from it -- that aimdo does not use NVML -- was wrong for the platform where
+it matters.
 
-!!! warning "This is a platform-dependent guarantee"
-    On **Linux**, `cuMemGetInfo` is device-wide, so the parent's aimdo genuinely
-    sees another process's VRAM and will shed its own weights under that
-    pressure. That is what makes `--vram-headroom`'s *"even counting VRAM from
-    other apps"* true.
+**Linux** (`src/control.c`): one source. `cuMemGetInfo`, giving
+`deficit = VRAM_HEADROOM - free`, and the debug log reports `prevailing
+method cuMemGetInfo`. (An integrated-GPU branch above it reads
+`/proc/meminfo` `MemAvailable` instead and reports `prevailing method
+/proc/meminfo (integrated RAM)`.)
 
-    On **Windows/WDDM**, `cuMemGetInfo` is per-process. If the NVML path is
-    inert there too, the parent's aimdo cannot see a sibling process at all, and
-    the cross-process coordination in [comfy-env's memory management](memory-approach.md) is
-    the only thing operating. **This has not been tested on Windows** and is the
-    highest-value open question about this page.
+**Windows** (`src-win/shmem-detect.c`): the larger of **two** deficits,
+recomputed at most every 2 s.
+
+| Term | Source | Deficit |
+|---|---|---|
+| WDDM budget | `IDXGIAdapter3::QueryVideoMemoryInfo`, `DXGI_MEMORY_SEGMENT_GROUP_LOCAL` | `aimdo's own recorded usage + WDDM_BUDGET_HEADROOM - Budget` |
+| device free | NVML if the device handle initialized, else `cuMemGetInfo` | `headroom - free`, with `headroom` = `NVML_BUDGET_HEADROOM` or `CUDA_BUDGET_HEADROOM / 2` |
+
+The second term wins only if it is larger, and the debug log names which
+did: `WDDM budget`, `NVML (Windows)`, or `cuMemGetInfo (Windows)`.
+
+!!! info "What this means for seeing another process"
+    On **Linux**, `cuMemGetInfo` is device-wide, so the parent's aimdo
+    genuinely sees another process's VRAM and will shed its own weights under
+    that pressure. That is what makes `--vram-headroom`'s *"even counting VRAM
+    from other apps"* true.
+
+    On **Windows/WDDM**, `cuMemGetInfo` is per-process --
+    [measured](windows-blind-spot.md): a sibling holding 10 GiB moved the
+    observing process's reading by 0 MiB. But NVML is **not** per-process, and
+    on Windows aimdo reads it directly (`LoadLibraryExW("nvml.dll")`, its own
+    handle, no `pynvml` dependency). So when the NVML handle initializes,
+    aimdo's Windows poll does see a sibling process, through the NVML term and
+    through DXGI's adapter-wide `Budget`.
+
+    `--disable-nvml-pressure` turns the NVML term off, leaving WDDM budget and
+    a per-process `cuMemGetInfo`. That flag is therefore Windows-only in
+    effect; on Linux there is no NVML term for it to disable.
 
 ## Reading weights from the file
 
@@ -302,9 +334,12 @@ Three consequences, measured against comfy-env `bda45b7` and re-checked at `f1f8
 
 ## How this page goes stale
 
-- aimdo's README is versioned with the wheel. Every quotation above is from
-  **0.4.15**; re-read it on upgrade rather than trusting this page.
+- aimdo's README is versioned with the wheel. The quotations above are from
+  **0.5.2**; re-read it on upgrade rather than trusting this page.
 - A fourth init protocol in `main.py` means the seam moved.
 - If `aimdo.so` gains a Python-visible interface for residency or priority,
-  most of the "we have not read it" hedging on this page can be replaced with
-  measurement.
+  the remaining hedging on this page can be replaced with measurement.
+- The pressure section cites C source by file and symbol, not by line, so a
+  refactor moves it without breaking it -- but a change to which terms the
+  Windows `max` combines, or to the platform guards around the NVML block,
+  invalidates it outright. Those are the two things to re-read.

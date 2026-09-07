@@ -11,16 +11,33 @@ Installing a comfy-env pack currently means trusting:
 1. **The pack itself** -- its `install.py` and node code execute with
    the user's privileges. Baseline ComfyUI-ecosystem trust, unchanged
    by comfy-env.
-2. **The CUDA wheel farm** -- native binaries served from a personal
-   GitHub Pages index (Releases API fallback), installed via a
-   post-pixi side-channel **outside the lockfile, unhashed, from a
-   mutable index** (the docs said this honestly at the time; this
-   ADR makes it a decision surface). Blast radius: arbitrary native
-   code on every GPU machine running these packs.
+2. **The CUDA wheel farm** -- native binaries served from a GitHub Pages
+   index (Releases API fallback) run by this project, executing at import
+   time inside the isolated env. Blast radius: arbitrary native code on
+   every GPU machine running these packs.
+
+    *Amended 2026-09:* two of the three qualifiers below have since been
+    fixed. The wheels are **inside the lockfile** -- inlined as direct-URL
+    `pypi-dependencies` -- and **hash-verified wherever the index anchor
+    carries a `#sha256=` fragment**, which the default index does. The
+    post-pixi `uv pip install --no-deps` side channel that put them outside
+    the lock is deleted. What remains true, and is what decision 1 below
+    is about: the index is **mutable**, a mirror set via
+    `COMFY_ENV_CUDA_WHEELS_INDEX` need not attach fragments at all, and
+    nothing is signed.
 3. **`[node_packs]` transitive installs** -- cloned repos' `install.py`
-   files run ([ADR-0016](0016-node-pack-dependencies.md) bounds this
-   to pinned refs; the registry path is rejected there and the
-   dead code that still implements it is scheduled for deletion).
+   files run, and so does the `install.py` of anything *they* declare,
+   recursively. [ADR-0016](0016-node-pack-dependencies.md) rules that
+   entries must be pinned to a git ref and that `registry`/`version`
+   entries are refused until the Comfy Registry can be verified.
+   **Neither rule is enforced in code yet** -- ADR-0016's status line
+   says so, and this item used to read as though it were done. Today
+   `install_node_packs` accepts a bare `owner/repo` (tracking HEAD) and
+   dispatches `registry = "..."` straight to `install_from_registry`,
+   which downloads whatever `api.comfy.org` currently serves for that
+   name and runs its install script (`packages/node_packs.py:172`,
+   `:69`). Blast radius is the same as item 1, at a source the pack
+   author did not pin and the user never named.
 4. **The pinned pixi binary** -- the one link done right: version
    pinned, sha256-verified against the release's own sums, refused on
    mismatch. **This is the template for item 2.**
@@ -88,9 +105,10 @@ sandbox story.
 ## Consequences
 
 - The generated manifest becomes the integrity anchor: everything an
-  env installs is either pixi-locked or hash-pinned by us. The
-  "load-bearing coincidence" (`--as-is` sparing the side-channel
-  wheels) stops being load-bearing once wheels are in the manifest.
+  env installs is either pixi-locked or hash-pinned by us. **Landed**
+  (2026-09): the wheels are in the manifest, so the "load-bearing
+  coincidence" (`--as-is` sparing the side-channel wheels) is no longer
+  load-bearing, and the side channel it protected is gone.
 - Farm CI grows a qualification stage; wheel publishing slows down by
   one smoke run. Accepted.
 - ADR-0011's "no regression vs vanilla ComfyUI" remains true for code

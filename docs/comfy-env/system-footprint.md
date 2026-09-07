@@ -23,16 +23,18 @@ in the codebase -- comfy-env installs no persistent hooks on any platform:
 | Your own pixi install (`~/.pixi`) | comfy-env deliberately installs its own pixi to a separate, comfy-env-owned path so it can never collide with or upgrade a pixi you installed yourself (`pixi.py`). |
 
 !!! note "One caveat on environment variables"
-    comfy-env keeps its own settings in `~/.comfy-env/settings.env` and
-    `~/.comfy-env/debug.env`, written by `comfy-env settings`. On **every**
-    import it reads those files and pushes their keys into `os.environ`
-    (`settings.py`, `debug.py`), so a setting you saved months ago is applied
-    on the next launch and inherited by every subprocess started afterwards.
+    comfy-env keeps its debug-category switches in `~/.comfy-env/debug.env`,
+    written by `comfy-env settings`. On **every** import it reads that file
+    and pushes its keys into `os.environ` (`debug.py`), so a category you
+    enabled months ago is applied on the next launch and inherited by every
+    subprocess started afterwards.
 
     Nothing about your shell changes -- open a terminal and `env` looks exactly
     as it did. But the effect is persistent, and it is env-var shaped, so it is
     worth knowing about rather than filing under "never touched". Deleting
-    `~/.comfy-env/` (step 3 of every removal recipe above) removes it.
+    `~/.comfy-env/` (step 3 of every removal recipe above) removes it. There is
+    no second file: a general `settings.env` used to sit beside this one and
+    was deleted, because nothing on the runtime path read it.
 
 ## What persists outside the ComfyUI folder, and why
 
@@ -40,7 +42,7 @@ in the codebase -- comfy-env installs no persistent hooks on any platform:
 |---|---|---|
 | `%LOCALAPPDATA%\Programs\comfy-env` (Windows) / `~/.ce` (macOS/Linux) | The **workspace**: every materialized isolated environment (interpreters, conda packages, wheels). Can be multi-GB to tens of GB. | **Deliberately machine-wide**, not install-specific. If two ComfyUI installs on your machine use the same node pack, they share one materialized environment instead of each downloading and building their own copy ([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)). Tying it to one install's lifecycle would break that sharing for every other install on the machine. |
 | `~/.comfy-env/pixi/<version>/` | The pixi binary comfy-env uses. | Pinned and sha256-verified per version; shared by every isolated environment rather than duplicated per env. Tens of MB. |
-| `~/.comfy-env/settings.env`, `~/.comfy-env/debug.env` | Your saved preferences from the `comfy-env settings` TUI (one tab per file). | **Only exist if you explicitly saved from it.** Nothing in the install or startup path writes them; a default install never creates these files. |
+| `~/.comfy-env/debug.env` | Your saved debug categories from the `comfy-env settings` TUI. | **Only exists if you explicitly saved from it.** Nothing in the install or startup path writes it; a default install never creates this file. |
 | `<workspace>/install.log` | The full transcript of every workspace install: the discovery list, the resolved (cuda x torch x python) combo, and each `pixi install` invocation with its output. Overwritten per run. | It is the first place to look when an env did not build. Kept beside the workspace rather than in the ComfyUI folder because the workspace is machine-wide and shared between installs (`workspace.py:680`). |
 | *(Windows only)* one line inside `platform.py` in uv's own Python cache (`%APPDATA%\uv\python\cpython-*\Lib\platform.py` or `%LOCALAPPDATA%\rattler\cache\python\...`) | A compatibility patch, applied on every Windows workspace install. | conda-forge's Python build embeds an extra string in `sys.version` that breaks the standard library's own `platform.py` parser, crashing `setuptools`. comfy-env applies the same one-line regex fix conda-forge ships in their own builds, in place, to whichever interpreter uv/pixi already cached there. The file isn't created by or exclusive to comfy-env -- it's uv's shared cache, used by any uv-based tool on the machine -- and the patch only *adds* an optional match, so it cannot break anything that worked before. |
 
@@ -67,7 +69,7 @@ location.
 
 2. **`%LOCALAPPDATA%\Programs\comfy-env`** -- the workspace.
 3. **`%USERPROFILE%\.comfy-env\`** -- the pinned pixi binary, plus
-   `settings.env` and `debug.env` if you ever opened `comfy-env settings`.
+   `debug.env` if you ever opened `comfy-env settings`.
 
 Optional leftovers:
 

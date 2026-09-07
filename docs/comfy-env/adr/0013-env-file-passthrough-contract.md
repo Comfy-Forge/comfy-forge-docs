@@ -76,10 +76,13 @@ pixi's language.
 
 ### Accompanying changes
 
-- **Warnings for unrecognized keys inside comfy-env-owned sections**
-  (`[cuda]`, `[options]`, `[settings]`, `[serializers]`): a typo'd
-  `pakages` currently vanishes without a trace; owned sections are the one
-  place pixi cannot validate for us.
+- **Warnings for unrecognized keys inside comfy-env-owned sections**: a
+  typo'd `pakages` currently vanishes without a trace; owned sections are
+  the one place pixi cannot validate for us. Shipped, and the owned set has
+  since shrunk to **`[cuda]` and `[options]`**
+  (`config/__init__.py:_OWNED_SECTION_KEYS`) -- `[settings]` was removed in
+  0.4.25 and `[serializers]` superseded by `[types]` in 0.4.16, and both
+  are now named parse errors rather than warned-about tables.
 - ~~**`schema = 1` version key** (absent means 1): one line now; the day
   the format's semantics change again, old and new files can coexist and
   the parser can dispatch migrations.~~ **Reverted 2026-08.** The key was

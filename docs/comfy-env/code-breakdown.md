@@ -193,10 +193,10 @@ And the three-hook RFC would retire far less than even 2,100: roughly
 
 | File | Lines | What it is |
 |---|--:|---|
-| `cli.py` | 687 | The `comfy-env` CLI. The only file whose size is user-facing surface rather than internal machinery -- though 183 of it is a settings TUI containing a 123-line nested `draw`. |
+| `cli.py` | 494 | The `comfy-env` CLI. The only file whose size is user-facing surface rather than internal machinery -- though ~190 of it is a settings TUI containing a 123-line nested `draw`. |
 | `config/__init__.py` | 186 | The TOML config layer ([ADR-0003](adr/0003-two-config-files-with-two-roles.md), [ADR-0015](adr/0015-declared-wire-types.md)). |
-| `settings.py` | 137 | The env-var control plane. |
-| `__init__.py` | 98 | Package surface + the three-call contract re-exports. |
+| `settings.py` | 79 | Tombstones for the settings removed in 0.4.25, and nothing else. The live settings are env vars read at their point of use; there is no settings file and no resolution layer. |
+| `__init__.py` | 110 | Package surface + the three-call contract re-exports. |
 | `debug.py` | 61 | Debug categories. |
 
 ## Hardware detection -- 567 lines

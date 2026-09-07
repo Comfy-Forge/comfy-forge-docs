@@ -4,13 +4,19 @@ Every comfy-env setting, its default, and how to change it.
 
 ## How settings resolve
 
-Three tiers, highest priority first. All settings are **machine-global**:
-1. **Environment variable** -- `COMFY_ENV_POOL_IPC=1 python main.py`
-2. **Persistent file** -- `~/.comfy-env/settings.env`, plain `KEY=VALUE`
-   lines; edited comfortably via the `comfy-env settings` TUI.
-3. **Built-in default**
+Every setting on this page is an **environment variable** or a **built-in
+default**, and all of them are **machine-global**. There is no settings file
+and no per-pack override:
+
+```
+COMFY_ENV_POOL_IPC=1 python main.py
+```
 
 Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
+
+The one exception is debug logging, which has a persistent file as well --
+see [Debug logging](#debug-logging) for why that one can work and a general
+settings file could not.
 
 ## General settings
 
@@ -52,9 +58,10 @@ and measurements: [ADR-0038](adr/0038-the-memory-floor.md).
 
 ## Debug logging
 
-Same three-tier resolution, persistent file `~/.comfy-env/debug.env`,
-TUI: the Debug tab of `comfy-env settings`. `COMFY_ENV_DEBUG=1` turns everything on;
-individual categories:
+Debug categories resolve from an environment variable **or** from the
+persistent file `~/.comfy-env/debug.env` (plain `KEY=VALUE` lines, env var
+wins), editable via `comfy-env settings`. `COMFY_ENV_DEBUG=1` turns everything
+on; individual categories:
 
 1. `COMFY_ENV_DEBUG_SERIALIZE` -- tensor/shm serialization
 2. `COMFY_ENV_DEBUG_IPC` -- socket frames
@@ -66,8 +73,18 @@ individual categories:
 8. `COMFY_ENV_DEBUG_VRAM` -- VRAM polling
 9. `COMFY_ENV_DEBUG_WATCHDOG` -- worker watchdog thread dumps
 
-Workers cannot import the settings module (different env), so debug env
-vars are forwarded to and parsed by workers directly.
+Workers cannot import any comfy_env module (different env), so debug env vars
+are forwarded to and parsed by workers directly.
+
+!!! note "Why debug has a file and general settings do not"
+    A file tier only reaches readers that import the module which loads it.
+    `comfy_env.debug` is imported on the ComfyUI runtime path, so a key in
+    `debug.env` lands in `os.environ` before a worker is spawned and is
+    inherited by it. `comfy_env.settings` is not, so the general
+    `~/.comfy-env/settings.env` that used to sit beside it was read only by
+    the CLI and the installer -- a toggle that reported itself as on and
+    changed nothing about how workers ran. It was deleted rather than wired
+    up; the settings it held are environment variables now.
 
 Other `COMFY_ENV_*` variables you may see in a worker's environment
 (`COMFY_ENV_SERIALIZER_FILES`, `COMFY_ENV_ACCEL_PKGS`, ...) are internal

@@ -21,7 +21,7 @@ from there, so workers cannot start.
 |---|---|---|
 | Workspace root (envs, manifests, seals, `install.log`, metadata caches) | `%LOCALAPPDATA%\Programs\comfy-env` / `~/.ce` -- **`COMFY_ENV_ROOT` moves this** | 4-12 GB per env; ABI-stranded copies accumulate by design until [`comfy-env gc`](commands.md#comfy-env-gc) ([ADR-0028](adr/0028-workspace-disk-lifecycle.md)) |
 | pixi/rattler/uv package caches | `%LOCALAPPDATA%\rattler\cache` / `~/.cache/rattler` -- **`COMFY_ENV_ROOT` does NOT move this** | owned by pixi; ~42 GB observed; relocatable only via `PIXI_CACHE_DIR` / `XDG_CACHE_HOME`, which comfy-env never sets |
-| pixi binary, `settings.env`, `debug.env` | `~/.comfy-env` (`Path.home()`-anchored) | tens of MB; also unaffected by `COMFY_ENV_ROOT` |
+| pixi binary, `debug.env` | `~/.comfy-env` (`Path.home()`-anchored) | tens of MB; also unaffected by `COMFY_ENV_ROOT` |
 | Worker temp files and crash logs | `%TEMP%` / `$TMPDIR` | ~113 KB per live worker; tmpfs `/tmp` is fine (rewritten every spawn) |
 | Tensor transport | RAM (memfd / POSIX shm), Linux IPC sockets are abstract-namespace | no volume involved at all |
 | ComfyUI, custom_nodes, models, input/output | wherever you put them | comfy-env writes only node-pack payloads and copied assets there, always as plain copies |
@@ -62,10 +62,12 @@ to zero. Nothing warns; the install just works, bigger and slower.
     COMFY_ENV_ROOT=/data/comfy-env
     PIXI_CACHE_DIR=/data/comfy-env-cache
     ```
-    Both can live in `~/.comfy-env/settings.env`, which comfy-env loads
-    into the environment at import and pixi inherits. Keep both on the
-    same large, local, exec-permitted filesystem. ComfyUI and the models
-    can stay wherever they are -- nothing links across that boundary.
+    Both are environment variables and there is no settings file to put
+    them in: set them where ComfyUI itself is launched (shell profile,
+    service unit, Dockerfile, `.bat`), so `install()` and every pixi
+    invocation under it inherit them. Keep both on the same large, local,
+    exec-permitted filesystem. ComfyUI and the models can stay wherever
+    they are -- nothing links across that boundary.
 
 ## Platform notes
 

@@ -94,7 +94,7 @@ per pairing, the same convention as `download.pytorch.org/whl/cu128/`:
 
 ```bash
 pip install flash_attn \
-    --extra-index-url https://pozzettiandrea.github.io/cuda-wheels/cu128/torch2.8/
+    --extra-index-url https://comfy-forge.github.io/cuda-wheels/cu128/torch2.8/
 ```
 
 That directory contains only wheels built for cu128 + torch 2.8, so pip's

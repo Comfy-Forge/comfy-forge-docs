@@ -103,8 +103,11 @@ the bug in place.
   abandoning elastic sharing. Genuinely simpler, and measurement showed
   the fraction *is* enforced on Windows -- which is the argument against
   it: it converts WDDM's soft failure (slow) into a hard OOM. For this
-  audience a slow render beats a failed one. Kept as an opt-in escape
-  hatch (`COMFY_ENV_WORKER_VRAM_BUDGET`), not the default.
+  audience a slow render beats a failed one. Rejected outright; there is
+  no opt-in escape hatch for it. (An earlier draft of this ADR pointed at
+  `COMFY_ENV_WORKER_VRAM_BUDGET`, which was itself removed in 0.4.25 --
+  see [ADR-0025](0025-vram-co-management.md) point 5 -- so following that
+  sentence set a variable nothing reads.)
 - **Require pynvml.** Rejected as a hard dependency; it is the first
   rung of a ladder that ends in comfy-env's own ledger.
 

@@ -153,13 +153,25 @@ another name, set per worker, carrying data rather than toggles.
 | `COMFY_ENV_AIMDO_NVML` | worker spawn | whether NVML pressure is on, mirroring `--disable-nvml-pressure` |
 | `KMP_DUPLICATE_LIB_OK`, `PYTHONIOENCODING` | env construction | two libraries' worth of scar tissue: duplicate OpenMP runtimes in one process, and Windows console encoding |
 
-!!! warning "A pack's `[env_vars]` outranks every row above"
-    Each write in this table is guarded `if NAME not in env`, and a pack's
-    `[env_vars]` lands in `env` first. So a value pinned in a pack's config
-    wins over the host-derived one. That is deliberate, and it makes
-    `[env_vars]` a lever rather than only a setting: a pack can pin
+!!! warning "A pack's `[env_vars]` outranks *some* of the rows above"
+    A pack's `[env_vars]` lands in `env` first (`wrap.py` builds the dict,
+    `subenv.build_isolation_env` merges it), and the **host-derived** writes
+    are then guarded `if NAME not in env`, so a value pinned in a pack's
+    config wins over them. That is deliberate, and it makes `[env_vars]` a
+    lever rather than only a setting: a pack can pin
     `COMFY_ENV_MIRROR_ARGS=0` and switch off the host CLI flag mirror for
     itself, or pin an aimdo headroom that disagrees with the host's.
+
+    | Guarded -- `[env_vars]` wins | Unconditional -- overwrites `[env_vars]` |
+    |---|---|
+    | `COMFY_ENV_AIMDO_VERSION`, `COMFY_ENV_AIMDO_ENABLE`, `COMFY_ENV_AIMDO_HEADROOM`, `COMFY_ENV_AIMDO_SIMPLE_HEADROOM`, `COMFY_ENV_AIMDO_NVML`, `COMFY_ENV_HOST_ARGS`, `COMFY_CPU`, `COMFY_ENV_EXTRA_RESERVED_VRAM` | `COMFY_ENV_IPC_ADDR`, `COMFY_ENV_IPC_AUTHKEY`, `COMFY_ENV_PARENT_CUDA_IPC`, `COMFYUI_BASE`, `COMFYUI_USER_DIR`, `COMFYUI_ISOLATION_WORKER`, `COMFY_ENV_ACCEL_PKGS`, `COMFY_ENV_SERIALIZER_FILES` |
+
+    The split is not arbitrary: the right-hand column is the transport and
+    the identity of the worker's own ComfyUI. A pack that could pin
+    `COMFY_ENV_IPC_AUTHKEY` or `COMFYUI_BASE` would not be configuring
+    itself, it would be pointing the worker somewhere else. Platform
+    scaffolding follows its own rule -- `KMP_DUPLICATE_LIB_OK` is
+    unconditional on Windows and `setdefault` on macOS (`subenv.py`).
 
 None of these are user settings: set what you need in
 [the settings reference](settings.md) and the parent forwards the right

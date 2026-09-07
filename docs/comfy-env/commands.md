@@ -47,15 +47,19 @@ JSON. This is the block to paste into a bug report.
 
 ## `comfy-env settings`
 
-One TUI, two tabs, two files:
+One TUI, one tab, one file:
 
 | Tab | Toggles | Persisted to |
 |---|---|---|
-| Settings | comfy-env's feature flags | `~/.comfy-env/settings.env` |
 | Debug logging | ten stderr-narration switches -- a master (`COMFY_ENV_DEBUG=1` = everything) plus per-subsystem categories: node inputs/outputs, VRAM around node calls, tensor serialization, CUDA IPC, worker lifecycle, worker watchdog, model registration, metadata scans, env install | `~/.comfy-env/debug.env` |
 
-Every toggle is also just an env var with the same three-tier precedence
-(env var > file > default); the full lists live in the
+Every toggle is also just an env var, and the env var wins over the file.
+
+There was a second tab, persisting comfy-env's feature flags to
+`~/.comfy-env/settings.env`. Both are gone: nothing on the ComfyUI runtime
+path imported the module that read that file, so those toggles reported
+themselves as on and reached no worker. comfy-env's remaining feature flags
+are environment variables only -- the full list is in the
 [Settings reference](settings.md), debug categories under
 [Debug logging](settings.md#debug-logging).
 

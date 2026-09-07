@@ -14,12 +14,20 @@ have since landed (summary below); the factoring stands.
 
 Two files with sharply separated roles:
 
-- **`comfy-env-root.toml`** (pack root): `[node_packs]` dependencies on
-  other ComfyUI node packs, plus pack-level `[settings]`. Nothing else:
-  the root file has a **closed role schema** -- any other section (legacy
-  keys, typos, env-file sections like `[env_vars]` or `[cuda]`) is rejected
-  at parse time with a generic unsupported-section error. No backward
-  compatibility for dead keys, by decision; no legacy key is named in code.
+- **`comfy-env-root.toml`** (pack root): exactly two sections,
+  `[node_packs]` (dependencies on other ComfyUI node packs) and `[types]`
+  (declared wire types, [ADR-0015](0015-declared-wire-types.md)). Nothing
+  else: the root file has a **closed role schema**
+  (`config/__init__.py:36`) -- any other section (legacy keys, typos,
+  env-file sections like `[env_vars]` or `[cuda]`) is rejected at parse
+  time with an unsupported-section error naming what IS allowed. No
+  backward compatibility for dead keys, by decision.
+
+    The pack-level `[settings]` this ADR originally specified was removed
+    in 0.4.25 and is now one of those rejected sections: its one wired key
+    served an experiment a machine-global env var covers, and its other key
+    was parsed and never consulted. The surviving settings are environment
+    variables ([Settings reference](../settings.md)).
   **Never touches the Python environment** -- PyPI deps stay in
   `requirements.txt`, per ComfyUI convention. (Early versions also planned
   `[apt]`/`[brew]` system packages; that idea predates realizing everything
@@ -40,8 +48,10 @@ verbatim into the generated `pixi.toml`, where the pinned pixi validates
 its own language. The compiler-owned exceptions (deny/rewrite/merge) and
 the owned-section typo warnings are specified in ADR-0013.
 The `[cuda]` section triggers wheel resolution
-([ADR-0004](0004-prebuilt-cuda-wheel-index.md)); `[settings]` allows
-per-node overrides of feature flags via `SETTINGS_KEY_MAP`.
+([ADR-0004](0004-prebuilt-cuda-wheel-index.md)). The env file's other
+comfy-env-owned section is `[options]` (`health_check_timeout`); unknown
+keys inside an owned section warn rather than vanish, which is how a
+typo'd `pakages` is caught.
 
 ## Context
 

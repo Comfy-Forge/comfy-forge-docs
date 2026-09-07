@@ -100,10 +100,16 @@ system can no longer honor — running isolated against it silently is
 exactly the silent-flip failure mode — so it fails loudly (env var:
 boot error with a self-locating message; TOML key: `ValueError`
 propagating to a visible IMPORT FAILED). A *truthy* leftover matches
-the only behavior that now exists and merely warns. Keys the settings
-TUI wrote into `~/.comfy-env/settings.env` (it saved every key, for
-every user who ever opened it) are residue, not intent: skipped before
-they reach the environment, cleaned on the next save, never an error.
+the only behavior that now exists and merely warns.
+
+The tombstones were also, until later, unreachable: the only two importers
+of the module that holds them are the CLI and the installer's wheel lookup,
+neither of which runs when ComfyUI starts. A machine still exporting
+`COMFY_ENV_ISOLATE=0` therefore booted silently -- the exact failure this
+section exists to prevent. `comfy_env/__init__.py` now imports the module
+for the side effect, so the guard fires wherever the facade is imported.
+(The `~/.comfy-env/settings.env` residue this paragraph used to discuss
+went with the file itself; see [Settings reference](../settings.md).)
 
 ## Alternatives rejected
 

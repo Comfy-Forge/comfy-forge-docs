@@ -55,10 +55,30 @@ every accepted spelling for requirements is tabulated in the
 Peer node packs are cloned from GitHub or downloaded from the Comfy Registry, then their own
 `requirements.txt` and `install.py` run.
 
-The pack's own `requirements.txt` is then re-run in the main env. just to ensure that the main pack's comfy-env is the right version.
-This re-run exists because a peer pins its **own** comfy-env version and may have downgraded ours; reinstalling
-reasserts this pack's pin ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md), the sibling-pin
-hazard).
+The pack's own `requirements.txt` is then re-run in the main env
+(`install/plugin.py:_reinstall_main_requirements`). The intent was the
+sibling-pin hazard ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md)):
+a peer pins its **own** comfy-env version and may have downgraded ours, so
+reinstalling was meant to reassert this pack's pin.
+
+!!! warning "The re-run cannot reassert a comfy-env pin"
+    It goes through the same `install_requirements` as every other pack, and
+    that function **strips every `comfy-env` / `comfy_env` line** (plus the
+    sister packages) before pip sees the file, precisely so a pack cannot
+    downgrade comfy-env under itself
+    (`packages/node_packs.py:_PROTECTED`). So the re-run reinstalls a pack's
+    *other* host-env requirements and leaves the comfy-env version exactly
+    where the peer left it.
+
+    For a pack that follows the host-env principle -- whose
+    `requirements.txt` is exactly `comfy-env` -- the filtered file is empty
+    and the step is a pip invocation over nothing.
+
+    The hazard is real and this is not the mitigation for it. What actually
+    covers it is the stale-pin **scan** in the next section, which is
+    warn-only. Restoring the intent would need the installer to reinstall
+    its own pinned version explicitly rather than by replaying a file it
+    then censors.
 
 A peer that is not itself comfy-env'd installs its dependencies straight into
 the shared host env. That is permitted today and [tracked as a

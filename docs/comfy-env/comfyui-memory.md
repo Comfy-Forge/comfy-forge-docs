@@ -3,7 +3,8 @@
 *What a running ComfyUI holds on to, where it holds it, and what has to happen
 before it lets go.*
 
-*Last verified against ComfyUI `b133e483` (2026-08-26) with comfy-aimdo 0.4.15.*
+*Last verified against ComfyUI `b133e483` (2026-08-26); ComfyUI now pins
+comfy-aimdo `0.5.2`.*
 
 Start here. You need this page before [comfy-env's memory management](memory-approach.md).
 

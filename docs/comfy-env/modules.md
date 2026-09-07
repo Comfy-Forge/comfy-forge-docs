@@ -9,10 +9,10 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 
 | File | ~LoC | Responsibility |
 |------|-----:|----------------|
-| `__init__.py` | 103 | Public facade. Re-exports the whole API grouped by layer; defines `__version__` from installed metadata; runs `_mock_cuda_packages()` at import (stub modules from `COMFY_TEST_MOCK_PACKAGES` so CPU-only machines can import). |
-| `cli.py` | 490 | The `comfy-env` console entrypoint: `init`, `install`, `info`, `settings`, `gc`. Settings is a two-tab curses TUI with a plain-text fallback. |
-| `settings.py` | 104 | Feature-flag resolution, 3-tier priority: env var > `~/.comfy-env/settings.env` > default. Maps short TOML keys (`pool_ipc`) to `COMFY_ENV_*` vars. |
-| `debug.py` | 65 | Granular debug-category switches (`SERIALIZE`, `IPC`, `WORKER`, `VRAM`, ...), same 3-tier priority via `~/.comfy-env/debug.env`. Workers cannot import it (different venv) and parse env vars directly. |
+| `__init__.py` | 110 | Public facade. Exports the six-name public API (`install`, `setup_env`, `register_nodes`, `copy_files`, `register_serializer`, `input_files`); defines `__version__` from installed metadata; imports `settings` for its tombstone side effect. Internals are deliberately NOT re-exported -- `__getattr__` turns reaching for one into a signpost naming where it lives. |
+| `cli.py` | 494 | The `comfy-env` console entrypoint: `init`, `install`, `info`, `settings`, `gc`. Settings is a single-tab (Debug) curses TUI with a plain-text fallback. |
+| `settings.py` | 79 | Tombstones for settings removed in 0.4.25: a falsy `COMFY_ENV_ISOLATE` / `COMFY_ENV_INSTALL_ISOLATED`, or a truthy `COMFY_ENV_AUTO_INSTALL`, raises at import with a self-locating message. No settings file, no TOML key mapping: the live settings are plain `COMFY_ENV_*` env vars read at their point of use. |
+| `debug.py` | 65 | Granular debug-category switches (`SERIALIZE`, `IPC`, `WORKER`, `VRAM`, ...), env var or `~/.comfy-env/debug.env` (env var wins). Workers cannot import it (different venv) and parse env vars directly. |
 | `pixi.py` | 111 | Provisions the **pinned** pixi binary (version + sha256 vendored in the file) into the comfy-env-owned `~/.comfy-env/pixi/<version>/` -- deliberately not `~/.pixi`, which belongs to the user's own install. Checksum mismatch refuses to install. |
 
 ## `config/`
