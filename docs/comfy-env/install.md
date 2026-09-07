@@ -36,11 +36,19 @@ installed, *if the config declares any*;
 *Runs only if the config declares `[node_packs]`; every accepted spelling is
 tabulated in the [config reference](config.md#node_packs).*
 
-Peer nodepacks are cloned from GitHub or downloaded from the Comfy Registry, then their own
-`requirements.txt` and `install.py` run.
+Peer nodepacks are cloned from GitHub or downloaded from the Comfy Registry, then
+their own `install.py` runs.
 
-A peer that is not itself comfy-env'd installs its dependencies straight into
-the shared host env. That is permitted today and [tracked as a
+**Their `requirements.txt` is not installed.** A peer is required to be
+comfy-envved ([ADR-0016](adr/0016-node-pack-dependencies.md)), so its
+dependencies belong in its own isolated env, and its `requirements.txt` should
+name nothing but `comfy-env`. comfy-env will not pip-install on another pack's
+behalf into the environment it exists to keep clean. A peer that is not
+comfy-envved is cloned but will not load, which is the visible failure rather
+than the silent one.
+
+The peer's `install.py` still runs, and nothing stops it pip-installing into
+the host env from there. That route is open and [tracked as a
 direction](../roadmap.md) to close.
 
 ## 2. The workspace build (`install_workspace()`)
