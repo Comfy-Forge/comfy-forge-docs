@@ -10,14 +10,16 @@ A nodepack is a directory under `custom_nodes/` whose `__init__.py` exports
 Vanilla ComfyUI loads every custom nodepack into
 one shared Python process with one shared environment.
 
-At install time, the standard installation flow (ComfyUI-Manager, nowadays
-bundled with Desktop ComfyUI) is:
+Packages can be installed either manually or through ComfyUI-Manager, itself a nodepack which is nowadays
+bundled with Desktop ComfyUI.
+
+At install time, the sanctioned installation flow is:
 
 - `pip install -r requirements.txt`, if the `requirements.txt` file is present
 - `python install.py`, if `install.py` is present
 
-When we start ComfyUI there is also a per-pack pre-startup hook: ComfyUI itself executes each
-pack's `prestartup_script.py`, if present, before the server boots.
+When starting ComfyUI, a per-nodepack pre-server-startup hook is also ran: each
+pack's `prestartup_script.py` is executed (if present).
 
 ## Anatomy of a nodepack
 
@@ -66,7 +68,7 @@ nothing else:
 | Attribute | Required | What it is |
 |---|---|---|
 | `NODE_CLASS_MAPPINGS` | one of these two | `id -> class` |
-| `comfy_entrypoint` | one of these two | V3 alternative, taken only if the dict is absent |
+| `comfy_entrypoint` | one of these two | V3 alternative. A genuine `elif` (`nodes.py:2337`), so it is called only when `NODE_CLASS_MAPPINGS` is absent **or `None`**; a pack that defines both is loaded from the dict and the entrypoint never runs |
 | `NODE_DISPLAY_NAME_MAPPINGS` | no | `id -> pretty name` |
 | `WEB_DIRECTORY` | no | frontend JS directory |
 
@@ -109,7 +111,7 @@ at different times:
 | `requirements.txt` | **ComfyUI-Manager** (not core) | install / update | pip-installed line by line |
 | `install.py` | **ComfyUI-Manager** (not core) | install / update, **after** requirements | run with `sys.executable` |
 | `prestartup_script.py` | **ComfyUI core** | every launch, before the server boots | imported and executed (`main.py:execute_prestartup_script`) |
-| `__init__.py` | **ComfyUI core** | every launch | imported; `NODE_CLASS_MAPPINGS` read |
+| `__init__.py` | **ComfyUI core** | every launch | imported; `NODE_CLASS_MAPPINGS` read, or `comfy_entrypoint` called instead when that dict is absent or `None` |
 
 ComfyUI core never runs `pip install -r requirements.txt` nor
 `python install.py`, and if the user installs a custom nodepack by plain `git clone` into custom_nodes/, they are
