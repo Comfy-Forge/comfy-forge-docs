@@ -42,13 +42,6 @@ tabulated in the [config reference](config.md#node_packs).*
 Peer nodepacks are cloned from GitHub or downloaded from the Comfy Registry, then their own
 `requirements.txt` and `install.py` run.
 
-!!! warning "A peer pack cannot downgrade comfy-env"
-    Before a peer's `requirements.txt` is installed, every line naming
-    **comfy-env or one of its sister packages** (`comfy-test`,
-    `comfy-3d-viewers`, `comfy-attn`, in either spelling) is dropped
-    (`packages/node_packs.py`). The match is on the start of the line, so a
-    peer pinning one of them by `git+` URL or `-e` path is not covered.
-
 A peer that is not itself comfy-env'd installs its dependencies straight into
 the shared host env. That is permitted today and [tracked as a
 direction](../roadmap.md) to close.
