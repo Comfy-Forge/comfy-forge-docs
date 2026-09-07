@@ -1,0 +1,29 @@
+/* Page subtitle: the italic line under an H1.
+ *
+ * Fourteen comfy-env pages open with one, and by default it renders as an
+ * ordinary italic body paragraph, so it reads as the first sentence of the
+ * page rather than as part of the title. Opt in per page:
+ *
+ *   # ComfyUI custom nodepack background
+ *
+ *   *How vanilla ComfyUI installs, loads and uses a nodepack.*
+ *   {: .subtitle }
+ *
+ * Scoped rather than applied to every `h1 + p`, because some pages open with
+ * a real paragraph that is body text and should look like body text.
+ */
+.md-typeset .subtitle {
+  margin-top: -0.6em;
+  margin-bottom: 1.4em;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
+  max-width: 44rem;
+}
+
+/* The source uses *italics* so the line still reads as a subtitle with CSS
+ * off (bare Markdown, GitHub's renderer). On the built site the class does
+ * the work, so drop the slant and keep the weight difference instead. */
+.md-typeset .subtitle em {
+  font-style: normal;
+}

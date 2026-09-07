@@ -36,6 +36,7 @@ extra_css:
   - stylesheets/mermaid-zoom.css
   - stylesheets/forge-bar.css
   - stylesheets/tables.css
+  - stylesheets/subtitle.css
 
 # NOTE: MkDocs defaults `plugins` to ['search'] only while the key is absent.
 # Declaring it here REPLACES that default, so `search` must be listed

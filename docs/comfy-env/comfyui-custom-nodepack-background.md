@@ -1,7 +1,8 @@
 # ComfyUI custom nodepack background
 
-*How vanilla ComfyUI installs, loads and uses a nodepack, which is the contract comfy-env has to
-honour.*
+*How vanilla ComfyUI installs, loads and uses a nodepack. This is the contract
+comfy-env has to honour.*
+{: .subtitle }
 
 A nodepack is a directory under `custom_nodes/` whose `__init__.py` exports
 `NODE_CLASS_MAPPINGS`.
