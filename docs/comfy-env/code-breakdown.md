@@ -1,6 +1,6 @@
 # Code breakdown -- named and shamed
 
-Where the lines actually go. **18,341 lines of Python across 44 files** under
+Where the lines actually go. **18,342 lines of Python across 44 files** under
 `src/comfy_env/` (raw `wc -l`, blanks and comments included).
 
 Snapshot at **v0.4.38 (2026-09-07)**. This page is a photograph and it *will*
@@ -18,11 +18,11 @@ find src/comfy_env -name '*.py' | xargs wc -l | sort -rn
 |---|--:|--:|
 | Transport / worker IPC (`isolation/workers/`) | 5,412 | 30% |
 | Node registration / proxy / ComfyUI glue (`isolation/`, excl. workers) | 5,150 | 28% |
-| Memory floor, shared and worker side (`memory_manager`, `state_sync`, `reserve`, `contract`, `mirrored_args`) | 2,437 | 13% |
-| Environment build / install / wheels (`install/`, `packages/`, `environment/`) | 3,706 | 20% |
+| Memory floor, shared and worker side (`memory_manager`, `state_sync`, `reserve`, `contract`, `mirrored_args`) | 2,455 | 13% |
+| Environment build / install / wheels (`install/`, `packages/`, `environment/`) | 3,703 | 20% |
 | Hardware detection | 574 | 3% |
-| Config / CLI / misc | 1,062 | 6% |
-| **Total** | **18,341** | 100% |
+| Config / CLI / misc | 1,048 | 6% |
+| **Total** | **18,342** | 100% |
 
 Two subsystems -- the transport and the ComfyUI glue -- are **58% of the
 project**, and the memory floor is now a third of the size of either. That is
@@ -67,25 +67,34 @@ imports -- **six of them hidden behind `# noqa: F401` comments that were false
 in four separate files**, one claiming "re-exported names used below" for a
 block where five of thirteen names were untouched.
 
-## Transport / worker IPC -- 4,662 lines (the biggest sink)
+## Transport / worker IPC -- 5,412 lines (the biggest sink)
+
+`isolation/workers/` only. `tensor_utils.py` used to be listed here; it lives
+one level up and is counted under the ComfyUI glue below, which is why these
+rows now sum to the subsystem table's figure exactly.
 
 | File | Lines | What it is |
 |---|--:|---|
-| `isolation/workers/_persistent_worker.py` | 1,739 | The entire worker program, shipped to the far env as source text ([ADR-0006](adr/0006-worker-crosses-the-boundary-as-source-text.md)). Main loop, transport, faulthandler/watchdog, the `print`/logger hijack. Still the largest file. **But see the footnote -- 415 of these lines are not transport at all.** |
-| `isolation/workers/subprocess.py` | 1,092 | Parent-side `SubprocessWorker`: spawn, authkey handshake, health, call/echo, consumed-ack, the canary + device-identity checks. |
-| `isolation/workers/_ipc_shared.py` | 845 | The shared serialization core both sides import: the `_to_shm` walker, the registry, `OpaquePayload`, and the MESH/VOXEL/SPLAT codecs added in 0.4.28. The one comfy_env-import-free leaf. |
-| `isolation/workers/_ipc_parent.py` | 716 | Parent transport internals: `SocketTransport`, tensor strategies, `_from_shm`. |
-| `isolation/tensor_utils.py` | 174 | `TensorKeeper`, madvise reclaim. ~85 of these lines have **zero callers** and survive only as public re-exports. |
-| `isolation/workers/base.py` | 82 | `Worker` ABC + `WorkerError`. |
+| `isolation/workers/_persistent_worker.py` | 2,474 | The entire worker program, shipped to the far env as source text ([ADR-0006](adr/0006-worker-crosses-the-boundary-as-source-text.md)). Main loop, transport, faulthandler/watchdog, the `print`/logger hijack. Still the largest file, and it grew 735 lines with the memory floor. **But see the footnote -- a large slice of it is not transport at all.** |
+| `isolation/workers/subprocess.py` | 1,330 | Parent-side `SubprocessWorker`: spawn, authkey handshake, health, call/echo, consumed-ack, the canary + device-identity checks. |
+| `isolation/workers/_ipc_shared.py` | 929 | The shared serialization core both sides import: the `_to_shm` walker, the registry, `OpaquePayload`, and the MESH/VOXEL/SPLAT codecs added in 0.4.28. The one comfy_env-import-free leaf. |
+| `isolation/workers/_ipc_parent.py` | 592 | Parent transport internals: `SocketTransport`, tensor strategies, `_from_shm`. |
+| `isolation/workers/base.py` | 73 | `Worker` ABC + `WorkerError`. |
 | `isolation/workers/__init__.py` | 14 | Re-exports. |
 
-!!! warning "415 of `_persistent_worker.py` is filed here and shouldn't be"
-    24% of the worker is ComfyUI co-management, not transport: **252 lines
-    replace or mutate globals ComfyUI owns** -- `torch.nn.Module.to`/`.cuda`
-    (`:1118-1119`), `comfy.model_management.load_models_gpu` (`:1434`),
-    `comfy.cli_args.args` (`:1322`, `:1328`, `:1345`) -- and another 163 are
-    the far half of the eviction protocol. Re-filing them would make Transport
-    4,247 (33%) and Node/glue 3,289 (26%).
+!!! warning "Much of `_persistent_worker.py` is filed here and shouldn't be"
+    A large part of the worker is ComfyUI co-management, not transport: lines
+    that replace or mutate globals ComfyUI owns -- `torch.nn.Module.to`/`.cuda`,
+    `comfy.model_management.load_models_gpu`, `comfy.cli_args.args` -- plus the
+    far half of the eviction protocol. Re-filing them would move real weight
+    from Transport to Node/glue.
+
+    **The exact split is not restated here because it is a hand count and the
+    file has grown 735 lines since it was made** (1,739 -> 2,474). The old
+    figures were 252 lines of global mutation and 163 of eviction protocol,
+    24% of the file, measured at the smaller size with line citations that no
+    longer point where they did. Re-deriving them means reading the file, not
+    scaling the old number.
 
 ### The duplication, measured
 
@@ -117,48 +126,53 @@ semantic difference: the two `recv()` implementations disagree on EOF vs
 timeout, and `subprocess.py` branches on that difference to tell a crash from a
 hang. Merge them carelessly and a segfault reports as a ten-minute stall.
 
-## Environment build / install / wheels -- 3,525 lines
+## Environment build / install / wheels -- 3,703 lines
 
 | File | Lines | What it is |
 |---|--:|---|
-| `install/workspace.py` | 1,017 | Workspace materialization: discover configs, resolve torch pin, pick wheel combo, hash for change detection, `pixi install` per env, stamp. |
-| `environment/cache.py` | 620 | Env identity, ABI tags, workspace layout, the Windows LOCALAPPDATA guard. |
-| `packages/toml_generator.py` | 451 | The manifest compiler: each `comfy-env.toml` -> a per-env `pixi.toml` ([ADR-0013](adr/0013-env-file-passthrough-contract.md)). |
-| `packages/cuda_wheels.py` | 431 | CUDA wheel index resolution ([ADR-0004](adr/0004-prebuilt-cuda-wheel-index.md)). |
+| `install/workspace.py` | 1,027 | Workspace materialization: discover configs, resolve torch pin, pick wheel combo, hash for change detection, `pixi install` per env, stamp. |
+| `environment/cache.py` | 691 | Env identity, ABI tags, workspace layout, the Windows LOCALAPPDATA guard. |
+| `packages/toml_generator.py` | 683 | The manifest compiler: each `comfy-env.toml` -> a per-env `pixi.toml` ([ADR-0013](adr/0013-env-file-passthrough-contract.md)). |
+| `packages/cuda_wheels.py` | 433 | CUDA wheel index resolution ([ADR-0004](adr/0004-prebuilt-cuda-wheel-index.md)). |
 | `packages/node_packs.py` | 188 | `[node_packs]` peer-pack install ([ADR-0016](adr/0016-node-pack-dependencies.md)). |
-| `install/helpers.py` | 139 | Install-time helpers. |
-| `environment/libomp.py` | 137 | macOS libomp dedupe, and a result record so a pass that fixed nothing says so. |
+| `install/helpers.py` | 121 | Install-time helpers. |
+| `environment/libomp.py` | 151 | macOS libomp dedupe, and a result record so a pass that fixed nothing says so. |
 | `install/plugin.py` | 117 | Plugin half + the sibling-pin warning ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md)). |
 | `pixi.py` | 111 | Pinned, sha256-verified pixi-binary provisioning. |
-| `install/__init__.py` | 85 | `install()` entry. |
+| `install/__init__.py` | 83 | `install()` entry. |
 | `environment/runtime.py` | 84 | The `RuntimeEnv` contract behind `comfy-env info --json`. |
 | `environment/setup.py` | 73 | `setup_env()`: faulthandler, libomp dedupe. |
-| `packages/__init__.py` / `environment/__init__.py` / `install/verify.py` | 27 / 27 / 18 | Small. |
+| `packages/__init__.py` / `environment/__init__.py` | 25 / 27 | Small. (`install/verify.py`, listed here at 18 lines in the previous snapshot, no longer exists.) |
 
 !!! danger "The old claim about this section was wrong"
     The previous snapshot said the two 1,000-line files were "large because the
     input space (conda + PyPI + CUDA combos x platforms) genuinely is."
 
-    `toml_generator.py` is now **451**, and **412 of the 419 lines deleted were
-    a dead v0.3 code path** -- so 47% of its old size was never input-space
-    complexity at all. And `workspace.py` is large mostly because
-    `install_workspace` is a **single 422-line function**: a linear twelve-phase
-    pipeline nobody has cut into its named phases.
+    `toml_generator.py` fell to **451** when **412 of the 419 lines deleted
+    were a dead v0.3 code path** -- so 47% of its size at the time was never
+    input-space complexity at all. It has since grown back to **683** on real
+    work (wheel inlining, the torch-family rewrite), which does not undo the
+    point: nearly half of it was once dead. And `workspace.py` is large mostly
+    because `install_workspace` is **a single 404-line function**: a linear
+    twelve-phase pipeline nobody has cut into its named phases.
 
     The honest version: *the wheel-combo resolver (138 lines) and the per-node
     feature builder (105) are large because the input space is. The rest is
     large because it hasn't been split.*
 
-## Node registration / proxy / ComfyUI glue -- 2,874 lines
+## Node registration / proxy / ComfyUI glue -- 5,150 lines
 
 | File | Lines | What it is |
 |---|--:|---|
-| `isolation/metadata.py` | 1,265 | The scan subprocess + proxy synthesis ([ADR-0023](adr/0023-metadata-scan-and-proxy-synthesis.md)) -- the subsystem most exposed to ComfyUI schema churn (V1/V3 duality, DynamicCombo, hidden inputs). |
-| `isolation/wrap.py` | 585 | `register_nodes()` orchestration. |
-| `isolation/pool.py` | 581 | The worker pool: lifecycle, restart+generations, VRAM/progress callbacks, route proxying, the `_STALE_PATCHERS` invariant ([ADR-0019](adr/0019-worker-lifecycle.md)). |
-| `isolation/model_patcher.py` | 277 | `SubprocessModelPatcher` -- resident models obey ComfyUI's VRAM manager. |
-| `isolation/subenv.py` | 128 | Launch-env construction for the worker subprocess. |
-| `isolation/__init__.py` | 38 | Re-exports. |
+| `isolation/metadata.py` | 1,860 | The scan subprocess + proxy synthesis ([ADR-0023](adr/0023-metadata-scan-and-proxy-synthesis.md)) -- the subsystem most exposed to ComfyUI schema churn (V1/V3 duality, DynamicCombo, hidden inputs). |
+| `isolation/pool.py` | 1,852 | The worker pool: lifecycle, restart+generations, VRAM/progress callbacks, route proxying, the `_STALE_PATCHERS` invariant ([ADR-0019](adr/0019-worker-lifecycle.md)), and the host half of the memory floor -- which is where nearly all of its 1,271-line growth went. |
+| `isolation/wrap.py` | 572 | `register_nodes()` orchestration. |
+| `isolation/model_patcher.py` | 401 | `SubprocessModelPatcher` -- resident models obey ComfyUI's VRAM manager. |
+| `isolation/provided.py` | 139 | `input_files()`, the one worker-visible helper in the public API. |
+| `isolation/subenv.py` | 121 | Launch-env construction for the worker subprocess. |
+| `isolation/errors.py` | 88 | Error translation across the boundary: a closed vocabulary, never a pickled exception class. |
+| `isolation/tensor_utils.py` | 83 | `TensorKeeper`, madvise reclaim. |
+| `isolation/__init__.py` | 34 | Re-exports. |
 
 ### The monkey-patch surface, recounted
 
@@ -167,16 +181,25 @@ comfy-env delete**, and said every ComfyUI internal comfy-env touches lives in
 `wrap.py`, `pool.py`, `metadata.py` and `model_patcher.py`. That number was
 those four files' sizes added together. Both halves are wrong.
 
-| File | Total | Actually touches ComfyUI | Share |
-|---|--:|--:|--:|
-| `metadata.py` | 1,265 | ~904 | 71% |
-| `_persistent_worker.py` | 1,739 | 415 | 24% |
-| `pool.py` | 581 | ~292 | 50% |
-| `model_patcher.py` | 277 | 277 | 100% |
-| `environment/cache.py` | 620 | ~91 | 15% |
-| `workers/subprocess.py` | 1,092 | ~59 | 5% |
-| `_ipc_shared.py` / `_ipc_parent.py` | 1,561 | ~54 | 3% |
-| **`wrap.py`** | **585** | **4** | **0.7%** |
+!!! warning "The right-hand columns are a hand count from an older tree"
+    "Actually touches ComfyUI" was measured by reading each file, so it cannot
+    be regenerated by `wc`. The **Total** column below is refreshed; the
+    measured column and its share are **as of the v0.4.31 snapshot** and are
+    shown against the totals they were taken from. Do not read a share as
+    current -- `pool.py` alone has more than tripled since. The shape of the
+    finding survives (the file named as the monkey-patch surface, `wrap.py`,
+    touches almost nothing); the percentages do not.
+
+| File | Total now | Total when measured | Touched ComfyUI (at that size) | Share then |
+|---|--:|--:|--:|--:|
+| `metadata.py` | 1,860 | 1,265 | ~904 | 71% |
+| `_persistent_worker.py` | 2,474 | 1,739 | 415 | 24% |
+| `pool.py` | 1,852 | 581 | ~292 | 50% |
+| `model_patcher.py` | 401 | 277 | 277 | 100% |
+| `environment/cache.py` | 691 | 620 | ~91 | 15% |
+| `workers/subprocess.py` | 1,330 | 1,092 | ~59 | 5% |
+| `_ipc_shared.py` / `_ipc_parent.py` | 1,521 | 1,561 | ~54 | 3% |
+| **`wrap.py`** | **572** | **585** | **4** | **0.7%** |
 
 **~2,100 lines across nine files, not 2,719 across four.** `wrap.py` --
 which contributed 590 to the old claim -- reaches into ComfyUI in exactly one
@@ -189,22 +212,22 @@ And the three-hook RFC would retire far less than even 2,100: roughly
 `fetch_metadata` survive any upstream hook, because scanning a pack's nodes
 *in the far env* is comfy-env's job, not ComfyUI's.
 
-## Config / CLI / misc -- 1,169 lines
+## Config / CLI / misc -- 1,048 lines
 
 | File | Lines | What it is |
 |---|--:|---|
 | `cli.py` | 494 | The `comfy-env` CLI. The only file whose size is user-facing surface rather than internal machinery -- though ~190 of it is a settings TUI containing a 123-line nested `draw`. |
-| `config/__init__.py` | 186 | The TOML config layer ([ADR-0003](adr/0003-two-config-files-with-two-roles.md), [ADR-0015](adr/0015-declared-wire-types.md)). |
+| `config/__init__.py` | 189 | The TOML config layer ([ADR-0003](adr/0003-two-config-files-with-two-roles.md), [ADR-0015](adr/0015-declared-wire-types.md)). |
 | `settings.py` | 79 | Tombstones for the settings removed in 0.4.25, and nothing else. The live settings are env vars read at their point of use; there is no settings file and no resolution layer. |
 | `__init__.py` | 110 | Package surface + the three-call contract re-exports. |
-| `debug.py` | 61 | Debug categories. |
+| `debug.py` | 65 | Debug categories. |
 
-## Hardware detection -- 567 lines
+## Hardware detection -- 574 lines
 
 | File | Lines | What it is |
 |---|--:|---|
 | `detection/gpu.py` | 270 | NVML -> nvidia-smi -> sysfs fallback chain. |
-| `detection/cuda.py` | 125 | CUDA version probing. |
+| `detection/cuda.py` | 132 | CUDA version probing. |
 | `detection/__init__.py` | 84 | Platform helpers + the (os, machine) -> pixi platform table. |
 | `detection/backend.py` | 70 | Backend selection. |
 | `detection/arch.py` | 18 | CPU architecture, which the tier-2 wheel fallback is keyed on. |
@@ -216,18 +239,20 @@ The smallest subsystem, and the one that best matches its job size.
 Ordered by severity, not size.
 
 **1. The RPC envelope exists in triplicate -- and it has already cost a bug.**
-`call_method` (96 lines), `call_module` (50) and `echo` (30) in
+`call_method` (90 lines), `call_module` (49) and `echo` (32) in
 `subprocess.py` all run the identical sequence: lock, `_ensure_started`,
 `_to_shm`, send, error-check, `_from_shm`, consumed-ack, cleanup. In 0.4.28 a
 leak was fixed where **`echo()` omitted the `_cleanup_ipc_cache()` its two
 siblings call**, leaving CUDA-IPC entries unevicted on every worker start.
 Three copies of one function is why nobody noticed.
 
-**2. `main()` in the worker is one 863-line function** (`:874-1736`),
-containing 16 nested definitions totalling 356 lines. ADR-0006 justifies the
-*module* being one program shipped as source text. It does not justify the
-*function*. Nothing can move to another file while it closes over `main`'s
-locals -- so this is the gate on every other worker-side cleanup.
+**2. `main()` in the worker is one 1,608-line function** (`:864-2471`),
+containing 23 nested definitions totalling 573 lines. It was 863 lines at the
+previous snapshot and has not been split; it has nearly doubled. ADR-0006
+justifies the *module* being one program shipped as source text. It does not
+justify the *function*. Nothing can move to another file while it closes over
+`main`'s locals -- so this is the gate on every other worker-side cleanup, and
+it is getting worse rather than holding.
 
 **3. Two parallel wire formats, and a guaranteed-identity walk over one.**
 Beside `_to_shm`/`_from_shm` there is a second serializer emitting

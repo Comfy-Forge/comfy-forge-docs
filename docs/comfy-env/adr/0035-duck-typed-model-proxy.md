@@ -1,7 +1,8 @@
 # ADR-0035: The model proxy is a duck-type, not a `ModelPatcher` subclass
 
-**Status:** accepted (2026-08-15); **deprecated 2026-09-04** by
-[ADR-0038](0038-the-memory-floor.md). Replaced the proxy design shipped with
+**Status:** accepted (2026-08-15); briefly deprecated 2026-09-04 by
+[ADR-0038](0038-the-memory-floor.md) and **that deprecation was reversed
+2026-09-05 -- this ADR is current**. Replaced the proxy design shipped with
 [ADR-0025](0025-vram-co-management.md).
 
 !!! warning "The proxy is on its way out"

@@ -23,8 +23,13 @@ eras of weight management, which is why the next page exists.
 comfy-aimdo pages weights per layer through a virtual address reservation
 rather than loading them whole. It is what comfy-env relies on when the host runs it,
 and it behaves differently enough from the legacy path that most surprises in
-this area trace back to it: its memory is invisible to torch, and its
-headroom is fixed when its devices initialise.
+this area trace back to it: its memory is invisible to torch, and it carries
+**two** headrooms that behave oppositely. `simple_vram_headroom` is a plain
+global with an exported setter (`set_simple_vram_headroom`), settable at any
+time and not frozen at init; the reactive poll regulates instead to
+`VRAM_HEADROOM`, a **compile-time** 256 MiB constant that nothing can change.
+Earlier drafts of these pages said the headroom is fixed once devices
+initialise, which is wrong about both.
 
 ## The platform underneath
 
