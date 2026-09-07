@@ -86,7 +86,7 @@ direction](../roadmap.md) to close.
 
 ### 2. Stale sibling pin check
 
-*Always runs* (`install/__init__.py:84`).
+*Always runs* (`install/__init__.py:73`).
 Every sibling `requirements.txt` under `custom_nodes/` is scanned for `comfy-env` pins
 that would downgrade the installed version:
 
