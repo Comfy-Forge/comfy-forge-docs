@@ -1,7 +1,7 @@
 # Module inventory
 
 Everything lives under `src/comfy_env/`. Line counts are approximate
-(v0.4.34). Layering, low to high: `config` / `settings` / `debug` ->
+(v0.4.38, 44 files, 18,341 lines). Layering, low to high: `config` / `settings` / `debug` ->
 `detection` -> `packages` -> `environment` -> `install` + `isolation` ->
 `cli` / `__init__`.
 
@@ -59,7 +59,15 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 
 | File | ~LoC | Responsibility |
 |------|-----:|----------------|
-| `isolation/wrap.py` | 572 | Runtime orchestrator: `register_nodes()`, persistent worker pool (one per env, auto-restart), per-platform isolation env construction, proxy registration, parent-side callbacks (progress, VRAM budget), atexit/signal cleanup, stale-worker reaping. |
+| `isolation/wrap.py` | 560 | Runtime entry point: `register_nodes()`, config discovery, per-pack env resolution, proxy synthesis, and the in-process fallback when an env is absent. The worker pool moved to `pool.py`. |
+| `isolation/pool.py` | 1852 | The worker pool and the whole host side of the memory floor: one worker per env with a generation counter, the VRAM budget callback workers call back into, the reserve publish, the stand-in registration into ComfyUI's ledger, the idle sweep and the pressure hook, `atexit` and signal cleanup, stale-worker reaping. |
+| `memory_manager.py` | 1031 | The worker side of the floor. Enables comfy-aimdo, the release ladders (`full_release`, `partial_release`, `release_pins`), the per-node and per-prompt cast boundaries, prompt marks, and the pin census the host reads. Staged into the worker, so it must parse on the oldest worker Python. |
+| `state_sync.py` | 823 | Pure arithmetic and policy, imports neither torch nor comfy: the residency census and its sequence protocol, the admission ceiling, the idle and pressure release planners, the prompt-epoch marks, and the node `self` state wire in both directions. |
+| `contract.py` | 229 | The upstream coupling contract as data. Sixteen entries with per-entry severity and the version each appeared in, checked against the real tree at startup; a fatal gap refuses to start. |
+| `mirrored_args.py` | 197 | The host-to-worker CLI flag mirror, as an allowlist. Decides a worker's dtype, attention backend and pinning behaviour, with a global kill switch and a per-flag escape hatch. |
+| `reserve.py` | 157 | The reserve arithmetic, pure: what a worker is charged, what gets published, what is forwarded into the pager's headroom, and the discount that stops a requester being charged for its own load twice. |
+| `isolation/errors.py` | 88 | The closed error vocabulary that crosses the wire, including translating a worker OOM back into the host's real exception class. |
+| `isolation/subenv.py` | 121 | Per-platform isolation env construction. |
 | `isolation/metadata.py` | 1780 | Spawns a short-lived subprocess in the isolation env to write out node metadata as JSON (`INPUT_TYPES`, ...), then synthesizes proxy classes in the parent. Handles ComfyUI v3 schema, dynamic combo providers (live model/input-dir dropdowns), synthesized validation, hash-keyed caching. |
 | `isolation/provided.py` | 139 | `input_files()` and the tagged `ProvidedList`: a combo's option list that carries the recipe that produced it, so proxies can re-list live. Stdlib-only leaf; shipped verbatim into the scan child. |
 | `isolation/model_patcher.py` | 301 | `SubprocessModelPatcher`: bridges worker-resident GPU models into ComfyUI's VRAM manager; eviction IPCs the worker to move the model to CPU. Only module importing ComfyUI at module scope. |

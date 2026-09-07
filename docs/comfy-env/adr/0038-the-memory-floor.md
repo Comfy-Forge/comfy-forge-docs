@@ -1,10 +1,27 @@
 # ADR-0038: The memory floor — read, publish, ask, never patch
 
-**Status:** accepted (2026-09-04). Supersedes the admission *mechanism* of
-[ADR-0034](0034-admission-by-arithmetic.md) and the co-management design of
-[ADR-0036](0036-mirroring-comfyui-memory-management.md); places
-[ADR-0035](0035-duck-typed-model-proxy.md)'s model proxy behind a
-default-off switch pending removal. The goal of
+**Status:** accepted (2026-09-04), **amended 2026-09-05**. Supersedes the
+admission *mechanism* of [ADR-0034](0034-admission-by-arithmetic.md) and the
+co-management design of
+[ADR-0036](0036-mirroring-comfyui-memory-management.md).
+
+!!! warning "Read this before the Decision below"
+
+    This ADR was written to deprecate
+    [ADR-0035](0035-duck-typed-model-proxy.md)'s model proxy and drop
+    host-driven reclaim. **Both of those were wrong and were reversed on
+    2026-09-05.** The proxy is registered unconditionally for every worker
+    model, there is no switch, and it is the only mechanism by which
+    upstream's own eviction reaches another process. The reasoning that
+    follows is preserved because the argument is still worth reading and the
+    reversal is worth knowing; it is not the current decision. See
+    "Corrected, 2026-09-05" below.
+
+    Also reversed: this ADR states that aimdo's headroom is fixed once its
+    devices initialise. It is not. The setter is live at the next page fault,
+    measured, and comfy-env forwards into it on every publish.
+
+The goal of
 [ADR-0025](0025-vram-co-management.md) is unchanged: a pack's VRAM should be
 invisible to the user. What changed is the price we are willing to pay for
 it.
@@ -12,14 +29,19 @@ it.
 ## Decision
 
 > **comfy-env does not patch, wrap or class-patch anything in the ComfyUI
-> host process, and does not register a model it does not own.** It reads
-> values, publishes one number into a knob ComfyUI already exposes, and
-> calls ComfyUI's own public functions. Host-driven reclaim of worker VRAM
-> is deliberately dropped; workers release on their own instead.
+> host process.** It reads values, publishes one number into a knob ComfyUI
+> already exposes, and calls ComfyUI's own public functions.
+>
+> ~~and does not register a model it does not own... Host-driven reclaim of
+> worker VRAM is deliberately dropped; workers release on their own
+> instead.~~ **Reversed 2026-09-05.** comfy-env registers a stand-in for
+> every worker model, unconditionally, and host-driven reclaim is the
+> mechanism that makes the whole floor work.
 >
 > Two wraps survived this ADR as a named, switched exception. **Both were
 > deleted on 2026-09-05**: the rule is that comfy-env replaces no host
-> function, switched or not. An AST test fails the build if anything assigns
+> function, switched or not. An AST test fails the build if any module that
+> runs in the host process assigns
 > to a comfy module apart from `EXTRA_RESERVED_VRAM`, the knob
 > `--reserve-vram` writes.
 
@@ -45,12 +67,15 @@ Measured on an RTX 3090, ComfyUI 0.33.0, comfy-aimdo 0.4.13
 | paged (aimdo) | **inert**: 6.03 GiB resident with and without | **works**: 6.03 GiB → 0.03 GiB |
 
 `ModelPatcherDynamic` ignores `lowvram_model_memory` and decides residency
-at page-fault time, so ComfyUI's reserve never enters the decision. aimdo's
-own headroom is fixed when its devices initialise: the global
-`set_simple_vram_headroom` is inert once running (tested with NVML pressure
-on and off), a second `init_devices` returns `False`, and a second
-`control.init` **segfaults the process**. On an aimdo host the reserve is
-whatever `--reserve-vram` set at launch, and comfy-env cannot move it.
+at page-fault time, so ComfyUI's reserve never enters the decision. ~~aimdo's own headroom is fixed when its devices initialise; the setter is
+inert once running and comfy-env cannot move it.~~ **Wrong, and reversed
+2026-09-05.** That experiment used plain `nn.Linear` modules, which never
+page, so the setter had nothing to steer. It is live at the next fault:
+measured on Windows, one fault after the write took residency from
+14,784 MiB to 6,112 MiB in 52.3 ms, and comfy-aimdo #107 makes it a
+documented contract with an upstream test. comfy-env forwards into it on
+every publish. What IS true from that experiment: a second `init_devices`
+returns `False` and a second `control.init` **segfaults the process**.
 
 So the floor is preventive on the legacy path and reactive on the paged one.
 This is the single largest correction to the design as originally drafted.

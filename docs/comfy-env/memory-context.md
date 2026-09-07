@@ -21,7 +21,7 @@ eras of weight management, which is why the next page exists.
 [**How aimdo manages weights**](comfyui-aimdo.md)
 
 comfy-aimdo pages weights per layer through a virtual address reservation
-rather than loading them whole. It is what comfy-env's `paged` level uses,
+rather than loading them whole. It is what comfy-env relies on when the host runs it,
 and it behaves differently enough from the legacy path that most surprises in
 this area trace back to it: its memory is invisible to torch, and its
 headroom is fixed when its devices initialise.

@@ -11,7 +11,7 @@ the shape; this page is the list.*
 | Marking | Meaning |
 |---|---|
 | **calls** | comfy-env invokes it, in the parent or the worker |
-| **patches** | comfy-env replaces it inside the WORKER process. Never in the host: an AST test fails the build if comfy-env assigns to a comfy module outside two named wraps ([ADR-0038](adr/0038-the-memory-floor.md)) |
+| **patches** | comfy-env replaces it inside the WORKER process. Never in the host: an AST test fails the build if any module that runs in the host process assigns to a comfy module, apart from the one value comfy-env publishes ([ADR-0038](adr/0038-the-memory-floor.md)) |
 | **implements** | the model proxy must provide it, because upstream reads it |
 | **inherits** | the worker gets upstream's behaviour untouched, and that is correct |
 | **watch** | not used today, but a change here would break something |
@@ -47,7 +47,7 @@ and patches three.
 | `load_models_gpu(models, memory_required=, ...)` | budget, evict, load | **patches** in the worker; **calls** the real one after |
 | `load_model_gpu(model)` | one model, thin wrapper | inherits |
 | `free_memory(required, device, keep_loaded=, for_dynamic=, pins_required=, ram_required=)` | "get me this many free bytes" | **calls**, with upstream's own target expression (`reserve.ask_target`), exactly two positionals, never `for_dynamic` |
-| `unload_all_models()` | evict everything, everywhere | **patches** in the HOST, one of two remaining wraps, behind `COMFY_ENV_FREE_BROADCAST`; calls the original first |
+| `unload_all_models()` | evict everything, everywhere | **reads**; comfy-env registers no wrap here. The stand-in is reached through it, because `unload_all_models` walks the list and `LoadedModel.model_unload` calls `detach` on every entry |
 | `unload_model_and_clones(model, ...)` | drop one model and its clones for a clean reload | inherits |
 | `loaded_models(only_currently_used=)` | the ledger contents | **watch**: it hands the proxy to arbitrary node code |
 | `cleanup_models()` | drop dead ledger entries | **calls** |

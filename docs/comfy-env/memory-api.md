@@ -158,24 +158,14 @@ where that is actually true. On Linux `cudaMemGetInfo` is device-wide, so the
 correction is a double count there and is applied on WDDM only. See
 [comfy-env's memory management](memory-approach.md).
 
-### Contract two: a duck type, now deprecated
+### Contract two: a duck type
 
-!!! warning "This section describes a mechanism on its way out"
-
-    An earlier revision of this page said the object below was deprecated and
-    scheduled for removal, replaced by a read-only observer that held nothing.
-    Both halves are now false. Registering a stand-in is the ONLY mechanism by
-    which upstream's own eviction reaches another process, and nothing else
-    can be substituted for it ([ADR-0038](adr/0038-the-memory-floor.md)). The
-    observer was deleted in turn: the Free-memory button already reaches
-    workers through the stand-in's own `detach`, and host pressure now arrives
-    on the stand-in's `partially_unload`, which is handed the exact shortfall.
-
-    Every defect found in this object so far has come through it, and the
-    design reasoning below is why a duck type beat a subclass. That reasoning
-    is the reason it is safe to keep, not an argument for replacing it. Note
-    what the defects actually were: wrong numbers, found by audit, not
-    attribute reads found by users.
+Registering a stand-in is the only mechanism by which upstream's own eviction
+reaches another process ([ADR-0038](adr/0038-the-memory-floor.md)). Every
+defect ever found in this object has come through it, and every one was a
+wrong number found by audit rather than a missing attribute found by a user.
+The design reasoning below is why a duck type beat a subclass; it is the
+reason the object is safe to keep, not an argument for replacing it.
 
 comfy-env registers a stand in object into `current_loaded_models` so upstream
 can evict a worker's model the way it evicts its own. That object declares its
@@ -210,16 +200,16 @@ subtracts the names that are not patcher members and the ones gated behind
 That is the right shape for the problem. Upstream has no declared interface, so
 the test derives one from the source rather than trusting a written record.
 
-!!! danger "The tripwire does not run"
-    The canary's own docstring calls it a CI tripwire. It is not one.
+!!! warning "What the tripwire covers, and what it does not"
+    It runs weekly against ComfyUI master, in a job the workflow itself marks
+    *allowed to fail, never gates anything*. So it is a notification, not a
+    gate: a red run opens an issue and publishing continues.
 
-    The main test job selects `not comfyui` markers and installs no ComfyUI, so
-    the test skips for want of a tree to grep. The canary job installs ComfyUI
-    but selects only `-m comfyui`, and this file carries no marker, so it is
-    deselected. It runs in neither.
-
-    Its dev machine fallback paths do not match this repository's layout either,
-    so it skips locally as well.
+    It reads one file, `model_management.py`. Node code outside it also reads
+    the loaded-model list, and the canary does not look there. It follows both
+    `.model.<name>` and the `model = entry.model` alias within a function, but
+    three surface members are read off the INCOMING model rather than off a
+    list entry and no ledger-shaped sweep finds those.
 
 !!! warning "And it cannot see the failure that actually happens"
     The canary catches a **missing** member. Both live defects in this seam are
@@ -236,12 +226,24 @@ the test derives one from the source rather than trusting a written record.
 The proxy works. It is registered, upstream evicts it, and the surface is
 currently complete against `b133e483`.
 
-What has shifted underneath it is that on a default install **every host model is
-managed dynamically and therefore protected** by the bypass in the eviction loop,
-while the proxy reports itself as non dynamic and is not. The worker's model is
-the only entry upstream can actually evict, and it also sorts first, because a
-fresh proxy reports nothing already offloaded and the lowest possible reference
-count.
+On a default install every host model is managed dynamically, and the eviction
+loop has a bypass for those, while the proxy reports itself as non dynamic and
+does not get it. The worker's model can therefore be the only entry upstream
+evicts, and it also sorts first, because a fresh proxy reports nothing already
+offloaded and the lowest possible reference count.
 
-That is not a bug in the proxy. It is the field tilting under a design that was
-correct when both sides were the same kind of thing.
+Two things stop that being a complaint about upstream.
+
+The bypass is `if entry.model.is_dynamic() and for_dynamic:`, and the comment
+under it says why: *"don't actually unload dynamic models for the sake of other
+dynamic models as that works on-demand."* Evicting a paged model to make room
+for another paged model is churn, because the pager reclaims on demand. That is
+a considered refusal, not drift.
+
+And `for_dynamic` is a **parameter**. comfy-env's own `free_memory` call leaves
+it False, so on the path comfy-env drives the bypass does not fire at all and
+host dynamic models are fully evictable. Where the asymmetry does appear, it is
+downstream of comfy-env's own choice to answer `is_dynamic()` False, which
+[ADR-0035](adr/0035-duck-typed-model-proxy.md) calls load-bearing and
+[why the system is imperfect](why-imperfect.md) prices honestly. It is the cost
+of the safe answer, not a tilt in the field.

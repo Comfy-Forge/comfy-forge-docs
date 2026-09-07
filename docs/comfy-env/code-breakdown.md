@@ -1,20 +1,16 @@
 # Code breakdown -- named and shamed
 
-Where the lines actually go. **12,797 lines of Python across 38 files** under
+Where the lines actually go. **18,341 lines of Python across 44 files** under
 `src/comfy_env/` (raw `wc -l`, blanks and comments included).
 
-Snapshot at **v0.4.28 (2026-08-24)**. This page is a photograph and it *will*
-drift; regenerate with:
+Snapshot at **v0.4.38 (2026-09-07)**. This page is a photograph and it *will*
+drift, and it has: the previous snapshot said 12,797 across 38 and was left
+standing for 96 commits while the memory floor added most of the difference.
+Regenerate with:
 
 ```
 find src/comfy_env -name '*.py' | xargs wc -l | sort -rn
 ```
-
-!!! note "This page used to lie in three places"
-    The previous snapshot (v0.4.20, 13,733 lines) inflated the transport
-    duplication, counted four whole files as "monkey-patch surface", and
-    claimed a file was big because its problem was big when half of it was
-    dead code. Each is corrected below, with the measurement.
 
 ## By subsystem
 

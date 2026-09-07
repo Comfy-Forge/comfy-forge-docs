@@ -20,23 +20,19 @@ Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
 
 ## Memory management
 
-Full reference, including what each level requires of your ComfyUI:
-[comfy-env's memory management](memory-approach.md). Design and measurements:
-[ADR-0038](adr/0038-the-memory-floor.md).
+Full reference: [comfy-env's memory management](memory-approach.md). Design
+and measurements: [ADR-0038](adr/0038-the-memory-floor.md).
 
 | Env var | default | meaning |
 |---|---|---|
-
-!!! note "Replaces seven separate variables"
-
-    `COMFY_ENV_WORKER_AIMDO`, `COMFY_ENV_PIN_SPLIT`, `COMFY_ENV_PIN_FLOOR`,
-    `COMFY_ENV_PIN_RESERVE`, `COMFY_ENV_PIN_SHARE`,
-    `COMFY_ENV_PIN_HEADROOM` and `COMFY_ENV_RESIDENCY_REFRESH` are gone.
-    The features they gated are either derived from the level above or were
-    deleted outright: the pin-split allocation half never shipped and was
-    removed once it was clear that ComfyUI's own `ensure_pin_budget` is what
-    actually bounds pinning, and that the same ceiling sizes each model's
-    host buffer.
+| `COMFY_ENV_WORKER_AIMDO` | on | `0` stops a worker enabling comfy-aimdo, so it runs the legacy ledger instead of paging. Every failure path already falls through to the ledger; this forces it. The one memory switch an operator is likely to want, and the one comfy-env's own warning tells them to reach for. |
+| `COMFY_ENV_RESIDENCY_REFRESH` | `boundary` | Which residency reports the host believes. `boundary` applies the census riding every frame; `command` trusts only command echoes; `off` reverts to registration-time pinning. Deliberately has no interval knob. |
+| `COMFY_ENV_PIN_MARKS` | on | Gates the prompt-epoch pin marks that protect a worker's in-use models from its own pin eviction. Off restores byte-identical pre-mark behaviour. |
+| `COMFY_ENV_NODE_STATE` | `sync` | Whether a node's mutated `self` state returns from the worker. `off` is the pre-2026-09 in-only wire. |
+| `COMFY_ENV_NODE_STATE_MAX_BYTES` | 8 MiB | Per-attribute cap on returned state. Anything larger stays worker-held behind a named marker: never silently truncated, never shipped. |
+| `COMFY_ENV_MIRROR_ARGS` | on | `0` disables the whole host-to-worker CLI flag mirror. A pack's `[env_vars]` cannot unset an args write, so this is the escape of last resort. |
+| `COMFY_ENV_NO_MIRROR` | unset | Comma list of individual flags to withhold from the mirror. The global switch is too big a hammer: turning it off to escape one `--fast-disk` regression would also surrender the fp8 dtype mirror and reinstate a 2x footprint. |
+| `COMFY_ENV_WORKER_ATTENTION` | follow host | `auto` restores the worker's own attention auto-probe, for a pack env richer than the host's. |
 
 ## Paths
 

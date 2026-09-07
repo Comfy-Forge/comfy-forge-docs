@@ -70,42 +70,33 @@ twice.
 order the candidates, never to compute the target. So the double count has
 nowhere to land on the normal path.
 
-**Where it does land.** Node code outside `model_management.py` reads the
-loaded-model list and hands entries straight back to `load_models_gpu`.
-controlnet does it, three of the bundled extras nodes do it, and the
-multi-GPU node reads it unfiltered. The stand-in is in that list with
-`currently_used` set True whenever its worker's model is on the card, so it
-is handed back along with the rest.
+**Where it does land, and why it no longer lands there.** Node code outside
+`model_management.py` reads the loaded-model list and hands entries straight
+back to `load_models_gpu`: controlnet does it, three of the bundled extras
+nodes do it, and the multi-GPU node reads it unfiltered.
 
-The admission sum survives this, for a reason that is upstream's doing rather
-than ours. `model_memory_required` asks for the *offloaded remainder* when a
-model is already on the device it is being loaded to, not for its full size:
+Six of those seven callers filter on `currently_used`, and since 2026-09-06
+comfy-env registers every stand-in with `currently_used` **False**,
+unconditionally. So the stand-in is not in the list those six read. The
+remaining reader is `multigpu.py`, which reads unfiltered.
 
-```python
-def model_memory_required(self, device):
-    if device == self.model.current_loaded_device():
-        return self.model_offloaded_memory()      # size minus what is loaded
-    else:
-        return self.model_memory()                # full size
-```
+That change closed a cost that was real while it was open. Because the
+stand-in answers `is_dynamic()` False, `load_models_gpu` was adding its *full*
+size to `total_pins_required`, and `free_memory` was spending that on
+`ensure_pin_budget`: the host evicting its own pinned RAM to make room for
+weights that live in another process and are never pinned locally. With the
+pager running the entire ask was phantom, because host models are dynamic and
+book nothing, so they were the only models that could pay.
 
-A resident worker model has nothing offloaded, so it contributes zero. The
-same memory is not counted twice.
-
-**What it does cost, and where the margin is thin.** Two things, neither
-fatal and neither comfortable:
-
-* `load_models_gpu` will call `model_load` on the stand-in, which for us means
-  IPC telling the worker to load. A controlnet node reloading the host's VAE
-  can therefore make a worker re-fault a model it had let go. That is latency,
-  not incorrectness, and only for a stand-in that was partly offloaded.
-* `multigpu.py` reads the list **unfiltered**, ignores `currently_used`
-  entirely, and calls `clone()` on entries that pass its filters. The stand-in
-  raises on `clone()`, because a worker model has no clone semantics the host
-  could use. It never gets there today: the checks above it compare
-  `load_device`, then `clone_base_uuid`, then an internal flag, and the
-  stand-in fails one of those first. That is line ordering in somebody else's
-  file, not a guarantee, and it is the single thinnest margin in this design.
+What remains, on the one unfiltered reader: `multigpu.py` ignores
+`currently_used` entirely and calls `clone()` on entries that pass its
+filters. The stand-in raises on `clone()`, because a worker model has no clone
+semantics the host could use. It never gets there: the checks above compare
+`load_device`, then `clone_base_uuid`, then an internal flag, and the stand-in
+fails one of those first. Its `clone_base_uuid` is a private sentinel that
+cannot equal a real uuid, which is a deliberate guard rather than luck. But
+the ordering itself is line ordering in somebody else's file, and that is the
+thinnest margin in this design.
 
 ## What would remove all three
 

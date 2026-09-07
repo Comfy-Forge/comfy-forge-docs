@@ -632,10 +632,11 @@ A worker never runs `main.py`, and inside ComfyUI `aimdo_enabled` is set in
 exactly one place: `main.py:300`, defaulting to `False` at
 `memory_management.py:173`. Left alone, every isolated worker would therefore
 resolve to the ledger. comfy-env closes that gap: `maybe_enable_aimdo`
-initialises aimdo at worker start (`memory_manager.py:306`) whenever the wheel
-imports and a CUDA device is visible. **A worker falls back to the ledger on
-CPU, on a failed init, on a comfy-aimdo PROTOCOL difference against the host,
-or when the level resolves below `paged`** -- see
+initialises aimdo at worker start (`memory_manager.maybe_enable_aimdo`)
+whenever the wheel imports and a CUDA device is visible. **A worker falls back
+to the ledger on CPU, on a failed init, or when `COMFY_ENV_WORKER_AIMDO=0` is
+set.** A comfy-aimdo version difference against the host is reported and
+proceeds; it is not a fallback trigger. See
 [comfy-env's memory management](memory-approach.md).
 
 The wheel is there because comfy-env puts it there. It no longer waits for a
@@ -726,7 +727,7 @@ treating aimdo as the only path.
   registers into it.
 * **The worker aimdo default changes again.** Injection and worker side
   initialisation both happen by default, and this section was rewritten
-  against that. The stale risk now runs the other way: an install that
-  resolves below `paged`, deliberately or because its ComfyUI is too old,
-  behaves as the pre 2026-09 text described. That mode is documented in
+  against that. The stale risk now runs the other way: a worker that falls
+  back to the ledger, deliberately or because its ComfyUI is too old, behaves
+  as the pre 2026-09 text described. That mode is documented in
   [comfy-env's memory management](memory-approach.md) rather than here.
