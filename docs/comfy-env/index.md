@@ -42,17 +42,17 @@ One shared environment for every pack breaks in predictable ways:
     - Node B needs `numpy>=2`.
     - pip installs into one shared env, so
   whichever lands last wins and the other crashes on import.
-- **Conflicting native libraries**: the classic is the **duplicate
-  OpenMP runtime**.
+- **Conflicting native libraries**: a **duplicate
+  OpenMP runtime** is a classic example.
     - torch bundles one (`libiomp5`)
     - another pip installed pack
   bundles another (`libomp`/`libgomp`)
     - loading both into one process
   aborts with `OMP: Error #15` or silently corrupts numerics
 - **Wrong interpreter entirely**:
-    -  ComfyUI is running Python 3.12
-    - Nodepack C needs Python 3.11 (for example, it might need a Blender `bpy` wheel)
-    -  The best case scenario is that Nodepack C doesn't install at all, worst case is that it does and then crashes ComfyUI when loading
+    - ComfyUI is running Python 3.12
+    - Nodepack C needs Python 3.11 (it might need a Blender `bpy` wheel)
+    - Best case scenario: Nodepack C doesn't install at all. Worst case scenario: Nodepack C installs and then crashes ComfyUI when loading
 
 comfy-env's answer is **process isolation**: any nodepack subdirectory that declares a
 `comfy-env.toml` gets its own pixi-managed environment: separate
@@ -75,13 +75,14 @@ There are two kinds of dependency `pip install` alone cannot deliver:
 
 | | Kind | Why pip fails |
 |---|---|---|
-| **2A** | CUDA packages | they **are** on PyPI, but only for a fraction of the builds users have |
+| **2A** | CUDA packages | they **are** on PyPI, but only for a fraction of the builds users have and may require long compilations|
 | **2B** | Conda packages | they are **not on PyPI at all** |
 
 #### 2A — CUDA packages
 
-flash-attn, nvdiffrast, pytorch3d, gsplat, nunchaku. Each wheel is compiled
-for **one exact combination** of five axes:
+flash-attn, nvdiffrast, pytorch3d, gsplat, nunchaku.
+
+Each wheel must be compiled for **one exact combination** of five axes:
 
 | Axis | Values |
 |---|---|
@@ -92,12 +93,12 @@ for **one exact combination** of five axes:
 | GPU arch | `sm_50`+ on cu124/cu126 rows; `sm_70`/`sm_75`+ on cu128 and newer; a few packages floor higher (flash-attn, natten) |
 
 Upstream publishes a fraction of that matrix, and building the rest needs a
-CUDA toolkit, a C++ compiler and time, which is sometimes in short supply.
+CUDA toolkit, a C++ compiler and time, all three of which are often in short supply.
 
 **The answer:** a prebuilt wheel index,
 [cuda-wheels](https://github.com/PozzettiAndrea/cuda-wheels). Packages listed
 under `[cuda]` in comfy-env.toml are resolved at install time against the machine's detected
-`(GPU, torch, Python)` and installed ready-made.
+`(GPU, torch, Python, OS)` and installed ready-made.
 ([ADR-0004](adr/0004-prebuilt-cuda-wheel-index.md)).
 
 **Accelerator-agnostic in principle.** Backend detection already recognises
@@ -105,8 +106,9 @@ ROCm (torch's `+rocm` tag), and a separate **rocm-wheels** index mirroring
 cuda-wheels is planned. At the moment this is blocked only on the maintainer not owning ROCm
 hardware. Today only CUDA is compiled end to end.
 
-If you are thinking "this dude is just reinventing conda", you are absolutely right.
-[Here's](why-not-conda.md) why this logic lives in comfy-env at all.
+"Aren't we just reinventing conda?", you are absolutely right.
+
+[Here's](why-not-conda.md) why this logic currently lives in comfy-env at all.
 
 #### 2B — Conda packages
 
@@ -115,7 +117,7 @@ Some dependencies absolutely require us to use conda, and we can broadly subdivi
 | # | Reason | Examples |
 |---|---|---|
 | 1 | **Not Python.** | headless GL/X stack (`mesalib`, `libglu`, `libglvnd`, `xorg-libsm`), `libstdcxx-ng`, `pythonocc-core` (no PyPI distribution at any version) |
-| 2 | **Copyleft.** A wheel vendors the native library *into* the artifact, fusing a GPL derivative work and forcing copyleft (or a commercial licence) onto the wheel and everyone who installs it. Conda's separate-package model keeps the boundary at install-time aggregation, with conda-forge carrying source-availability compliance. | `cgal`, Blender `bpy` |
+| 2 | **Copyleft.** A wheel vendors the native library *into* the artifact, fusing a GPL derivative work and forcing copyleft (or a commercial licence) onto the wheel and everyone who installs it. Conda's separate-package model keeps the boundary at install-time aggregation, with conda-forge carrying source-availability compliance. | `cgal`, `ipopt`, `gurobi`... |
 | 3 | **Root-free toolchains.** Install-time compilation on an end-user machine needs compilers and CUDA dev packages, per-user, solver-managed, no admin rights. conda-forge is the only channel that delivers these. | `c-compiler`, `cxx-compiler`, `cuda-nvcc`, `cuda-cccl`, `cuda-cudart-dev`, `occt-rt` |
 
 ([ADR-0002](adr/0002-pixi-as-environment-manager.md) has the full argument):

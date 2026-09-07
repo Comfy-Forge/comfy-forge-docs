@@ -29,7 +29,7 @@ that does network and disk work. `install()` is the sole builder of isolated
 envs: nothing materializes one at runtime.
 
 A missing env means [`register_nodes()`](register-nodes.md) falls back to in-process import for that
-pack, and stays that way until `install()` is successfully ran.
+pack, and stays that way until `install()` is run successfully.
 
 ## What `install()` does
 
@@ -48,9 +48,8 @@ flowchart TD
 
 ### 1. Peer packs from `[node_packs]`
 
-*Runs only if the config declares `[node_packs]`;
-every accepted spelling for requirements is tabulated in the
-[config reference](config.md#node_packs)).
+*Runs only if the config declares `[node_packs]`; every accepted spelling is
+tabulated in the [config reference](config.md#node_packs).*
 
 Peer nodepacks are cloned from GitHub or downloaded from the Comfy Registry, then their own
 `requirements.txt` and `install.py` run.
@@ -61,24 +60,8 @@ sibling-pin hazard ([ADR-0022](adr/0022-comfy-env-placement-in-host-env.md)):
 a peer pins its **own** comfy-env version and may have downgraded ours, so
 reinstalling was meant to reassert this pack's pin.
 
-!!! warning "The re-run cannot reassert a comfy-env pin"
-    It goes through the same `install_requirements` as every other pack, and
-    that function **strips every `comfy-env` / `comfy_env` line** (plus the
-    sister packages) before pip sees the file, precisely so a pack cannot
-    downgrade comfy-env under itself
-    (`packages/node_packs.py:_PROTECTED`). So the re-run reinstalls a pack's
-    *other* host-env requirements and leaves the comfy-env version exactly
-    where the peer left it.
-
-    For a pack that follows the host-env principle -- whose
-    `requirements.txt` is exactly `comfy-env` -- the filtered file is empty
-    and the step is a pip invocation over nothing.
-
-    The hazard is real and this is not the mitigation for it. What actually
-    covers it is the stale-pin **scan** in the next section, which is
-    warn-only. Restoring the intent would need the installer to reinstall
-    its own pinned version explicitly rather than by replaying a file it
-    then censors.
+!!! warning "A peer pack cannot change the installed comfy-env"
+    **Every mention of `comfy-env` / `comfy_env` is stripped** from requested nodepacks' `requirements.txt`.
 
 A peer that is not itself comfy-env'd installs its dependencies straight into
 the shared host env. That is permitted today and [tracked as a
@@ -106,7 +89,7 @@ Warn-only; never fails an install.
 
 ### 3. The workspace build (`install_workspace()`)
 
-### Bootstrap and discovery
+#### Bootstrap and discovery
 
 - We run `ensure_pixi()` **first**
 - Discovery then walks `custom_nodes/` for bindable configs (comfy-env.toml files).
@@ -121,7 +104,7 @@ Warn-only; never fails an install.
   share one env directory and rebuild over each other forever
   (`workspace.py:226`).
 
-### The skip gate
+#### The skip gate
 
 Two hashes decide whether any environments are rebuilt:
 
@@ -130,7 +113,7 @@ Two hashes decide whether any environments are rebuilt:
 The full mechanism, including why a version bump rebuilds nothing, is
 [The three seals](seals.md).
 
-### Torch pin vs wheel combo
+#### Torch pin vs wheel combo
 
 In this following paragraph, **pin** is used to refer to the (cuda × torch × python) **combo** that *ComfyUI itself runs*.
 
@@ -155,7 +138,7 @@ The reasoning is a bit long but can be summarised as follows:
     torch build (`workspace.py:83-88`): with no GPU detected, envs pin **CPU
     torch** and `[cuda]` packages are not resolved or installed at all.
 
-### Building each env
+#### Building each env
 
 The work is **phase-major, not env-major**: every env goes through a phase
 before any env goes through the next.
@@ -172,9 +155,9 @@ That ordering is deliberate and produces three behaviours worth knowing:
 
 - **One `pixi install` per manifest**, so a broken manifest cannot poison another
   env's scan or install.
-- **`pixi` failures are collected and raised at the end** (`workspace.py:856`),
+- **`pixi` failures are collected and raised at the end** (`workspace.py:890`),
   so one run surfaces *every* broken env rather than stopping at the first.
-- **Hash files are written last** (`workspace.py:966`), after that raise point.
+- **Hash files are written last** (`workspace.py:1009`), after that raise point.
   So if any env fails, the run leaves no hash bookkeeping for the envs that
   succeeded alongside it, and they are re-derived next time.
 
@@ -182,5 +165,5 @@ The CUDA wheels are **inside** the generated manifest, as direct-URL
 pypi-dependencies: they land in `pixi.lock`.
 
 **Start here when debugging:** every workspace install tees its full output to
-`<workspace>/install.log` (`workspace.py:680`), including the discovery list,
+`<workspace>/install.log` (`workspace.py:717`), including the discovery list,
 the resolved combo, and each `pixi install` invocation.

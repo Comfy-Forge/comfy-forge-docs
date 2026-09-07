@@ -18,7 +18,7 @@ order).
 
 !!! note "A personal note about the PyTorch situation because I'm really not happy about it"
     PyTorch saying "we will shut down conda support because only 5% of our downloads come through there" is like a hospital saying:
-    "Only 5% of our arrivals are by ambulance, so ambulances are clearly low ROI and we shouldn't support them anymore"
+    "Only 5% of our patients arrive here by ambulance, so ambulances are clearly low ROI and we shouldn't support them anymore"
 
 Conda-forge's community builds, healthy as they are, are ~30% of what is published on pypi.
 
