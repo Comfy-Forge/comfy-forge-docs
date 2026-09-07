@@ -63,7 +63,7 @@ Every key in `comfy-env.toml` falls into one of four buckets:
 |---|---|---|
 | `python` | ours | the env's interpreter pin (quoted string, 3.10 minimum) |
 | `[cuda]` | ours | packages resolved to prebuilt wheel URLs at install time |
-| `[env_vars]` | ours | env vars on this env's workers and scans -- never reaches pixi |
+| `[env_vars]` | ours | env vars on this env's workers and scans -- never reaches pixi. **These land before comfy-env's own spawn-time writes and outrank them**, so a value pinned here wins over the host-derived one. That makes it a lever as well as a setting: pinning `COMFY_ENV_MIRROR_ARGS=0` here disables the host CLI flag mirror for this pack. Values are coerced with `str()`, so `{ N = 4 }` arrives as `"4"` |
 | `[options]` | ours | runtime knobs -- never reaches pixi. Exactly one exists today: `health_check_timeout` (seconds, per-env worker ping timeout, default 5.0); `call_timeout` is planned ([ADR-0018](adr/0018-worker-call-timeout.md)) |
 | `[dependencies]`, `[pypi-dependencies]`, `[target.*]`, `[activation]`, `[tasks]`, `[pypi-options]`, `[system-requirements]`, `[workspace]` | passthrough | forwarded verbatim into the generated `pixi.toml` (`[activation]` and `workspace.channels` are *merged* with comfy-env's own entries) |
 | `torch` / `torchvision` / `torchaudio` pins | rewritten | stripped and replaced with the workspace-wide pin, with a log line |

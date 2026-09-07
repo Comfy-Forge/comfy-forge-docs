@@ -61,7 +61,7 @@ and patches three.
 
 ## Pinned memory
 
-Twelve functions, and comfy-env touches none of them.
+Twelve functions. comfy-env inherits most of it and touches four.
 
 | Function | Does |
 |---|---|
@@ -73,14 +73,28 @@ Twelve functions, and comfy-env touches none of them.
 | `models_for_pin_eviction()` / `pin_eviction_tiers()` / `registration_eviction_tiers()` | victim ordering |
 | `pinned_hostbuf_size(size)` | how large a pinned host buffer to take |
 
-**comfy-env: inherits, all of it.** The proxy reports itself as non dynamic,
-which excludes it from every pin path by design. The worker pins its own weights
-through the ordinary machinery.
+**comfy-env: mostly inherits, and the stand-in stays out of it.** The proxy
+holds no tensors, so it pins nothing, and it declares no pinned bytes: claiming
+otherwise would put a number into the host's pinned budget for memory that does
+not exist. Each worker pins its own weights through the ordinary machinery.
 
-!!! note "This is a deliberate abstention, not an oversight"
-    Pinning is per tensor and per process. A proxy holds no tensors, so there is
-    nothing for it to pin, and claiming otherwise would put a number into the
-    host's pinned budget for memory that does not exist.
+What comfy-env does touch, in the worker only:
+
+| Function | What comfy-env does |
+|---|---|
+| `free_model_pins` | **wraps** it, to count bytes evicted per victim and the resulting churn. The wrapper calls the original and changes no decision |
+| `free_pins` | **calls** it, from the `release_pins` handler |
+| `models_for_pin_eviction` | **calls** it, to attribute an eviction to a model |
+| `TOTAL_PINNED_MEMORY`, `MAX_PINNED_MEMORY` | **reads** both, per worker, into the census the host ingests |
+
+`contract.py` declares `TOTAL_PINNED_MEMORY` and `free_pins` as SHARED tier
+couplings, so these are tracked rather than incidental.
+
+!!! warning "The census is live; the lever is not"
+    comfy-env can see exactly how much each worker has pinned. It cannot make
+    a worker let go: `broadcast_pin_release` and everything under it has no
+    caller. A reader should not infer a working reclaim path from a working
+    census.
 
 ## Placement: where should this live
 
@@ -136,13 +150,17 @@ through the ordinary machinery.
 
 ## Module state comfy-env writes to
 
-Three assignments, all inside the worker, all on the worker's own copy.
+Five assignments. Four are inside the worker, on the worker's own copy; the
+`EXTRA_RESERVED_VRAM` write is the only one that happens in the host process,
+and it is a value written into a knob `--reserve-vram` already writes.
 
 | Name | Why |
 |---|---|
 | `EXTRA_RESERVED_VRAM` | the host adds what workers hold, so its own loader backs off; the worker receives the same value so its view stops being a lie. The one value comfy-env writes in the host process |
 | `vram_state` | forced to match the parent's mode |
 | `load_models_gpu` | wrapped, so a worker load can negotiate a budget with the parent before it happens |
+| `aimdo_enabled` | set when the worker brings the pager up, so upstream's own aimdo branches take the right path |
+| `free_model_pins` | wrapped for per victim eviction counting; the wrapper calls the original and changes no decision |
 
 !!! note "Nothing is patched in the parent"
     comfy-env adds an entry to `current_loaded_models` and otherwise leaves the

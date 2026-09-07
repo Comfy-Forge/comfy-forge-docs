@@ -20,15 +20,28 @@ Details for each follow on this page or where linked.
 4. **A ComfyUI state snapshot at startup** -- the parent's `sys.path` and its
    entire resolved `folder_paths` state (input/output/user dirs, the models
    search-path registry), pushed as the first config frame.
-5. **Node calls** -- request/response JSON over the socket; V1 nodes also ship
-   the proxy instance's `self_state` dict.
+5. **Node calls** -- request/response JSON over the socket. V1 nodes ship the
+   proxy instance's `self_state` dict inbound, and the mutated state comes
+   BACK: the worker diffs the instance after the call and returns `set` for
+   changed keys, `deleted` for a real `del self.x`, and `dropped` with a
+   reason for anything it will not ship. The diff is by value, not identity,
+   so mutating a list in place is caught. It runs in a `finally`, so state
+   returns even when the node raises. The four drop reasons are `over_cap`
+   (above `COMFY_ENV_NODE_STATE_MAX_BYTES`, 8 MiB), `device_resident` (a CUDA
+   tensor), `worker_only_type`, and `unpicklable`. A dropped attribute becomes
+   a named marker held worker side, never a silent truncation, and touching it
+   after a worker restart raises rather than returning stale data.
 6. **Tensors and bulk data** -- the [serialization ladder](#tensor-serialization-ladder):
    CUDA IPC, pool-FD passing, shared memory, memfd, pickle, inline JSON.
 7. **Callbacks during a call** -- `report_progress` (whose *reply* is the
    user-interrupt channel) and `request_vram_budget` (whose reply carries true
    device-free bytes).
 8. **Model events and eviction commands** -- every response can piggyback
-   newly-CUDA-resident models; the parent sends `model_to_device` /
+   three things, not one: newly-CUDA-resident models (`_new_models`), the
+   worker's VRAM census (`_vram_report`: residency, allocator overhead, pinned
+   bytes, total held) and the returned node state (`_self_state_out`). Any
+   reply path that bypasses the attach step leaves the host's residency
+   figures stale. the parent sends `model_to_device` /
    `model_partial_load` / `model_partial_unload` from inside ComfyUI's
    eviction loop ([comfy-env's memory management](memory-approach.md)).
 9. **HTTP requests** -- a pack's `ROUTES` become real endpoints on ComfyUI's
@@ -132,6 +145,21 @@ another name, set per worker, carrying data rather than toggles.
 | `COMFYUI_BASE`, `COMFYUI_USER_DIR` | worker/scan spawn | ComfyUI source dir for `sys.path`; Desktop-app user-data dir for `folder_paths` |
 | `COMFYUI_ISOLATION_WORKER=1` | every worker/scan spawn | reentry guard: a worker never isolates again |
 | `COMFY_ENV_POOL_IPC`, `COMFY_ENV_DEBUG_*` | settings | pool-IPC opt-in and debug categories, parsed by the worker directly |
+| `COMFY_ENV_HOST_ARGS` | worker spawn, from `mirrored_args` | the host's resolved CLI flags as JSON, applied before the worker imports `comfy` because the memory-relevant ones are read once at import |
+| `COMFY_ENV_EXTRA_RESERVED_VRAM` | worker spawn | the host's reserve at spawn time. Distinct from ComfyUI's identically named constant, and consumed only by the worker's dtype heuristic at model creation, where the choice is permanent |
+| `COMFY_ENV_AIMDO_VERSION` | worker spawn | the host's comfy-aimdo version, so the worker can report skew rather than guess |
+| `COMFY_ENV_AIMDO_HEADROOM` | worker spawn, from `--vram-headroom` | the per-device headroom the host passed to `init_devices` |
+| `COMFY_ENV_AIMDO_SIMPLE_HEADROOM` | worker spawn, from `--reserve-vram` | the process-wide `simple_vram_headroom` seed |
+| `COMFY_ENV_AIMDO_NVML` | worker spawn | whether NVML pressure is on, mirroring `--disable-nvml-pressure` |
+| `KMP_DUPLICATE_LIB_OK`, `PYTHONIOENCODING` | env construction | two libraries' worth of scar tissue: duplicate OpenMP runtimes in one process, and Windows console encoding |
+
+!!! warning "A pack's `[env_vars]` outranks every row above"
+    Each write in this table is guarded `if NAME not in env`, and a pack's
+    `[env_vars]` lands in `env` first. So a value pinned in a pack's config
+    wins over the host-derived one. That is deliberate, and it makes
+    `[env_vars]` a lever rather than only a setting: a pack can pin
+    `COMFY_ENV_MIRROR_ARGS=0` and switch off the host CLI flag mirror for
+    itself, or pin an aimdo headroom that disagrees with the host's.
 
 None of these are user settings: set what you need in
 [the settings reference](settings.md) and the parent forwards the right
