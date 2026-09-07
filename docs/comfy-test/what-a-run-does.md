@@ -148,7 +148,7 @@ nothing. So it is kept as data and rendered at play time.
 The replay panel in the report gives you play/pause, a scrub bar, a speed
 control, and **chapter buttons**. The chapters matter: steps 1-4 above are CI
 scaffolding a user never performs (uv venv, torch pin, cloning ComfyUI), while
-the *install the node pack* chapter onwards is exactly what a person does by
+the *install the nodepack* chapter onwards is exactly what a person does by
 hand -- `git clone`, `pip install -r requirements.txt`, `python install.py`.
 Jump to that chapter and the recording doubles as an install guide.
 

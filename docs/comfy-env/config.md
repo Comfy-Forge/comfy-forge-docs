@@ -6,8 +6,8 @@ Two files, two roles ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)):
 
 1. **`comfy-env-root.toml`** at the pack root:
 
-     - Declares other node packs that this node pack depends on or uses
-     - Declares node pack custom type serializers
+     - Declares other nodepacks that this nodepack depends on or uses
+     - Declares nodepack custom type serializers
 
 3. **`comfy-env.toml`** at `nodes/` or `nodes/<subdir>`.
 
@@ -18,7 +18,7 @@ Those two locations are the only ones supported: discovery and the runtime
 binder deliberately match, so a config anywhere else is simply not seen
 rather than silently materialized-but-unused.
 
-## Example node pack
+## Example nodepack
 Using [ComfyUI-GeometryPack](https://github.com/PozzettiAndrea/ComfyUI-GeometryPack)
 as the example:
 
@@ -45,7 +45,7 @@ single environment.
 
 The case where a pack needs **two or more environments** is also supported!
 
-Node pack authors can put one `comfy-env.toml` in each `nodes/<subdir>/` instead -- one env per subdir,
+Nodepack authors can put one `comfy-env.toml` in each `nodes/<subdir>/` instead -- one env per subdir,
 named `<pack>-<subdir>`.
 
 ## comfy-env.toml
@@ -143,7 +143,7 @@ else. Any other top-level table is a hard parse error.
 
 | Section | What it is |
 |---|---|
-| `[node_packs]` | Peer node packs to install: git-ref-pinned table form
+| `[node_packs]` | Peer nodepacks to install: git-ref-pinned table form
 | `[types]` | Wire types this pack puts on sockets: `"builtin"` or `"custom"`
 
 Example:
@@ -165,7 +165,7 @@ Notes:
 - `register_nodes()` validates and loads `[types]` (see [custom wire types](serializers.md))
 
 ### `[node_packs]`
-We can declare node packs to install together with our main one in various ways, both from the registry and from github.
+We can declare nodepacks to install together with our main one in various ways, both from the registry and from github.
 After cloning/downloading, the peer's own `requirements.txt` is
 pip-installed and its `install.py` run (the standard ComfyUI install flow)
 

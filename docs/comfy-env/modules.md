@@ -36,7 +36,7 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 |------|-----:|----------------|
 | `packages/cuda_wheels.py` | 436 | Resolves prebuilt CUDA wheel URLs from the cuda-wheels GitHub Pages simple index; retries TCP resets with a real User-Agent; falls back to the GitHub Releases API. Derives torch family pins and platform tags. |
 | `packages/toml_generator.py` | 464 | The manifest compiler: ComfyUI `requirements.txt` + each `comfy-env.toml` -> per-env `pixi.toml`. One self-contained `[feature.<env_name>]` per env with `no-default-feature = true`; torch pin replicated verbatim into every feature; CUDA wheels inlined as URL pypi-dependencies. |
-| `packages/node_packs.py` | 188 | Installs other ComfyUI node packs declared in `[node_packs]`: git clone or zip, or Comfy Registry (`api.comfy.org`), then their `requirements.txt` and `install.py`. |
+| `packages/node_packs.py` | 188 | Installs other ComfyUI nodepacks declared in `[node_packs]`: git clone or zip, or Comfy Registry (`api.comfy.org`), then their `requirements.txt` and `install.py`. |
 
 ## `environment/` -- paths and platform workarounds
 

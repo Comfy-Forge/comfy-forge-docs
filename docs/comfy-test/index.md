@@ -1,11 +1,11 @@
 # comfy-test
 
 [comfy-test](https://github.com/PozzettiAndrea/comfy-test) is **installation
-and execution testing infrastructure for ComfyUI custom node packs**.
+and execution testing infrastructure for ComfyUI custom nodepacks**.
 
 It does three things, the way a real user would:
 
-1. **Installs the node pack.**
+1. **Installs the nodepack.**
 
 2. **Drives real workflows against it**: queues actual workflow JSONs on the
    running server and checks it actually executes.
@@ -18,7 +18,7 @@ It does three things, the way a real user would:
 carrying a video of the run plus RAM and VRAM logs](img/test_gallery_example_geometrypack.png)
 
 
-In this way, `example_workflows/` or `workflows/` folders in custom node packs become both
+In this way, `example_workflows/` or `workflows/` folders in custom nodepacks become both
 documentation and testing.
 
 ## OS/installation method coverage

@@ -1,13 +1,13 @@
 # comfy-forge-registry
 
 [comfy-forge-registry](https://github.com/Comfy-Forge/comfy-forge-registry) is the
-index of node packs that have been **tested on real hardware against a specific
+index of nodepacks that have been **tested on real hardware against a specific
 ComfyUI version, in a specific lane**, and the record of which combinations each
 one passed.
 
 !!! abstract "The aim"
     Answer one question, honestly, before anything is installed: **"has this exact
-    version of this node pack been run against my ComfyUI, the way I run it — and
+    version of this nodepack been run against my ComfyUI, the way I run it — and
     did it work?"** Not "does it exist", not "is it popular" — did it run.
 
     And then: **"can I see the results?"** Every verdict links to the report
@@ -19,7 +19,7 @@ one passed.
 The [Comfy Registry](https://registry.comfy.org) answers *what exists*. It lists
 packs, versions and dependencies, and that is a genuinely useful thing to have.
 
-What it cannot tell you is whether a pack works **on your machine**. A node pack
+What it cannot tell you is whether a pack works **on your machine**. A nodepack
 is not portable in the way a pure-Python package is: it drags in compiled CUDA
 extensions, a torch version, a C++ ABI, and a GPU architecture assumption. A pack
 that is perfect on Linux + CUDA 12.8 can be broken on Windows + CUDA 13.0 for
@@ -122,7 +122,7 @@ neither the author nor the user controls. The PUT is that moment.
     [cuda-wheels](../cuda-wheels/index.md) stores wheels as GitHub Release
     assets, and that is right *there*: ~14k artifacts at hundreds of MB, served
     over a free CDN, with a wheel filename that is already a precise identity —
-    no revocation story to lose. Node pack zips are megabytes and do need
+    no revocation story to lose. Nodepack zips are megabytes and do need
     revoking. Same operator, different payload, different answer.
 
 ## The data model
@@ -305,8 +305,8 @@ checkout fails there and nowhere else.
 ## What the registry is not
 
 - **Not a build farm.** Compiled CUDA wheels come from
-  [cuda-wheels](../cuda-wheels/index.md); the registry indexes *node packs*, and
-  a node pack's CUDA dependencies are resolved by
+  [cuda-wheels](../cuda-wheels/index.md); the registry indexes *nodepacks*, and
+  a nodepack's CUDA dependencies are resolved by
   [comfy-env](../comfy-env/index.md) against that wheel index.
 - **Not a mirror.** Source of truth for the code stays with the author's repo.
   Forge stores the *tested zip* — a snapshot with a hash, so what was tested is

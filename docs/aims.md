@@ -1,6 +1,6 @@
 # The aim
 
-ComfyUI loads every node pack into one shared Python environment, and any package installed from the ComfyUI Registry
+ComfyUI loads every nodepack into one shared Python environment, and any package installed from the ComfyUI Registry
 pip-installs its own requirements into it.
 ComfyUI also serves every pack's frontend JavaScript into one shared browser page.
 Both designs make collisions **structurally possible**, not bugs to fix but properties of the
@@ -8,7 +8,7 @@ architecture, leading to generally poor stability of the platform.
 
 Everything in comfy-forge starts from one aim:
 
-> **Make node packs behave like real software** -- without forking ComfyUI:
+> **Make nodepacks behave like real software** -- without forking ComfyUI:
 >
 > 1. **Installable** by non-developers with one click.
 > 2. **Isolated** where they would otherwise collide: Python dependencies in
@@ -26,7 +26,7 @@ The aim implies a worldview borrowed from operating systems:
 - **ComfyUI is the platform.** A host runtime that should be boring and
   stable: one Python, one torch family, the scheduler, the graph executor,
   the extension surface.
-- **Node packs are applications.** Real software components with explicit
+- **Nodepacks are applications.** Real software components with explicit
   contracts -- declared dependencies, declared accelerators, their own
   runtimes when needed -- not bits of Python injected into someone else's
   process.

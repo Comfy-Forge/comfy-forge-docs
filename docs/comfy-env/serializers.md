@@ -54,7 +54,7 @@ deliberately never will -- weights stay in the worker that owns them.
 Pickling that fails outright raises rather than dropping the value; the
 exact guarantee is [practical rule 2](#practical-rules-learned-the-hard-way).
 
-## Types from custom node packs
+## Types from custom nodepacks
 
 Sometimes an author of a nodepack might define their own type:
 `TRIMESH`, `POINTCLOUD`, `SKELETON`...

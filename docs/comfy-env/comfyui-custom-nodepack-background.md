@@ -1,12 +1,12 @@
 # ComfyUI custom nodepack background
 
-*How vanilla ComfyUI installs, loads and uses a node pack, which is the contract comfy-env has to
+*How vanilla ComfyUI installs, loads and uses a nodepack, which is the contract comfy-env has to
 honour.*
 
-A node pack is a directory under `custom_nodes/` whose `__init__.py` exports
+A nodepack is a directory under `custom_nodes/` whose `__init__.py` exports
 `NODE_CLASS_MAPPINGS`.
 
-Vanilla ComfyUI loads every custom node pack into
+Vanilla ComfyUI loads every custom nodepack into
 one shared Python process with one shared environment.
 
 At install time, the standard installation flow (ComfyUI-Manager, nowadays
@@ -18,7 +18,7 @@ bundled with Desktop ComfyUI) is:
 When we start ComfyUI there is also a per-pack pre-startup hook: ComfyUI itself executes each
 pack's `prestartup_script.py`, if present, before the server boots.
 
-## Anatomy of a node pack
+## Anatomy of a nodepack
 
 Using [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) (a popular
 real-world pack) as the example:
@@ -71,7 +71,7 @@ nothing else:
 
 ### Everything else
 
-The ComfyUI loader takes several more things from the custom node pack as a "side effect" of the import:
+The ComfyUI loader takes several more things from the custom nodepack as a "side effect" of the import:
 
 - **Whatever the import *did***: importing `__init__.py` fires every
    side effect it contains. The most common one: **API route
@@ -100,7 +100,7 @@ The ComfyUI loader takes several more things from the custom node pack as a "sid
 
 ## Lifecycle hooks and who runs them
 
-Every file besides `__init__.py` in a node pack is optional, and different actors run them
+Every file besides `__init__.py` in a nodepack is optional, and different actors run them
 at different times:
 
 | File | Run by | When | Logic |
@@ -111,7 +111,7 @@ at different times:
 | `__init__.py` | **ComfyUI core** | every launch | imported; `NODE_CLASS_MAPPINGS` read |
 
 ComfyUI core never runs `pip install -r requirements.txt` nor
-`python install.py`, and if the user installs a custom node pack by plain `git clone` into custom_nodes/, they are
+`python install.py`, and if the user installs a custom nodepack by plain `git clone` into custom_nodes/, they are
 expected to run them manually.
 
 ## Frontend JavaScript
@@ -130,7 +130,7 @@ Both are guarded by `os.path.isdir()`, and they are **separate `if` blocks**,
 not a fallback chain.
 
 **Serving the JS code** is a static route per registered directory,
-`/extensions/<node_pack_name>` → the node pack's web folder.
+`/extensions/<node_pack_name>` → the nodepack's web folder.
 
 **Auto-import** is driven by `GET /extensions` (`server.py:357-368`), which
 returns a flat JSON list of URLs the browser then imports. For each registered
@@ -154,7 +154,7 @@ That second property is the only lever a pack has. A viewer bundle renamed
 while remaining fetchable, so an `<iframe>` or an explicit
 `import "./viewer-bundle.mjs"` still loads it, inside the iframe's realm
 rather than ComfyUI's. Everything left as `.js` under the web dir shares one
-global scope with every other installed pack and might come into conflict with other node pack's javascript code, as there can only be one `window`, `document` or `viewer` among all the auto imported .js files.
+global scope with every other installed pack and might come into conflict with other nodepack's javascript code, as there can only be one `window`, `document` or `viewer` among all the auto imported .js files.
 
 ## Data types
 

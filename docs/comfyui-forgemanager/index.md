@@ -1,7 +1,7 @@
 # ComfyUI-ForgeManager
 
 [ComfyUI-ForgeManager](https://github.com/Comfy-Forge/ComfyUI-ForgeManager) is the
-client end of Forge: a ComfyUI extension that shows you the node packs which have
+client end of Forge: a ComfyUI extension that shows you the nodepacks which have
 been **tested against your ComfyUI version, in your lane**, and installs them
 isolated via [comfy-env](../comfy-env/index.md).
 
@@ -24,21 +24,21 @@ find out afterwards.
 
 Even assuming a "virgin" environment:
 
-- The node pack might have been written for an older version of ComfyUI
+- The nodepack might have been written for an older version of ComfyUI
 - The node has been created by someone on Linux and never been tested on Windows at all, or vice versa
-- The node pack might require CUDA and the user is on Mac/has no GPU
+- The nodepack might require CUDA and the user is on Mac/has no GPU
 - It might break something that was already installed. Everything shares one
 environment, so a pack that needs `transformers==4.49` and a pack that needs
 `>=4.54` cannot coexist. Installing the second silently degrades the first.
 
-Forge addresses these issues by only listing node packs that have been tested for a user's exact:
+Forge addresses these issues by only listing nodepacks that have been tested for a user's exact:
 - ComfyUI version
 - Operating system
 - Available accelerators
 
 And only listing either:
 
-- **Completely isolated** node packs using comfy-env
+- **Completely isolated** nodepacks using comfy-env
 - Dependency-less packs (no requirements.txt, host env not touched at all)
 
 ## How it works

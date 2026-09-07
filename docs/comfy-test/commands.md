@@ -137,7 +137,7 @@ comfy-test lint --json --strict       # machine-readable, fail on warnings too
 
 | Argument | |
 |---|---|
-| `path` | node pack directory (default: `.`) |
+| `path` | nodepack directory (default: `.`) |
 | `--check`, `-k` | `syntax`, `javascript`, `accel`, or `all` (default) |
 | `--json` | machine-readable output |
 | `--strict` | exit non-zero on warnings as well as errors |
@@ -154,7 +154,7 @@ comfy-test coverage --strict    # exit non-zero if anything is untested
 
 | Argument | |
 |---|---|
-| `path` | node pack directory (default: `.`) |
+| `path` | nodepack directory (default: `.`) |
 | `--workflows` | override the workflows directory |
 | `--verbose`, `-v` | also list tested nodes and the workflows using them |
 | `--json` | machine-readable output |

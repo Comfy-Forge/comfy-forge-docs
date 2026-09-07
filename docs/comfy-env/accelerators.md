@@ -3,9 +3,9 @@
 ## Why this convention exists
 
 Packs on the registry install for everyone, whatever the machine, and then
-fail at install or execution when the hardware does not match (example: TRELLIS2 node pack on Mac, no CUDA GPU).
+fail at install or execution when the hardware does not match (example: TRELLIS2 nodepack on Mac, no CUDA GPU).
 
-This bites quite hard for node packs like ComfyUI-GeometryPack:
+This bites quite hard for nodepacks like ComfyUI-GeometryPack:
 - Some nodes need a CUDA GPU, most run fine on CPU, and the
 CUDA remeshing backends should simply disappear for a user without an NVIDIA
 card instead of greeting them with a stack trace.

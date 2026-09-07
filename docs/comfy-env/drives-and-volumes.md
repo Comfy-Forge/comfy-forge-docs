@@ -24,7 +24,7 @@ from there, so workers cannot start.
 | pixi binary, `debug.env` | `~/.comfy-env` (`Path.home()`-anchored) | tens of MB; also unaffected by `COMFY_ENV_ROOT` |
 | Worker temp files and crash logs | `%TEMP%` / `$TMPDIR` | ~113 KB per live worker; tmpfs `/tmp` is fine (rewritten every spawn) |
 | Tensor transport | RAM (memfd / POSIX shm), Linux IPC sockets are abstract-namespace | no volume involved at all |
-| ComfyUI, custom_nodes, models, input/output | wherever you put them | comfy-env writes only node-pack payloads and copied assets there, always as plain copies |
+| ComfyUI, custom_nodes, models, input/output | wherever you put them | comfy-env writes only nodepack payloads and copied assets there, always as plain copies |
 
 ## Where the sharing actually happens
 

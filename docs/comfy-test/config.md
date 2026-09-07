@@ -1,6 +1,6 @@
 # `comfy-test.toml` reference
 
-The config file lives at the root of your node pack (custom_nodes/ComfyUI-MyPack/comfy-test.toml)
+The config file lives at the root of your nodepack (custom_nodes/ComfyUI-MyPack/comfy-test.toml)
 
 **Unknown keys are a hard error**.
 

@@ -1,15 +1,15 @@
 # comfy-env
 
 [comfy-env](https://github.com/PozzettiAndrea/comfy-env) provides environment
-management and automatic CUDA wheel resolution for ComfyUI custom node packs.
+management and automatic CUDA wheel resolution for ComfyUI custom nodepacks.
 
 !!! abstract "The promise"
-    *You click the install button for a node pack in ComfyUI Manager, and after install the pack just runs, without breaking any other pre existing node pack.*
+    *You click the install button for a nodepack in ComfyUI Manager, and after install the pack just runs, without breaking any other pre existing nodepack.*
 
     No missing build tools. No CUDA toolkit needed. No hunting for the one torch version that
-    satisfies everything. **No PhD in dependency management**. 100% certainty that installing a node pack from ComfyUI Manager won't destroy your existing setup.
+    satisfies everything. **No PhD in dependency management**. 100% certainty that installing a nodepack from ComfyUI Manager won't destroy your existing setup.
 
-    That is the whole point: **node packs should behave like real software**
+    That is the whole point: **nodepacks should behave like real software**
     ([the aim](../aims.md)).
 
 [Several things](../aims.md#what-stands-between-the-current-system-and-that-promise) stand between the current status of ComfyUI and that promise.
@@ -17,7 +17,7 @@ management and automatic CUDA wheel resolution for ComfyUI custom node packs.
 comfy-env addresses two of them:
 
 1. **Environment isolation**: Vanilla ComfyUI loads every pack into one shared environment, so two packs that need
-   incompatible versions of the same library cannot coexist. Installing a custom node pack can potentially damage the existing installation.
+   incompatible versions of the same library cannot coexist. Installing a custom nodepack can potentially damage the existing installation.
 2. **CUDA / prebuilt wheels / conda packages**: dependencies pip alone
    cannot deliver (conda-only native libraries),
    dependencies (like compiled CUDA extensions) that can take a long time and manual work to find or compile (compiled CUDA extensions) for the user's exact machine and operating system.
@@ -51,8 +51,8 @@ One shared environment for every pack breaks in predictable ways:
   aborts with `OMP: Error #15` or silently corrupts numerics
 - **Wrong interpreter entirely**:
     -  ComfyUI is running Python 3.12
-    - Node pack C needs Python 3.11 (for example, it might need a Blender `bpy` wheel)
-    -  The best case scenario is that Node pack C doesn't install at all, worst case is that it does and then crashes ComfyUI when loading
+    - Nodepack C needs Python 3.11 (for example, it might need a Blender `bpy` wheel)
+    -  The best case scenario is that Nodepack C doesn't install at all, worst case is that it does and then crashes ComfyUI when loading
 
 comfy-env's answer is **process isolation**: any nodepack subdirectory that declares a
 `comfy-env.toml` gets its own pixi-managed environment: separate
@@ -60,7 +60,7 @@ interpreter, conda packages, pip packages.
 
 Its nodes then execute in a persistent subprocess worker using that interpreter.
 
-If the isolated node pack wants to register **API routes**
+If the isolated nodepack wants to register **API routes**
 comfy-env re-registers **forwarding proxies** in the parent
 (`_register_proxy_routes`): the endpoint answers on ComfyUI's own server and
 the call crosses to the persistent subprocess worker just like node execution.
@@ -126,7 +126,7 @@ lockfile ([ADR-0003](adr/0003-two-config-files-with-two-roles.md)).
 
 ## The three-call contract
 
-A consuming node pack integrates with exactly three lines:
+A consuming nodepack integrates with exactly three lines:
 
 ```python
 # install.py
@@ -158,7 +158,7 @@ import, is in **[The process boundary](process-boundary.md)**.
 flowchart TD
     subgraph host["ComfyUI main process (host Python env)"]
         comfyui["ComfyUI core"]
-        pack["Node pack<br/>install.py / prestartup_script.py / __init__.py"]
+        pack["Nodepack<br/>install.py / prestartup_script.py / __init__.py"]
         ce["comfy-env library"]
         comfyui --> pack --> ce
     end

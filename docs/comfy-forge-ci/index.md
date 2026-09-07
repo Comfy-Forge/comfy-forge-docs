@@ -6,7 +6,7 @@ the self-hosted GPU runners, which are the only things that can actually answer
 the question.
 
 !!! abstract "The aim"
-    Take a node pack at a specific commit, install it on a **real GPU** the way a
+    Take a nodepack at a specific commit, install it on a **real GPU** the way a
     user would, see whether its nodes register, and publish a verdict that is
     honest about which machine it came from.
 
@@ -158,7 +158,7 @@ gh workflow run test-and-publish.yml -R Comfy-Forge/comfy-forge-ci \
 Note that this is a **different call from [cuda-wheels](../cuda-wheels/index.md)**,
 which does use Releases-as-storage. That is the right answer there: ~14k wheels at
 hundreds of MB each, served for free over GitHub's CDN, with no revocation story
-needed because a wheel filename is already a precise identity. Node pack zips are
+needed because a wheel filename is already a precise identity. Nodepack zips are
 megabytes rather than gigabytes, and they *do* need revocation — which is what
 tips the decision the other way.
 

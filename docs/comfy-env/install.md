@@ -52,7 +52,7 @@ flowchart TD
 every accepted spelling for requirements is tabulated in the
 [config reference](config.md#node_packs)).
 
-Peer node packs are cloned from GitHub or downloaded from the Comfy Registry, then their own
+Peer nodepacks are cloned from GitHub or downloaded from the Comfy Registry, then their own
 `requirements.txt` and `install.py` run.
 
 The pack's own `requirements.txt` is then re-run in the main env

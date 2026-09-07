@@ -31,7 +31,7 @@ None is a style preference.**
 | CPU/CUDA routing guard | `levels/execution.py:131` | `execution_light.py` -- the variable it tests does not exist there |
 | `success` requires `passed > 0` | `desktop/cdp_driver.py:3956` | `execution.py:370`, `execution_light.py:272` |
 | Do not log the token | `cli/_git_auth.py:31` | `cli/docker/run.py:316`, `:429` |
-| The node-pack gate | `cli/_nodelink.py:41` | `cli/docker/run.py:140` (private fork) |
+| The nodepack gate | `cli/_nodelink.py:41` | `cli/docker/run.py:140` (private fork) |
 
 !!! danger "The 59-workflow bug is still live in `execution_light`"
     `execution.py:120-130` explains itself: *"Previously this case fell through
@@ -71,7 +71,7 @@ That same file privately re-forks four of `_nodelink.py`'s six public functions
 (`:109-163`, 55 lines against 44). The only textual difference is an added
 `print()`. What the fork drops is `check_is_node_pack` -- the cheap up-front
 gate that stops comfy-test building a venv and cloning ComfyUI for a directory
-that is not a node pack. The original `copy_local_node` (`_nodelink.py:107`) now
+that is not a nodepack. The original `copy_local_node` (`_nodelink.py:107`) now
 has zero callers.
 
 ## The script that is not a program

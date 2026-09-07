@@ -1,6 +1,6 @@
 # Using comfy-test
 
-To use comfy-test, the **only** file you need to add to your node pack is **`comfy-test.toml`** (see [`comfy-test.toml` reference](config.md)). With just that, `comfy-test run` works.
+To use comfy-test, the **only** file you need to add to your nodepack is **`comfy-test.toml`** (see [`comfy-test.toml` reference](config.md)). With just that, `comfy-test run` works.
 
 Everything else is optional and depends on how you use it:
 
