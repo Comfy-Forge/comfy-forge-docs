@@ -77,6 +77,53 @@ deletes this step.
 *Runs only if the ComfyUI base directory can be located; if it cannot,
 `install()` warns and skips the workspace entirely, leaving no envs built.*
 
+### Where the envs land
+
+The workspace is **machine-wide**, not per install, so two ComfyUI installs
+using the same pack share one materialized env
+([ADR-0007](adr/0007-machine-wide-workspace-with-per-env-manifests.md)).
+
+| | Workspace root |
+|---|---|
+| **Windows** | `%LOCALAPPDATA%\Programs\comfy-env` |
+| **Linux / macOS** | `~/.ce` |
+
+`COMFY_ENV_ROOT` moves it. On Windows the root is deliberately *not* at a
+drive root: `C:\ce` was the old default and needed admin to create.
+
+One directory per env, under `envs/`:
+
+```
+<root>/envs/<env-name>-<abi-tag>/          the manifest (pixi.toml, pixi.lock)
+<root>/envs/<env-name>-<abi-tag>/.pixi/envs/default/   the materialized env
+```
+
+* **`<env-name>`** is the pack directory, `ComfyUI-` / `ComfyUI_` prefix
+  stripped and lowercased, plus `-<subdir>` when the config is not at the
+  pack root. Anything outside `[a-z0-9-]` collapses to a single dash, because
+  pixi rejects the rest.
+* **`<abi-tag>`** is `py<version>-torch<major>-<minor>-<backend>`, where
+  backend is `cu128`, `rocm63`, `mps`, `cpu`, or `notorch`. Dots become
+  dashes, so torch 2.10 reads `torch2-10`.
+
+The tag is what stops two ComfyUI installs on different stacks from sharing
+a directory and rebuilding over each other. It also means **the same pack
+can hold several copies at once**, one per stack it has been installed
+under:
+
+```
+geometrypack-nodes                        <- pre-tag, from an older comfy-env
+geometrypack-nodes-py310-torch2-10-cpu
+geometrypack-nodes-py311-torch2-10-cpu
+geometrypack-nodes-py313-torch2-8-cu128
+```
+
+That accumulation is by design and nothing deletes it automatically.
+[`comfy-env gc`](commands.md#comfy-env-gc) is what clears the ones no
+installed pack references ([ADR-0028](adr/0028-workspace-disk-lifecycle.md)).
+Full disk layout, including the pixi package cache that `COMFY_ENV_ROOT`
+does **not** move, is in [Drives and volumes](drives-and-volumes.md).
+
 ### Bootstrap and discovery
 
 - We run `ensure_pixi()` **first**
@@ -122,11 +169,20 @@ cell](../cuda-wheels/coverage.md#why-arm-gets-its-own-fallback-cell).
 The CUDA wheels are **inside** the generated manifest, as direct-URL
 pypi-dependencies: they land in `pixi.lock`.
 
-!!! warning "No GPU means CPU torch, whatever the host's torch says"
+!!! warning "No NVIDIA GPU means the CPU wheel index, whatever the host's torch says"
     Portable ComfyUI ships `torch+cu128` inside `python_embeded` even on
-    machines with no NVIDIA driver. GPU presence therefore **overrides** the
-    torch build (`workspace.py:83-88`): with no GPU detected, envs pin **CPU
-    torch** and `[cuda]` packages are not resolved or installed at all.
+    machines with no NVIDIA driver. NVIDIA GPU presence therefore
+    **overrides** the torch build (`workspace.py:83-88`): with none detected,
+    envs resolve torch from the CPU index and `[cuda]` packages are not
+    resolved or installed at all.
+
+    **This is a Linux and Windows rule and does not apply to macOS.** Darwin
+    never reaches the CUDA-index choice at all (`workspace.py:510`); macOS
+    torch comes from ordinary PyPI, and **those wheels have MPS compiled in**
+    (`detection/backend.py:65-67`). There is no separate MPS build to pick
+    and nothing to opt into: a Mac with MPS available is detected as backend
+    `mps`, so its envs are tagged `-mps` and never share a directory with a
+    genuinely CPU-only machine's.
 
 ### Building each env
 
