@@ -42,8 +42,30 @@ files' roles are [Config reference](config.md).
 ## `comfy-env info`
 
 Prints the detected runtime -- OS, platform tag, python, torch, and the
-accelerator (CUDA version, GPU name, compute capability). `--json` emits the same as machine-readable
-JSON. This is the block to paste into a bug report.
+accelerator (CUDA version, GPU name, compute capability) -- **and then every
+materialized env**, with the stack each was built for:
+
+```
+Environments (/home/you/.ce/envs)
+========================================
+  geometrypack-nodes_py313-torch2.8-cu128
+      py313-torch2.8-cu128  <- this stack
+  geometrypack-nodes_py310-torch2.10-cpu
+      py310-torch2.10-cpu   from ComfyUI-GeometryPack/nodes/comfy-env.toml
+  trellis2-nodes
+      unstamped (predates stamping; cannot be verified)
+```
+
+Each stack is read from that env's own `env.stamp.json`, not parsed out of
+the directory name, so an env [adopted under an older
+spelling](adr/0039-env-directory-naming.md) reports correctly. `<- this
+stack` marks the one this ComfyUI would bind; `unstamped` marks an env from
+before stamping, which cannot be verified and is therefore always safe to
+delete.
+
+`--json` emits the runtime block as machine-readable JSON. **This is the
+block to paste into a bug report**, and the one command to ask for when
+someone says a pack is not loading.
 
 ## `comfy-env settings`
 

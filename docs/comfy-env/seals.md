@@ -29,10 +29,12 @@ The **output** is what the derivation produces from them: the generated
 |---|---|---|---|---|
 | 1 | **fast key** | `install.hash`, line 2 (`fastkey:<sha256>`) | did any *local input* change? | every `install()`, first thing, per env |
 | 2 | **identity** | `install.hash`, line 1 (`v3:<sha256>`) | did the *derived output* change? | only when seal 1 missed (or the env is on a fallback combo) |
-| 3 | **stamp** | `env.stamp.json` | was this env built for *this* stack? | at runtime, by `register_nodes()`, before binding a worker |
+| 3 | **stamp** | `env.stamp.json` | was this env built for *this* stack, **and derived from this pack**? | at runtime, by `register_nodes()`, before binding a worker |
 
 Both files sit in the env's manifest directory
-(`<workspace>/envs/<name>-<abi>/`), next to the generated `pixi.toml`.
+(`<workspace>/envs/<name>_<abi>/`, see
+[ADR-0039](adr/0039-env-directory-naming.md)), next to the generated
+`pixi.toml`.
 
 ## Quick explanation
 
@@ -54,6 +56,14 @@ change?" is three different questions, asked at three different prices:
    `register_nodes()` reads before binding a worker. Wrong stack → refuse
    and fall back, because a worker on a different torch than the parent
    does not fail cleanly -- it corrupts tensors crossing the boundary.
+
+    The stamp answers a **second** question the other two seals cannot:
+    *was this env derived from this pack?* Env names are lossy, so two
+    different packs can reduce to one name and then share one directory,
+    both building for the same stack so the label above matches for both.
+    The stamp records the source pack and config path, and a mismatch is
+    refused the same way a wrong stack is. Without it that collision is
+    invisible: each install re-derives, rebuilds, and never says why.
 
 Seal 1 makes *skipping* cheap, seal 2 makes *rebuilding* rare, seal 3 makes
 *using* safe.

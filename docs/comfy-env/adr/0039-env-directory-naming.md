@@ -93,10 +93,14 @@ one artifact a human reads when deciding what to delete.
   than an inline string.
 - **The alias is removed at 0.6.0**, by which point every env has been rebuilt
   for an unrelated reason at least once.
-- **The derivation collision above is not fixed by this ADR.** A separator
-  makes the string readable; it does not stop two packs deriving one name.
-  That needs the source pack folder and config path recorded in
-  `env.stamp.json` so the clash is loud, which is tracked separately.
+- **The derivation collision is fixed alongside this, not by it.** A
+  separator makes the string readable; it does not stop two packs deriving
+  one name. `env.stamp.json` now records `source` (the pack folder plus the
+  config path inside it) and `validate_env_stamp` refuses a bind when it
+  disagrees, naming both sides. That is deliberately *not* encoded in the
+  directory name: doing so would lengthen every name to catch a case the
+  stamp catches for free, and would still not stop the two from sharing a
+  directory, only from being confused for one another once they had.
 
 ### The precedent this is answering
 
