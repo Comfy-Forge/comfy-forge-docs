@@ -132,6 +132,7 @@ nav:
           - "0035: Duck-typed model proxy": comfy-env/adr/0035-duck-typed-model-proxy.md
           - "0036: Mirroring ComfyUI's memory manager": comfy-env/adr/0036-mirroring-comfyui-memory-management.md
           - "0038: The memory floor": comfy-env/adr/0038-the-memory-floor.md
+          - "0039: The env directory seam": comfy-env/adr/0039-env-directory-naming.md
           - "0023: Metadata scan and proxy synthesis": comfy-env/adr/0023-metadata-scan-and-proxy-synthesis.md
           - "0025: VRAM co-management across processes": comfy-env/adr/0025-vram-co-management.md
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md

@@ -73,17 +73,22 @@ drive root: `C:\ce` was the old default and needed admin to create.
 One directory per env, under `envs/`:
 
 ```
-<root>/envs/<env-name>-<abi-tag>/          the manifest (pixi.toml, pixi.lock)
-<root>/envs/<env-name>-<abi-tag>/.pixi/envs/default/   the materialized env
+<root>/envs/<env-name>_<abi-tag>/          the manifest (pixi.toml, pixi.lock)
+<root>/envs/<env-name>_<abi-tag>/.pixi/envs/default/   the materialized env
 ```
+
+**The seam is an underscore**, and it is the only one in the name
+([ADR-0039](adr/0039-env-directory-naming.md)). Split on it and you have the
+two halves; nothing else in either half can be an underscore.
 
 * **`<env-name>`** is the pack directory, `ComfyUI-` / `ComfyUI_` prefix
   stripped and lowercased, plus `-<subdir>` when the config is not at the
   pack root. Anything outside `[a-z0-9-]` collapses to a single dash, because
-  pixi rejects the rest.
-* **`<abi-tag>`** is `py<version>-torch<major>-<minor>-<backend>`, where
-  backend is `cu128`, `rocm63`, `mps`, `cpu`, or `notorch`. Dots become
-  dashes, so torch 2.10 reads `torch2-10`.
+  this half comes from a folder name on disk and pixi rejects the rest.
+* **`<abi-tag>`** is `py<version>-torch<major>.<minor>-<backend>`, where
+  backend is `cu128`, `rocm63`, `mps`, `cpu`, or `notorch`. **Version dots are
+  kept**, so torch 2.10 reads `torch2.10` and cannot be misread as torch 2
+  build 10.
 
 The tag is what stops two ComfyUI installs on different stacks from sharing
 a directory and rebuilding over each other. It also means **the same pack
@@ -91,11 +96,16 @@ can hold several copies at once**, one per stack it has been installed
 under:
 
 ```
-geometrypack-nodes                        <- pre-tag, from an older comfy-env
-geometrypack-nodes-py310-torch2-10-cpu
-geometrypack-nodes-py311-torch2-10-cpu
-geometrypack-nodes-py313-torch2-8-cu128
+geometrypack-nodes                         <- pre-tag, from an older comfy-env
+geometrypack-nodes_py310-torch2.10-cpu
+geometrypack-nodes_py311-torch2.10-cpu
+geometrypack-nodes_py313-torch2.8-cu128
 ```
+
+Directories written by an older comfy-env carry the previous spelling
+(`-` as the seam, dots rendered as dashes). Those are **adopted where they
+stand**, not renamed and not rebuilt: the contents are identical either way,
+so nothing is re-downloaded and `comfy-env gc` still counts them as live.
 
 That accumulation is by design and nothing deletes it automatically.
 [`comfy-env gc`](commands.md#comfy-env-gc) is what clears the ones no
