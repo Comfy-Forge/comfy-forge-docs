@@ -34,7 +34,7 @@ plumbing they already have.
 `get_filename_list` gets its own treatment, because a frozen list would go
 stale the moment a user drops in a new checkpoint. It is shimmed so a combo's
 options are resolved by the **parent**, at the moment ComfyUI asks, rather
-than captured at scan time. See [Dynamic combos](dynamic-combos.md).
+than captured at scan time. See [Dynamic combos](live-dropdowns.md).
 
 ## One deliberate exception
 
@@ -57,7 +57,7 @@ else, and it has no ADR.
 
 ## See also
 
-- [Dynamic combos](dynamic-combos.md) — how `get_filename_list` stays live
+- [Dynamic combos](live-dropdowns.md) — how `get_filename_list` stays live
 - [The process boundary](process-boundary.md) — the rest of what crosses
 - [Saved-image metadata](png-metadata.md) — `get_save_image_path` works;
   the metadata that should accompany it currently does not

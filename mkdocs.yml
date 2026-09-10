@@ -58,6 +58,7 @@ plugins:
         comfy-env/memory-api-inventory.md: comfy-env/comfyui-memory-api-inventory.md
         comfy-env/comfyui-background.md: comfy-env/comfyui-custom-nodepack-background.md
         comfy-env/why-imperfect.md: comfy-env/model-stand-in-inaccuracies.md
+        comfy-env/dynamic-combos.md: comfy-env/live-dropdowns.md
 
 markdown_extensions:
   - admonition
@@ -107,7 +108,7 @@ nav:
       - How ComfyUI handles folder and file paths:
           - The model path registry: comfy-env/comfyui-folder-paths.md
           - How comfy-env handles it: comfy-env/folder-paths.md
-          - Dynamic combos: comfy-env/dynamic-combos.md
+          - Live dropdowns: comfy-env/live-dropdowns.md
       - The node contract:
           - What survives isolation: comfy-env/node-contract-conformance.md
           - The two classmethods: comfy-env/comfyui-caching-validation.md

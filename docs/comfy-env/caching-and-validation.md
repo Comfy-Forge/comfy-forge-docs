@@ -73,7 +73,7 @@ and a reader looking for *why* currently has to find the right docstring.
 
 ## See also
 
-- [Dynamic combos](dynamic-combos.md) — the one case where a fingerprint
+- [Dynamic combos](live-dropdowns.md) — the one case where a fingerprint
   *is* synthesized, and why
 - [ComfyUI custom nodepack background](comfyui-custom-nodepack-background.md)
   — the rest of the node contract

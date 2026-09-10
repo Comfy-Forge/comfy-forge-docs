@@ -9,7 +9,7 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 
 | File | ~LoC | Responsibility |
 |------|-----:|----------------|
-| `__init__.py` | 110 | Public facade. Exports the six-name public API (`install`, `setup_env`, `register_nodes`, `copy_files`, `register_serializer`, `input_files`); defines `__version__` from installed metadata; imports `settings` for its tombstone side effect. Internals are deliberately NOT re-exported -- `__getattr__` turns reaching for one into a signpost naming where it lives. |
+| `__init__.py` | 110 | Public facade. Exports the five-name public API (`install`, `setup_env`, `register_nodes`, `copy_files`, `register_serializer`); defines `__version__` from installed metadata; imports `settings` for its tombstone side effect. Internals are deliberately NOT re-exported -- `__getattr__` turns reaching for one into a signpost naming where it lives. |
 | `cli.py` | 494 | The `comfy-env` console entrypoint: `init`, `install`, `info`, `settings`, `gc`. Settings is a single-tab (Debug) curses TUI with a plain-text fallback. |
 | `settings.py` | 79 | Tombstones for settings removed in 0.4.25: a falsy `COMFY_ENV_ISOLATE` / `COMFY_ENV_INSTALL_ISOLATED`, or a truthy `COMFY_ENV_AUTO_INSTALL`, raises at import with a self-locating message. No settings file, no TOML key mapping: the live settings are plain `COMFY_ENV_*` env vars read at their point of use. |
 | `debug.py` | 65 | Granular debug-category switches (`SERIALIZE`, `IPC`, `WORKER`, `VRAM`, ...), env var or `~/.comfy-env/debug.env` (env var wins). Workers cannot import it (different venv) and parse env vars directly. |
@@ -69,7 +69,6 @@ Everything lives under `src/comfy_env/`. Line counts are approximate
 | `isolation/errors.py` | 88 | The closed error vocabulary that crosses the wire, including translating a worker OOM back into the host's real exception class. |
 | `isolation/subenv.py` | 121 | Per-platform isolation env construction. |
 | `isolation/metadata.py` | 1780 | Spawns a short-lived subprocess in the isolation env to write out node metadata as JSON (`INPUT_TYPES`, ...), then synthesizes proxy classes in the parent. Handles ComfyUI v3 schema, dynamic combo providers (live model/input-dir dropdowns), synthesized validation, hash-keyed caching. |
-| `isolation/provided.py` | 139 | `input_files()` and the tagged `ProvidedList`: a combo's option list that carries the recipe that produced it, so proxies can re-list live. Stdlib-only leaf; shipped verbatim into the scan child. |
 | `isolation/model_patcher.py` | 301 | `SubprocessModelPatcher`: bridges worker-resident GPU models into ComfyUI's VRAM manager; eviction IPCs the worker to move the model to CPU. Only module importing ComfyUI at module scope. |
 | `isolation/tensor_utils.py` | 83 | `TensorKeeper` (prevents GC races on shared tensors), IPC preparation, `release_tensor()` via `madvise(MADV_DONTNEED)`. |
 

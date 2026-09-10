@@ -81,7 +81,7 @@ Step by step:
     parent-side route. Real example: ComfyUI-SAM3's
     `/sam3/interactive_segment_one`.
 
-6. **`INPUT_TYPES`** is mirrored to host. See [dynamic combos](dynamic-combos.md).
+6. **`INPUT_TYPES`** is mirrored to host. See [dynamic combos](live-dropdowns.md).
 
 7. **Everything else**: directories without a config, or with a config but
    no materialized env is imported normally in-process, and their

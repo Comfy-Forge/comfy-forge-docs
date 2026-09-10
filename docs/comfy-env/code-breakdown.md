@@ -168,7 +168,6 @@ hang. Merge them carelessly and a segfault reports as a ten-minute stall.
 | `isolation/pool.py` | 1,852 | The worker pool: lifecycle, restart+generations, VRAM/progress callbacks, route proxying, the `_STALE_PATCHERS` invariant ([ADR-0019](adr/0019-worker-lifecycle.md)), and the host half of the memory floor -- which is where nearly all of its 1,271-line growth went. |
 | `isolation/wrap.py` | 572 | `register_nodes()` orchestration. |
 | `isolation/model_patcher.py` | 401 | `SubprocessModelPatcher` -- resident models obey ComfyUI's VRAM manager. |
-| `isolation/provided.py` | 139 | `input_files()`, the one worker-visible helper in the public API. |
 | `isolation/subenv.py` | 121 | Launch-env construction for the worker subprocess. |
 | `isolation/errors.py` | 88 | Error translation across the boundary: a closed vocabulary, never a pickled exception class. |
 | `isolation/tensor_utils.py` | 83 | `TensorKeeper`, madvise reclaim. |

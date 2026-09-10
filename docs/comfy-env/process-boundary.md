@@ -13,7 +13,7 @@ Details for each follow on this page or where linked.
 1. **The worker program itself** -- as source text into a temp dir, never
    installed ([ADR-0006](adr/0006-worker-crosses-the-boundary-as-source-text.md)).
 2. **The metadata scan** -- a scan script out, a JSON payload file back:
-   node schemas, `ROUTES`, folder registrations, dynamic-combo journal
+   node schemas, `ROUTES`, folder registrations
    ([register_nodes()](register-nodes.md)).
 3. **Spawn configuration** -- env vars: the socket address, a per-spawn auth
    secret, accelerator/serializer/debug settings ([table below](#the-spawn-time-channel)).
@@ -139,7 +139,6 @@ another name, set per worker, carrying data rather than toggles.
 | `COMFY_ENV_IPC_AUTHKEY` | worker spawn, fresh per spawn | the worker's **first frame** must echo this 64-hex secret; the parent also checks the connecting peer's uid (SO_PEERCRED) before speaking the protocol ([ADR-0033](adr/0033-local-ipc-authentication.md)) |
 | `COMFY_ENV_ACCEL_PKGS` | `register_nodes()` from `[cuda].packages` | metadata scan's top-level-import check ([accelerator rule](accelerators.md)) |
 | `COMFY_ENV_SERIALIZER_FILES` | `register_nodes()` from `[types]` custom entries (`serialization.py` paths) | worker startup, to load custom type serializers ([ADR-0015](adr/0015-declared-wire-types.md)) |
-| `COMFY_ENV_PROVIDED` | metadata scan spawn | path to the parent's `provided.py`, loaded by file path in the scan child (comfy-env is not installed there) so `input_files()` works |
 | `COMFY_ENV_PARENT_CUDA_IPC` | worker spawn, from a parent-side probe | whether the parent can *import* CUDA IPC handles; `0` disables worker-side export (the pair property behind the `cudaMallocAsync` note above) |
 | `COMFY_CPU` | worker spawn, from ComfyUI's `--cpu` | the worker's `comfy.cli_args` |
 | `COMFYUI_BASE`, `COMFYUI_USER_DIR` | worker/scan spawn | ComfyUI source dir for `sys.path`; Desktop-app user-data dir for `folder_paths` |

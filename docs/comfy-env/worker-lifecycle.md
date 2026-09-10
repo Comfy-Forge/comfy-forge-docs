@@ -15,7 +15,7 @@ the only copy of anything.
 
 Nothing spawns at ComfyUI startup. Browsing the node menu, loading
 workflows, even `/object_info` never touch a worker -- proxies answer from
-the [metadata snapshot](dynamic-combos.md), and the live parts (file
+the [metadata snapshot](live-dropdowns.md), and the live parts (file
 dropdowns) are re-computed parent-side. A worker exists only once a node
 from its env actually **executes**.
 
