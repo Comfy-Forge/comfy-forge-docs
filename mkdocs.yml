@@ -37,6 +37,7 @@ extra_css:
   - stylesheets/forge-bar.css
   - stylesheets/tables.css
   - stylesheets/subtitle.css
+  - stylesheets/nav.css
 
 # NOTE: MkDocs defaults `plugins` to ['search'] only while the key is absent.
 # Declaring it here REPLACES that default, so `search` must be listed
@@ -78,7 +79,7 @@ nav:
   - Roadmap: roadmap.md
   - comfy-env:
       - Architecture: comfy-env/index.md
-      - Upstream ComfyUI:
+      - Nodepacks:
           - ComfyUI custom nodepack background: comfy-env/comfyui-custom-nodepack-background.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
       - Memory management:
@@ -95,6 +96,22 @@ nav:
                   - Working around OS differences: comfy-env/os-memory-workarounds.md
               - ComfyUI's memory API: comfy-env/comfyui-memory-api.md
               - ComfyUI memory API inventory: comfy-env/comfyui-memory-api-inventory.md
+      - Logging:
+          - comfy-env's logging: comfy-env/logging-approach.md
+          - Logging context:
+              - How programs write output: comfy-env/streams-and-descriptors.md
+              - ComfyUI logging background: comfy-env/comfyui-logging.md
+      - How ComfyUI saves metadata:
+          - Hidden inputs and PNG chunks: comfy-env/comfyui-png-metadata.md
+          - How comfy-env handles it: comfy-env/png-metadata.md
+      - How ComfyUI handles folder and file paths:
+          - The model path registry: comfy-env/comfyui-folder-paths.md
+          - How comfy-env handles it: comfy-env/folder-paths.md
+          - Dynamic combos: comfy-env/dynamic-combos.md
+      - The node contract:
+          - What survives isolation: comfy-env/node-contract-conformance.md
+          - The two classmethods: comfy-env/comfyui-caching-validation.md
+          - How comfy-env handles it: comfy-env/caching-and-validation.md
       - Nodepack author reference:
           - The three calls:
               - "install()": comfy-env/install.md
@@ -113,7 +130,6 @@ nav:
           - The process boundary: comfy-env/process-boundary.md
           - Worker lifecycle: comfy-env/worker-lifecycle.md
           - Zero-copy CUDA transfer: comfy-env/zero-copy-ipc.md
-          - Dynamic combos: comfy-env/dynamic-combos.md
           - The three seals: comfy-env/seals.md
           - Import layering: comfy-env/import-layering.md
           - Module inventory: comfy-env/modules.md

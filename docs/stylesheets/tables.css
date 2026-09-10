@@ -20,3 +20,85 @@
   white-space: nowrap;
   text-align: center;
 }
+
+/* Full-width tables.
+ *
+ * Material caps the content column at 61rem. That is right for prose and
+ * wrong for a table of six or more columns: every cell wraps to three lines
+ * and the table stops being readable. Opt in per page by wrapping it:
+ *
+ *   <div class="wide-table num-col" markdown>
+ *
+ * The :has() selectors mean only pages that actually carry one of these get
+ * the wider grid -- every other page keeps Material's default measure, so
+ * prose is never stretched to window width.
+ *
+ * memory-approach.md applies the same treatment through a page-local
+ * .reach-table block. That one also carries per-verdict cell colouring,
+ * which is specific to that table and stays where it is.
+ */
+.md-main:has(.wide-table) .md-grid,
+.md-header:has(+ .md-container .wide-table) .md-grid {
+  max-width: 100%;
+}
+
+.md-typeset .wide-table table {
+  font-size: .68rem;
+}
+
+/* num-col already collapses the leading column, but Material's 1.25em cell
+ * padding still reserves width around it. */
+.md-typeset .wide-table th:first-child,
+.md-typeset .wide-table td:first-child {
+  padding-left: .4em;
+  padding-right: .4em;
+}
+
+/* Pull both sidebars in and trim the content gutters, so the extra width
+ * goes to the table rather than to whitespace. */
+@media screen and (min-width: 76.25em) {
+  .md-main:has(.wide-table) .md-sidebar {
+    width: 10.5rem;
+  }
+  .md-main:has(.wide-table) .md-content__inner {
+    margin-left: .8rem;
+    margin-right: .8rem;
+  }
+  .md-main:has(.wide-table) .md-sidebar .md-nav--primary > .md-nav__title {
+    padding-left: .4rem;
+  }
+  .md-main:has(.wide-table) .md-sidebar--primary .md-sidebar__scrollwrap,
+  .md-main:has(.wide-table) .md-sidebar--secondary .md-sidebar__scrollwrap {
+    margin: 0;
+  }
+}
+
+/* Verdict colouring for status tables.
+ *
+ * Wrap the verdict word in <span class="v v-yes|v-partial|v-no"> and the cell
+ * containing it picks up a muted background, so a long table can be scanned
+ * for red before it is read. Opt in on the wrapper:
+ *
+ *   <div class="verdict-table wide-table num-col" markdown>
+ *
+ * The words keep their own colour as well as the cell, so the table still
+ * reads correctly for anyone who cannot distinguish the backgrounds.
+ *
+ * memory-approach.md carries an equivalent block locally under .reach-table,
+ * scoped to its own cells; this is the shared version for everything else.
+ */
+.md-typeset .verdict-table td:has(.v-no)      { background: #f3e3e1; }
+.md-typeset .verdict-table td:has(.v-partial) { background: #f5edd6; }
+.md-typeset .verdict-table td:has(.v-yes)     { background: #e3efe1; }
+
+.md-typeset .verdict-table .v         { font-weight: 700; }
+.md-typeset .verdict-table .v-no      { color: #8e3b33; }
+.md-typeset .verdict-table .v-partial { color: #7d5d12; }
+.md-typeset .verdict-table .v-yes     { color: #2f6b34; }
+
+[data-md-color-scheme="slate"] .md-typeset .verdict-table td:has(.v-no)      { background: rgba(190, 80, 70, 0.20); }
+[data-md-color-scheme="slate"] .md-typeset .verdict-table td:has(.v-partial) { background: rgba(200, 160, 50, 0.18); }
+[data-md-color-scheme="slate"] .md-typeset .verdict-table td:has(.v-yes)     { background: rgba(80, 170, 90, 0.18); }
+[data-md-color-scheme="slate"] .md-typeset .verdict-table .v-no      { color: #e9a39a; }
+[data-md-color-scheme="slate"] .md-typeset .verdict-table .v-partial { color: #e5c46b; }
+[data-md-color-scheme="slate"] .md-typeset .verdict-table .v-yes     { color: #9fd8a3; }

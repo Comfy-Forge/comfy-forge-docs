@@ -1,0 +1,30 @@
+/* Sidebar section headings.
+ *
+ * Material renders a section label in --md-default-fg-color--light, i.e.
+ * LIGHTER than the page links nested under it, at the same .7rem size. On a
+ * nav this long that inverts the hierarchy: the headings recede and the whole
+ * tree reads as one flat list. Make them bigger, coloured, and spaced.
+ *
+ * The [for] variant is Material's own selector for a label that is not a
+ * link (a section with no index page). It has to be matched explicitly or the
+ * muted colour wins on specificity. */
+.md-nav__item--section > .md-nav__link,
+.md-nav__item--section > .md-nav__link[for] {
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .015em;
+  color: var(--md-primary-fg-color);
+}
+
+/* Indigo is legible on white but muddy on slate, so lift it for dark mode
+ * rather than reusing the primary token. */
+[data-md-color-scheme="slate"] .md-nav__item--section > .md-nav__link,
+[data-md-color-scheme="slate"] .md-nav__item--section > .md-nav__link[for] {
+  color: #a3b1ff;
+}
+
+/* A little more air above each heading, so the grouping is visible without
+ * relying on colour alone. */
+.md-nav__item--section {
+  margin-top: 1.4em;
+}

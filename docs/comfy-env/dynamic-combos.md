@@ -195,7 +195,10 @@ stubbed as `None` during caching, poisoning the signature):
   the input's name appears in that argspec (`execution.py:1019`) -- a
   `**kwargs` form would exempt *every* input on the node, silently disabling
   numeric clamps, which is why the names are exact. V3 proxies get the
-  lowercase `validate_inputs`; V1 proxies get `VALIDATE_INPUTS`.
+  lowercase `validate_inputs`; V1 proxies get `VALIDATE_INPUTS`. Only the
+  *signature* is reproduced -- the synthesized body is `return True`, so the
+  pack's own validation logic never runs. See
+  [Caching and validation](caching-and-validation.md).
 - **Staleness fingerprint.** A parent-side `fingerprint_inputs` hashes each
   dynamic input's value by resolved-file mtime, so re-running a workflow
   after overwriting the file re-executes instead of serving the stale cache.

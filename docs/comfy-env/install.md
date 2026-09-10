@@ -68,7 +68,7 @@ using the same pack share one materialized env
 | **Linux / macOS** | `~/.ce` |
 
 `COMFY_ENV_ROOT` moves it. On Windows the root is deliberately *not* at a
-drive root: `C:\ce` was the old default and needed admin to create.
+drive root, as something like `C:\ce` would need admin to create.
 
 One directory per env, under `envs/`:
 
@@ -96,19 +96,12 @@ can hold several copies at once**, one per stack it has been installed
 under:
 
 ```
-geometrypack-nodes                         <- pre-tag, from an older comfy-env
 geometrypack-nodes_py310-torch2.10-cpu
 geometrypack-nodes_py311-torch2.10-cpu
 geometrypack-nodes_py313-torch2.8-cu128
 ```
 
-Directories written by an older comfy-env carry the previous spelling
-(`-` as the seam, dots rendered as dashes). Those are **adopted where they
-stand**, not renamed and not rebuilt: the contents are identical either way,
-so nothing is re-downloaded and `comfy-env gc` still counts them as live.
-
-That accumulation is by design and nothing deletes it automatically.
-[`comfy-env gc`](commands.md#comfy-env-gc) is what clears the ones no
+[`comfy-env gc`](commands.md#comfy-env-gc) is a command that can be used to clear nodepacks that no
 installed pack references ([ADR-0028](adr/0028-workspace-disk-lifecycle.md)).
 Full disk layout, including the pixi package cache that `COMFY_ENV_ROOT`
 does **not** move, is in [Drives and volumes](drives-and-volumes.md).

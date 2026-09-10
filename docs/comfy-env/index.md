@@ -200,6 +200,19 @@ packs let go when they go quiet.
 
 **[comfy-env's memory management](memory-approach.md)** is the whole story.
 
+## Logging
+
+ComfyUI captures output by replacing `sys.stdout` and `sys.stderr` with a
+wrapper that fans each write out to the terminal, an in-memory ring and the
+browser's terminal panel. That interception is a Python object, not a file
+descriptor, so a subprocess escapes it entirely — and comfy-env is
+subprocesses.
+
+So worker output travels back over the same IPC socket everything else uses,
+as `log` frames the parent reprints in-process. What cannot travel that way,
+and what comfy-env writes to disk instead, is in
+**[comfy-env's logging](logging-approach.md)**.
+
 ## Import layering
 
 The modules under `src/comfy_env/` form a layered, **acyclic** import graph:

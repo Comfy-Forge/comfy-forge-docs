@@ -225,6 +225,8 @@ planned retirement).
   root-logger handler, so every print and log record crosses as an
   unsolicited `log` frame and reprints as `[worker:<name>]`. C-level output
   does not cross: native stdout goes to DEVNULL, native stderr is inherited.
+  Full detail, including what falls on the floor, in
+  [comfy-env's logging](logging-approach.md).
 - **Health.** Workers idle for more than 60 s get a `ping`; the `pong`
   reports how many un-acked keepers they still hold.
 
