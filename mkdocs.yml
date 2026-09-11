@@ -122,11 +122,11 @@ nav:
       - Exceptions:
           - Errors and Cancel: comfy-env/comfyui-exceptions.md
           - How comfy-env handles it: comfy-env/exceptions.md
+      - The three commands:
+          - "install()": comfy-env/install.md
+          - "setup_env()": comfy-env/setup-env.md
+          - "register_nodes()": comfy-env/register-nodes.md
       - Nodepack author reference:
-          - The three calls:
-              - "install()": comfy-env/install.md
-              - "setup_env()": comfy-env/setup-env.md
-              - "register_nodes()": comfy-env/register-nodes.md
           - Config reference: comfy-env/config.md
           - Accelerator declarations: comfy-env/accelerators.md
           - Custom wire types (serializers): comfy-env/serializers.md
