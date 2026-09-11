@@ -37,7 +37,7 @@ sides of the boundary.*
 | 2 | `IS_CHANGED` / `fingerprint_inputs` | <span class="v v-no">not forwarded</span> | `return float("nan")` stops re-running. The node caches on its inputs forever; restarting ComfyUI "fixes" it. Upstream fails toward *re-running*, comfy-env fails toward *caching* — opposite directions, which is why the symptom never points you at caching | Make the changing thing an **input**. A seed, an mtime, a counter widget — anything that moves changes the cache key honestly |
 | 3 | `VALIDATE_INPUTS` / `validate_inputs` | <span class="v v-partial">signature only</span> | The signature is reproduced faithfully — including a `**kwargs` catch-all, so the exemptions you declared survive. The **body** still never runs, so a rejection message never reaches the user: the node accepts the bad value and fails deeper in | Validate at the top of your node function and raise there. Name inputs explicitly rather than relying on `**kwargs` |
 | 4 | `__init__` and `self.x` | <span class="v v-partial">works, restart aside</span> | State survives across executions **with its types intact** — a tuple stays a tuple, `bytes` and `set` and `torch.device` all cross. What still bites: after a worker restart `__init__` does **not** re-run, so a node believes a file handle from the dead process is still open | Keep `self` state JSON-shaped. Never hold a live handle, socket, or thread on `self` — re-acquire it inside the function |
-| 5 | `async def` node functions | <span class="v v-no">not supported</span> | The coroutine is never awaited. The error now names the real cause — *"its function is `async def` and the isolation worker does not await it … this is NOT a serialization problem"* — instead of sending you to write a serializer that cannot help | Make the function synchronous. Run your own event loop inside it if you need one |
+| 5 | `async def` node functions | <span class="v v-no">not supported, deliberately</span> | The coroutine is never awaited. It fails at first execution with the real cause — *"its function is `async def` and the isolation worker does not await it … this is NOT a serialization problem"*. See *Deliberately unsupported* below for why | Make the function synchronous. Run your own event loop inside it if you need one |
 | 6 | `PromptServer.instance.send_sync(...)` | <span class="v v-no">not available</span> | Usually **`ModuleNotFoundError: No module named 'aiohttp'`** — `import server` pulls aiohttp (`server.py:32`), which a lean pack env has no reason to install. Where it *is* present you get `AttributeError: type object 'PromptServer' has no attribute 'instance'` instead, because nothing ever constructed a server in that process (`server.py:215-217`). Either way it reads as a broken ComfyUI install, and the pack's JS half loads fine, so it looks like a frontend bug | Return data through `{"ui": {...}}` instead. For inbound calls, use [`ROUTES`](register-nodes.md) |
 | 7 | `ProgressBar` **preview** argument | <span class="v v-yes">works</span> | Live previews from an isolated sampler reach the browser. One limit: a single encoded preview over 1 MiB is dropped and the progress tick still goes, because upstream bypasses its own throttle whenever a preview is present | — |
 | 8 | Cancel (the Stop button) | <span class="v v-partial">cooperative</span> | Lands only while your node is driving a `ProgressBar`; otherwise nothing happens until the 600 s timeout kills the worker. Both of the old hazards are closed: the interrupt flag is now **read, not consumed**, so a click is never spent for nothing, and the worker's exception is a `BaseException` like upstream's, so a broad `except Exception` in your node can no longer swallow it | Drive a `ProgressBar` in any long loop, and never wrap it in a bare `except Exception` |
@@ -61,6 +61,28 @@ sides of the boundary.*
     So isolation here is *more permissive* than plain ComfyUI. A pack
     developed only against comfy-env can ship a node that works isolated and
     breaks for everyone running it normally. Test both ways.
+
+## Deliberately unsupported
+
+Two rows are decisions rather than gaps, and both are reversible the day a
+real pack needs them.
+
+**`async def` node functions (row 5).** Every `async def execute` ComfyUI
+ships — all 41 — is an **API node**: an HTTP client calling Comfy.org's
+services, with trivial dependencies. Isolation exists for packs whose
+dependencies are heavy or conflict with the host's, so no API node has a
+reason to be isolated, and no isolated pack has yet shipped an async node.
+Supporting them is not one line: the worker would need a single event loop
+for its whole life — a fresh loop per call would break the HTTP sessions
+such packs keep on `self` — which is a new concurrency surface in a process
+that is deliberately one-call-at-a-time. Until a heavy-dependency pack
+actually needs it, the honest position is a loud failure that names the
+cause, which is what ships today.
+
+**Cancel between progress ticks (row 8).** Recorded in
+[ADR-0018](adr/0018-worker-call-timeout.md): a node that never reports
+progress is uncancellable until the timeout. The successor is a heartbeat
+frame, which is a protocol change rather than a patch.
 
 ## The pattern behind the table
 
