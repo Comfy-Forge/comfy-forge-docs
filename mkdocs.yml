@@ -80,6 +80,9 @@ nav:
   - Roadmap: roadmap.md
   - comfy-env:
       - Architecture: comfy-env/index.md
+      - Limitations:
+          - Gaps: comfy-env/gaps.md
+          - Gaps on purpose: comfy-env/gaps-on-purpose.md
       - Nodepacks:
           - ComfyUI custom nodepack background: comfy-env/comfyui-custom-nodepack-background.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
@@ -113,6 +116,15 @@ nav:
           - What survives isolation: comfy-env/node-contract-conformance.md
           - The two classmethods: comfy-env/comfyui-caching-validation.md
           - How comfy-env handles it: comfy-env/caching-and-validation.md
+      - ComfyUI CLI args:
+          - The args namespace: comfy-env/comfyui-cli-args.md
+          - How comfy-env mirrors it: comfy-env/args-mirror.md
+      - How ComfyUI picks an attention backend:
+          - The backend ladder: comfy-env/comfyui-attention.md
+          - How comfy-env handles it: comfy-env/attention.md
+      - How ComfyUI handles exceptions:
+          - Errors and Cancel: comfy-env/comfyui-exceptions.md
+          - How comfy-env handles it: comfy-env/exceptions.md
       - Nodepack author reference:
           - The three calls:
               - "install()": comfy-env/install.md
@@ -150,6 +162,7 @@ nav:
           - "0036: Mirroring ComfyUI's memory manager": comfy-env/adr/0036-mirroring-comfyui-memory-management.md
           - "0038: The memory floor": comfy-env/adr/0038-the-memory-floor.md
           - "0039: The env directory seam": comfy-env/adr/0039-env-directory-naming.md
+          - "0040: Models never cross the process boundary": comfy-env/adr/0040-models-never-cross.md
           - "0023: Metadata scan and proxy synthesis": comfy-env/adr/0023-metadata-scan-and-proxy-synthesis.md
           - "0025: VRAM co-management across processes": comfy-env/adr/0025-vram-co-management.md
           - "0008: Graceful degradation everywhere": comfy-env/adr/0008-graceful-degradation-everywhere.md

@@ -1,0 +1,149 @@
+# Gaps
+
+*Everything ComfyUI does that comfy-env does not carry across the process
+boundary, in one place. What breaks, how loudly, and whether anyone has
+decided what to do about it.*
+{: .subtitle }
+
+*Last verified against ComfyUI `15b212cc` (2026-09-07) and comfy-env at
+2026-09-11. Produced by five parallel audits reading ComfyUI first and
+comfy-env second, then rechecked. Rows marked **[V]** were verified
+independently after the audit reported them; **[A]** were reported with
+`file:line` on both sides and not rechecked.*
+
+## The pattern
+
+Every gap has one shape:
+
+> **comfy-env carries what flows through a node's arguments and return value,
+> and drops — or silently copies — what flows through ComfyUI's process-global
+> state or through live object identity.**
+
+Two failure families follow. *Global state* — registries, hooks, interrupt
+flags, log levels — is simply absent in a worker. *Object identity* — `is`,
+`hash`, `id` — cannot survive a copy, so upstream logic keyed on it stops
+matching without raising.
+
+## Status key
+
+| Code | Meaning |
+|---|---|
+| **fixed** | in the tree, with a test that fails without it |
+| **decided** | an ADR says what to do; enforcement not yet built |
+| **deliberate** | won't fix, reason recorded |
+| **open** | nobody has decided |
+
+---
+
+## Silently wrong
+
+The node runs, the result is subtly incorrect, nothing is logged.
+
+| # | Gap | In plain English | Code | Docs | ✓ |
+|---|---|---|---|---|---|
+| 1 | Hidden inputs stripped → no PNG metadata | An isolated save node wrote images with no workflow chunk | **fixed** | [metadata](png-metadata.md) | V |
+| 2 | Host MODEL passed into a worker crosses as a full pickle copy | The node "works" but every patch lands on a copy the host never sees; VRAM doubles | **decided** | [ADR-0040](adr/0040-models-never-cross.md) | V |
+| 3 | Hooks lost, aliasing destroyed, `is_clone` disagrees — consequences of that copy | Hook LoRAs silently do nothing; a MODEL wired twice arrives as two objects | **decided** | [ADR-0040](adr/0040-models-never-cross.md) | A |
+| 4 | Cancel is swallowable — `RuntimeError` where upstream uses `BaseException` | Cancel does nothing if the node has a `try/except`, and the host forgets it asked | open | [exceptions](exceptions.md) | V |
+| 5 | `logging.info()` dropped in workers | Every INFO line vanished; WARNING kept working, which is why it looked fine | **fixed** | [logging](logging-approach.md) | V |
+| 6 | `models_dir` never crossed | A pack carving out its own model folder pointed at the wrong root on `--models-directory` | **fixed** | [model paths](folder-paths.md) | V |
+| 7 | Seven attention flags not mirrored | You picked a low-VRAM attention mode; the worker uses the default and OOMs — in the pack only | open | [attention](attention.md) | A |
+| 8 | A dozen more startup flags not mirrored — allocator, compiler, Triton, DirectML | The worker starts with factory settings for anything outside dtype and memory | open | [CLI args](args-mirror.md) | A |
+| 9 | `EXTRA_PNGINFO` mutation doesn't travel back | A node writes a note for a downstream saver; the saver never sees it. **This is the field's common use**: 84 of 505 surveyed packs declare it, and every writer writes for a downstream node — `mikey_nodes.AddMetaData` is named for it | open | [metadata](png-metadata.md) | V |
+| 10 | `prompt_id` not forwarded | Isolated API nodes lose their `Comfy-Job-Id` header | open | [metadata](png-metadata.md) | A |
+| 11 | `cls.hidden` is `None` when a node declares nothing | Upstream gives an empty holder whose attributes read `None`; ours raises | open | [metadata](png-metadata.md) | A |
+| 12 | `GraphBuilder.set_default_prefix` is parent-only | Two isolated expanding nodes mint colliding ids. Latent | open | [metadata](png-metadata.md) | A |
+| 13 | Worker debug log in shared `/tmp`, five sites | One world-readable file per machine that grows forever | open | [logging](logging-approach.md) | V |
+| 14 | `sys.stdout.write` → `DEVNULL`; `print(end=)` dropped | A library writing to the stream object directly goes into a black hole | open | [logging](logging-approach.md) | V |
+| 15 | `on_load()` runs in the scan process only | A V3 pack's setup happens in a throwaway process; at run time it's gone. Looks intermittent | open | — | A |
+| 16 | `RAMPressureCache` scores isolated outputs at 0.05 bytes | ComfyUI's default cache thinks pack outputs are free; host RAM fills and it evicts the wrong things | open | — | A |
+| 17 | `lock_class` never applied | Upstream stops a node scribbling on its class; in a worker the scribbles stick for hours | open | — | A |
+| 18 | `--comfy-api-base` not mirrored | Host on staging, isolated API nodes on production, same token | open | — | A |
+| 19 | `set_cudnn_benchmark()` not re-applied | Upstream resets a cuDNN flag after loading nodes because packs flip it; the worker doesn't | open | — | A |
+| 20 | Worker cwd is the pack directory | Relative paths resolve somewhere unexpected | open | — | A |
+| 21 | No `SIGTERM` handler, no session | `docker stop` never tells the workers; they hold VRAM until the socket dies, or forever mid-call | open | — | A |
+| 22 | `no_grad` vs `inference_mode` | Upstream branches on the mode; one model family produces different conditioning | deliberate | code comment only | A |
+
+## Fails loudly
+
+Bad, but visible.
+
+| # | Gap | In plain English | Code | Docs | ✓ |
+|---|---|---|---|---|---|
+| 23 | Host `VAE` / `CONTROL_NET` can never enter a worker | Both have instance lambdas that can't pickle; the error tells the author to write a serializer for a core type | **decided** | [ADR-0040](adr/0040-models-never-cross.md) | V |
+| 24 | `import nodes` resolves to the pack's `nodes/` | The path list was applied backwards, so the pack dir shadows ComfyUI's `nodes.py` | open | — | V |
+| 25 | `<ComfyUI>/comfy` not on the worker's path | Old packs do `import model_management` bare; upstream allows it, the worker doesn't | open | — | V |
+| 26 | `init_extra_nodes()` never runs | `NODE_CLASS_MAPPINGS` has ~65 core entries; all 138 extras are missing. `KeyError` on `"SamplerCustom"` | open | — | V |
+| 27 | Native `@PromptServer.instance.routes` at import | `import server` fails in a lean worker env and **every node in the pack vanishes** | open | partial: [register_nodes](register-nodes.md) | A |
+| 28 | Lazy inputs / `check_lazy_status` | Runs immediately with `None` in the slot; a switch node crashes on the branch it meant to skip | open | — | A |
+| 29 | `async def` node functions | A coroutine reaches the serializer | open | partial: [ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md) | A |
+| 30 | `cls.SCHEMA` is `None` in the worker | Every `NodeOutput(expand=…)` dies with an error naming nothing about expansion | open | — | A |
+| 31 | `validate_inputs(cls, **kwargs)` loses its blanket exemption | ComfyUI rejects values the node would have accepted; the node never runs | open | — | A |
+| 32 | `send_progress_text` has no crossing | The API for writing status into a node's body; core's own mesh and 3D nodes use it | open | — | A |
+| 33 | `PromptServer.instance` is `None` | `client_id`, `prompt_queue`, `last_node_id` all unreachable | open | — | A |
+| 34 | `WorkerError` masks the real exception type | Dialog says `WorkerError`, not `FileNotFoundError`; anything keyed on the type misfires | open | [exceptions](exceptions.md) | A |
+| 35 | `dpm_fast` / `dpm_adaptive` SAMPLER objects | Two of 32 samplers are closures and can't pickle | open | — | A |
+| 36 | Windows: host `PATH` replaced wholesale | `ffmpeg not found` from a pack that works un-isolated | open | — | A |
+| 37 | `NodeOutput` matched by name, not `isinstance` | A pack subclassing it isn't recognised | open | — | A |
+
+## Nothing happens
+
+| # | Gap | In plain English | Code | Docs | ✓ |
+|---|---|---|---|---|---|
+| 38 | Progress v2 (`set_progress`, `ProgressRegistry`) | The API upstream tells authors to migrate *to*. No bar, no error | open | — | A |
+| 39 | Latent / `ProgressBar` previews | The preview during sampling stays blank. Broken in two independent places | open | — | A |
+| 40 | `send_sync` | A pack's own websocket events never leave the worker; its JS is fine, so it looks like a frontend bug | open | — | A |
+| 41 | `ComfyExtension.get_routes()` | V3's proper route registration is never called. Endpoints 404 | open | — | A |
+| 42 | Sampler / scheduler registration | Registers into the worker's list; the host's dropdown never shows it | open | — | A |
+| 43 | `hook_breaker_ac10a0` never runs | Upstream actively undoes one monkeypatch every few seconds; the worker doesn't | open | — | A |
+| 44 | `log_startup_warning` lands in the worker's own list | Never appears in the end-of-startup replay block that exists so warnings aren't buried | open | — | A |
+| 45 | sqlite session unavailable | ComfyUI's database isn't reachable from a worker | open | — | A |
+| 46 | `add_on_prompt_handler`, `node_replacement.register`, `Caching.register_provider` | Register into worker-local state; no effect, no error | open | — | A |
+| 47 | `PROGRESS_BAR_HOOK` absent from ADR-0024's loan book | We depend on it from both sides; an upstream rename kills cancel *and* progress with green CI | open | — | A |
+
+## Deliberate, and recorded
+
+Eight gaps are decisions, not defects, and each has a written reason and a
+stated condition under which it would be revisited. They live on their own
+page so the reasoning is not buried in a list of things that are simply
+missing: **[Gaps on purpose](gaps-on-purpose.md)**.
+
+In short: `IS_CHANGED` / `VALIDATE_INPUTS` bodies, `DYNPROMPT`,
+`add_model_folder_path` into the global registry, cancel without progress,
+the 600 s silence timeout, frontend isolation, and `async def` nodes.
+
+## Tally
+
+| | |
+|---|---|
+| Distinct gaps | **53** |
+| Fixed | 3 |
+| Decided, enforcement pending | 3 (one ADR) |
+| Deliberate, recorded | 7 |
+| Open | **40** |
+
+## Where isolation genuinely does not apply
+
+Recorded so nobody re-audits them. A pack's **frontend JS, workflow
+templates, `locales/` and `subgraphs/`** are read off its real directory
+under `custom_nodes/`, which comfy-env never moves; the pack's `__init__.py`
+still runs in the host. **Asset enrichment** under `--enable-assets` is a
+host-side transform over the returned `ui` dict. **`/models`, `/view`,
+`/userdata`, `/settings`, `/history`, `/queue`** are host-side reads the
+browser makes directly. `ExecutionBlocker`, `INPUT_IS_LIST` /
+`OUTPUT_IS_LIST`, cache-key identity, `rawLink` and the whole V3
+dynamic-input family were checked and are faithful.
+
+## How this list was made
+
+By hand, it missed things — the hidden-inputs bug was found by accident. So
+the second pass derived ComfyUI's surface mechanically: every attribute the
+executor reads off a node class (25, by AST), every module-level mutable
+global (the state that cannot cross by definition), and the full CLI-args
+namespace (107 dests, enumerated). Then five audits, one per subsystem, each
+reading ComfyUI before comfy-env so none inherited comfy-env's framing.
+
+The list will rot. The mechanism to keep it honest — re-deriving the surface
+in CI and failing when upstream grows a symbol nobody has classified — is the
+same shape as [ADR-0024](adr/0024-upstream-interface-contract.md)'s loan book,
+and is not built.
