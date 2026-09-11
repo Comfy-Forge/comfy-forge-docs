@@ -122,7 +122,7 @@ nav:
       - Exceptions:
           - Errors and Cancel: comfy-env/comfyui-exceptions.md
           - How comfy-env handles it: comfy-env/exceptions.md
-      - The three commands:
+      - The three calls:
           - "install()": comfy-env/install.md
           - "setup_env()": comfy-env/setup-env.md
           - "register_nodes()": comfy-env/register-nodes.md
