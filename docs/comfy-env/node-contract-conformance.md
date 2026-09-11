@@ -7,19 +7,12 @@ symptom you would actually see, not by mechanism.*
 
 Every failure below is **silent, cosmetic, or misattributed**. None of them
 announce themselves as an isolation problem, which is why this table is
-ordered by symptom: an author's entry point is never "`IS_CHANGED` is not
-forwarded", it is *"why is my node stuck on the old result"*.
+ordered by symptom: an author's entry point is never "`VALIDATE_INPUTS` is
+not forwarded", it is *"why did my node accept that value"*.
 
-Two of them announce themselves. comfy-env prints a named line at startup —
-on the cached scan path as well as the fresh one — for every node whose
-`IS_CHANGED` it had to drop and whose `INPUT_TYPES` raised during the scan:
-
-```
-[comfy-env] WARNING: MyPack: node 'LoadThing' defines IS_CHANGED/fingerprint_inputs,
-  which is NOT forwarded across isolation. ComfyUI will treat this node as never
-  changing and serve its cached output until restart. If it reads a file, a clock
-  or an API, make that an input.
-```
+One of them announces itself. comfy-env prints a named line at startup, on
+the cached scan path as well as the fresh one, for every node whose
+`INPUT_TYPES` raised during the scan:
 
 `check_lazy_status` no longer needs a warning: when you define one it is
 forwarded (row 1).
@@ -44,6 +37,7 @@ sides of the boundary.*
 | 11 | `folder_paths` — the whole model-path registry | <span class="v v-yes">works</span> | Nothing. `get_full_path`, `get_save_image_path`, `recursive_search` all resolve against the host's real directories | See [model paths](folder-paths.md) |
 | 12 | The metadata scan itself | <span class="v v-no">two silent failures</span> | If a pack's `INPUT_TYPES` **hangs**, ComfyUI never finishes starting and prints nothing — the scan subprocess has no timeout. If it **raises**, the node registers with zero widgets and the captured error is never read. This is the one defect you cannot read these docs to diagnose | Move the pack out of `custom_nodes` and restart. For a widget-less node, run with `COMFY_ENV_DEBUG_META=1` and read the scan's stderr |
 | 13 | Hidden inputs (`PROMPT`, `EXTRA_PNGINFO`, `UNIQUE_ID`, the API credentials) | <span class="v v-yes">works</span> | Nothing. They travel in their own frame field and are applied by sentinel, so any parameter spelling works and isolated save nodes write their PNG workflow chunk. `DYNPROMPT` is the exception and is not forwarded | See [saved-image metadata](png-metadata.md) |
+| 14 | `IS_CHANGED` / `fingerprint_inputs` — **when you define one** | <span class="v v-yes">works</span> | The pack's own fingerprint runs in its worker over the same ladder as [live dropdowns](live-dropdowns.md): when that worker is alive and idle it answers, otherwise the node counts as *changed* and re-runs. So the failure direction matches upstream: a cold worker, a busy worker, a raise, a non-primitive return or a non-primitive input all mean "re-run", never "serve the old result". The only cost is a recompute after a restart or an idle exit, which is what native ComfyUI does after a restart too | Nothing. Write the `IS_CHANGED` you would write for vanilla ComfyUI. If it depends on a tensor input, remember ComfyUI hands it `None` there natively as well |
 
 </div>
 
@@ -58,8 +52,8 @@ sides of the boundary.*
 
 ## Deliberately unsupported
 
-These four are **decisions**, not gaps. Each has a written reason and a
-stated condition under which it would be revisited, alongside four others,
+These three are **decisions**, not gaps. Each has a written reason and a
+stated condition under which it would be revisited, alongside five others,
 on **[Deliberately unsupported](deliberately-unsupported.md)**. They are
 listed here so the symptom is still findable from this page.
 
@@ -67,10 +61,9 @@ listed here so the symptom is still findable from this page.
 
 | # | Mechanism | Status | What you will actually observe | What to do |
 |---|---|---|---|---|
-| D1 | `IS_CHANGED` / `fingerprint_inputs` | <span class="v v-partial">deliberate</span> | `return float("nan")` stops re-running. The node caches on its inputs forever; restarting ComfyUI "fixes" it. Upstream fails toward *re-running*, comfy-env fails toward *caching* — opposite directions, which is why the symptom never points you at caching | Make the changing thing an **input**. A seed, an mtime, a counter widget — anything that moves changes the cache key honestly |
-| D2 | `VALIDATE_INPUTS` / `validate_inputs` | <span class="v v-partial">deliberate</span> | The signature is reproduced faithfully — including a `**kwargs` catch-all, so the exemptions you declared survive. The **body** still never runs, so a rejection message never reaches the user: the node accepts the bad value and fails deeper in | Validate at the top of your node function and raise there. Name inputs explicitly rather than relying on `**kwargs` |
-| D3 | `async def` node functions | <span class="v v-partial">deliberate</span> | The coroutine is never awaited. It fails at first execution with the real cause — *"its function is `async def` and the isolation worker does not await it … this is NOT a serialization problem"*. Why: see the linked page | Make the function synchronous. Run your own event loop inside it if you need one |
-| D4 | Cancel (the Stop button) | <span class="v v-partial">deliberate</span> | Lands only while your node is driving a `ProgressBar`; otherwise nothing happens until the 600 s timeout kills the worker. Both of the old hazards are closed: the interrupt flag is now **read, not consumed**, so a click is never spent for nothing, and the worker's exception is a `BaseException` like upstream's, so a broad `except Exception` in your node can no longer swallow it | Drive a `ProgressBar` in any long loop, and never wrap it in a bare `except Exception` |
+| D1 | `VALIDATE_INPUTS` / `validate_inputs` | <span class="v v-partial">deliberate</span> | The signature is reproduced faithfully — including a `**kwargs` catch-all, so the exemptions you declared survive. The **body** still never runs, so a rejection message never reaches the user: the node accepts the bad value and fails deeper in | Validate at the top of your node function and raise there. Name inputs explicitly rather than relying on `**kwargs` |
+| D2 | `async def` node functions | <span class="v v-partial">deliberate</span> | The coroutine is never awaited. It fails at first execution with the real cause — *"its function is `async def` and the isolation worker does not await it … this is NOT a serialization problem"*. Why: see the linked page | Make the function synchronous. Run your own event loop inside it if you need one |
+| D3 | Cancel (the Stop button) | <span class="v v-partial">deliberate</span> | Lands only while your node is driving a `ProgressBar`; otherwise nothing happens until the 600 s timeout kills the worker. Both of the old hazards are closed: the interrupt flag is now **read, not consumed**, so a click is never spent for nothing, and the worker's exception is a `BaseException` like upstream's, so a broad `except Exception` in your node can no longer swallow it | Drive a `ProgressBar` in any long loop, and never wrap it in a bare `except Exception` |
 
 </div>
 
@@ -78,8 +71,9 @@ listed here so the symptom is still findable from this page.
 
 `check_lazy_status`, `IS_CHANGED` and `VALIDATE_INPUTS` are the same shape:
 a mechanism ComfyUI invokes **before** the node executes. Forwarding those to
-a worker would cold-spawn every isolated environment in the prompt before a
-single node ran — which is why two of them are deliberate (D1, D2) and
+a worker by spawning it would cold-start every isolated environment in the
+prompt before a single node ran. `IS_CHANGED` escapes that by asking only a
+worker that already exists (row 14); `VALIDATE_INPUTS` stays deliberate (D1) and
 documented in [caching and validation](caching-and-validation.md).
 
 `check_lazy_status` is *not* in that category, which is why it *is*
