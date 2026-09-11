@@ -10,10 +10,9 @@ announce themselves as an isolation problem, which is why this table is
 ordered by symptom: an author's entry point is never "`IS_CHANGED` is not
 forwarded", it is *"why is my node stuck on the old result"*.
 
-Three of them now announce themselves. comfy-env prints a named line at
-startup — on the cached scan path as well as the fresh one — for every node
-whose `IS_CHANGED` it had to drop, whose `check_lazy_status` it cannot forward,
-and whose `INPUT_TYPES` raised during the scan:
+Two of them announce themselves. comfy-env prints a named line at startup —
+on the cached scan path as well as the fresh one — for every node whose
+`IS_CHANGED` it had to drop and whose `INPUT_TYPES` raised during the scan:
 
 ```
 [comfy-env] WARNING: MyPack: node 'LoadThing' defines IS_CHANGED/fingerprint_inputs,
@@ -22,8 +21,9 @@ and whose `INPUT_TYPES` raised during the scan:
   or an API, make that an input.
 ```
 
-The lazy warning fires only when you actually defined a `check_lazy_status`.
-Declaring `lazy` without one is not an isolation defect — see row 1b.
+`check_lazy_status` no longer needs a warning: when you define one it is
+forwarded (row 1). Declaring `lazy` without one is not an isolation defect —
+see row 1b.
 
 *Audited against ComfyUI `15b212cc` (2026-09-07). Each row was traced on both
 sides of the boundary.*
@@ -32,7 +32,7 @@ sides of the boundary.*
 
 | # | Mechanism | Status | What you will actually observe | What to do |
 |---|---|---|---|---|
-| 1 | `check_lazy_status` — **when you define one** | <span class="v v-no">not forwarded</span> | Your method is never called, so nothing promotes the pruned links back and the node runs with **every lazy input `None`**. The graph *appears* to have taken the fast path you asked for; the taken branch is not computed late, it is not computed at all | Take all inputs eagerly and branch inside the node |
+| 1 | `check_lazy_status` — **when you define one** | <span class="v v-yes">works</span> | Your method runs in the worker and its answer comes back, so upstream's ask-then-compute loop gets a real answer: only the branch you name is computed. Forwarded only when the scan saw you define one — see row 1b for why not otherwise. Cost: the inputs upstream already has cross once per round, typically two rounds | —
 | 1b | `{"lazy": True}` with **no** `check_lazy_status` | <span class="v v-partial">matches upstream</span> | The same `None` inputs — but plain ComfyUI does this too, so it is not an isolation defect. `ComfyNode.check_lazy_status`'s documented "requires all inputs" default is unreachable (`first_real_override` breaks at `GET_BASE_CLASS()`, which for a V3 node *is* `ComfyNode`), and `CheckLazyMixin` is opt-in with no core node inheriting it | Define `check_lazy_status` explicitly — but see row 1 |
 | 2 | `__init__` and `self.x` | <span class="v v-partial">works, restart aside</span> | State survives across executions **with its types intact** — a tuple stays a tuple, `bytes` and `set` and `torch.device` all cross. What still bites: after a worker restart `__init__` does **not** re-run, so a node believes a file handle from the dead process is still open | Keep `self` state JSON-shaped. Never hold a live handle, socket, or thread on `self` — re-acquire it inside the function |
 | 3 | `PromptServer.instance.send_sync(...)` | <span class="v v-no">not available</span> | Usually **`ModuleNotFoundError: No module named 'aiohttp'`** — `import server` pulls aiohttp (`server.py:32`), which a lean pack env has no reason to install. Where it *is* present you get `AttributeError: type object 'PromptServer' has no attribute 'instance'` instead, because nothing ever constructed a server in that process (`server.py:215-217`). Either way it reads as a broken ComfyUI install, and the pack's JS half loads fine, so it looks like a frontend bug | Return data through `{"ui": {...}}` instead. For inbound calls, use [`ROUTES`](register-nodes.md) |
@@ -84,9 +84,9 @@ a worker would cold-spawn every isolated environment in the prompt before a
 single node ran — which is why two of them are deliberate (D1, D2) and
 documented in [caching and validation](caching-and-validation.md).
 
-`check_lazy_status` is *not* in that category and is simply missing: it fires
-for a node ComfyUI has already picked to execute, whose worker is spawning
-anyway.
+`check_lazy_status` is *not* in that category, which is why it *is*
+forwarded: it fires for a node ComfyUI has already picked to execute, whose
+worker is spawning anyway.
 
 `send_sync`, previews, progress v2 and cancel share a different shape: a
 worker can be *called*, but it cannot **originate** traffic to the browser.

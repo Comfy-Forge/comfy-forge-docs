@@ -75,7 +75,7 @@ Bad, but visible.
 | 25 | `<ComfyUI>/comfy` not on the worker's path | Old packs do `import model_management` bare; upstream allows it, the worker doesn't | open | — | V |
 | 26 | `init_extra_nodes()` never runs | `NODE_CLASS_MAPPINGS` has ~65 core entries; all 138 extras are missing. `KeyError` on `"SamplerCustom"` | open | — | V |
 | 27 | Native `@PromptServer.instance.routes` at import | `import server` fails in a lean worker env and **every node in the pack vanishes** | open | partial: [register_nodes](register-nodes.md) | A |
-| 28 | Lazy inputs / `check_lazy_status` | Runs immediately with `None` in the slot; a switch node crashes on the branch it meant to skip | open | — | A |
+| 28 | Lazy inputs / `check_lazy_status` | Forwarded when the author defined one, so the taken branch is computed. A node declaring `lazy` *without* one still gets `None` — and so does plain ComfyUI, whose own default is unreachable; that half is upstream's | **fixed** | comfy-env `4eece2c` | V |
 | 29 | `async def` node functions | A coroutine reaches the serializer | open | partial: [ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md) | A |
 | 30 | `cls.SCHEMA` is `None` in the worker | Every `NodeOutput(expand=…)` dies with an error naming nothing about expansion | open | — | A |
 | 31 | `validate_inputs(cls, **kwargs)` loses its blanket exemption | ComfyUI rejects values the node would have accepted; the node never runs | open | — | A |

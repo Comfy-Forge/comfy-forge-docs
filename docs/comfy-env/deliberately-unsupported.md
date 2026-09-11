@@ -48,7 +48,11 @@ The two most common questions, because they look like decisions and are not:
 - **`IS_CHANGED` being absent** is a consequence of row 1, and it is now
   warned about at startup — but the *caching-forever* result is a gap, not a
   choice. The ladder that would soften it is in [Gaps](gaps.md).
-- **`check_lazy_status` not being forwarded** is a plain gap. Unlike row 1,
-  it fires for a node ComfyUI has already picked to execute, whose worker is
-  spawning anyway. The cold-spawn objection does not transfer, and nobody
-  has decided against it.
+- **`check_lazy_status`** is forwarded when the author defined one. Unlike
+  row 1, it fires for a node ComfyUI has already picked to execute, whose
+  worker is spawning anyway, so the cold-spawn objection never applied. What
+  is *not* done — and this one is a decision — is synthesising a default for
+  a node that declares `lazy` without writing the method: plain ComfyUI hands
+  that node `None` too, because upstream's own default is unreachable, and
+  making isolation more correct than upstream is the same author-trap as
+  `lock_class` inverted.
