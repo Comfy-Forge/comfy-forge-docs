@@ -22,8 +22,7 @@ on the cached scan path as well as the fresh one — for every node whose
 ```
 
 `check_lazy_status` no longer needs a warning: when you define one it is
-forwarded (row 1). Declaring `lazy` without one is not an isolation defect —
-see row 1b.
+forwarded (row 1).
 
 *Audited against ComfyUI `15b212cc` (2026-09-07). Each row was traced on both
 sides of the boundary.*
@@ -32,8 +31,7 @@ sides of the boundary.*
 
 | # | Mechanism | Status | What you will actually observe | What to do |
 |---|---|---|---|---|
-| 1 | `check_lazy_status` — **when you define one** | <span class="v v-yes">works</span> | Your method runs in the worker and its answer comes back, so upstream's ask-then-compute loop gets a real answer: only the branch you name is computed. Forwarded only when the scan saw you define one — see row 1b for why not otherwise. Cost: the inputs upstream already has cross once per round, typically two rounds | —
-| 1b | `{"lazy": True}` with **no** `check_lazy_status` | <span class="v v-partial">matches upstream</span> | The same `None` inputs — but plain ComfyUI does this too, so it is not an isolation defect. `ComfyNode.check_lazy_status`'s documented "requires all inputs" default is unreachable (`first_real_override` breaks at `GET_BASE_CLASS()`, which for a V3 node *is* `ComfyNode`), and `CheckLazyMixin` is opt-in with no core node inheriting it | Define `check_lazy_status` explicitly — but see row 1 |
+| 1 | `check_lazy_status` — **when you define one** | <span class="v v-yes">works</span> | Your method runs in the worker and its answer comes back, so upstream's ask-then-compute loop gets a real answer: only the branch you name is computed. Forwarded only when the scan saw you define one. Cost: the inputs upstream already has cross once per round, typically two rounds | —
 | 2 | `__init__` and `self.x` | <span class="v v-partial">works, restart aside</span> | State survives across executions **with its types intact** — a tuple stays a tuple, `bytes` and `set` and `torch.device` all cross. What still bites: after a worker restart `__init__` does **not** re-run, so a node believes a file handle from the dead process is still open | Keep `self` state JSON-shaped. Never hold a live handle, socket, or thread on `self` — re-acquire it inside the function |
 | 3 | `PromptServer.instance.send_sync(...)` | <span class="v v-no">not available</span> | Usually **`ModuleNotFoundError: No module named 'aiohttp'`** — `import server` pulls aiohttp (`server.py:32`), which a lean pack env has no reason to install. Where it *is* present you get `AttributeError: type object 'PromptServer' has no attribute 'instance'` instead, because nothing ever constructed a server in that process (`server.py:215-217`). Either way it reads as a broken ComfyUI install, and the pack's JS half loads fine, so it looks like a frontend bug | Return data through `{"ui": {...}}` instead. For inbound calls, use [`ROUTES`](register-nodes.md) |
 | 4 | `ProgressBar` **preview** argument | <span class="v v-yes">works</span> | Live previews from an isolated sampler reach the browser. One limit: a single encoded preview over 1 MiB is dropped and the progress tick still goes, because upstream bypasses its own throttle whenever a preview is present | — |
