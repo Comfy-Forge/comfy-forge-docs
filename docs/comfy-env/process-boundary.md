@@ -24,18 +24,24 @@ Details for each follow on this page or where linked.
    proxy instance's `self_state` dict inbound, and the mutated state comes
    BACK: the worker diffs the instance after the call and returns `set` for
    changed keys, `deleted` for a real `del self.x`, and `dropped` with a
-   reason for anything it will not ship. The diff is by value, not identity,
-   so mutating a list in place is caught. It runs in a `finally`, so state
-   returns even when the node raises. The four drop reasons are `over_cap`
-   (above `COMFY_ENV_NODE_STATE_MAX_BYTES`, 8 MiB), `device_resident` (a CUDA
+   reason for anything it will not ship. The diff is by value against a
+   fingerprint taken *before* the call, so mutating a list or dict in place
+   is caught. It runs in a `finally`, so state returns even when the node
+   raises. The four drop reasons are `over_cap` (above
+   `COMFY_ENV_NODE_STATE_MAX_BYTES`, 8 MiB), `device_resident` (a CUDA
    tensor), `worker_only_type`, and `unpicklable`. A dropped attribute becomes
-   a named marker held worker side, never a silent truncation, and touching it
-   after a worker restart raises rather than returning stale data.
+   a named marker held worker side, never a silent truncation. Whether
+   `__init__` has run is the worker's own book, not a parent flag: a fresh
+   process re-runs it on first contact with each instance, and if it had to
+   drop a marker from the dead process the fresh state replaces the old one
+   entirely, otherwise the old state is overlaid.
 6. **Tensors and bulk data** -- the [serialization ladder](#tensor-serialization-ladder):
    CUDA IPC, pool-FD passing, shared memory, memfd, pickle, inline JSON.
 7. **Callbacks during a call** -- `report_progress` (whose *reply* is the
-   user-interrupt channel) and `request_vram_budget` (whose reply carries true
-   device-free bytes).
+   user-interrupt channel), `request_vram_budget` (whose reply carries true
+   device-free bytes), and `send_sync` / `send_progress_text` from the
+   stand-in `server` module, which the host hands to its real
+   `PromptServer`. Only from the node's own thread, inside a call.
 8. **Model events and eviction commands** -- every response can piggyback
    three things, not one: newly-CUDA-resident models (`_new_models`), the
    worker's VRAM census (`_vram_report`: residency, allocator overhead, pinned

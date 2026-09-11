@@ -21,12 +21,13 @@ a bug: the naive fix exists, is small, and would make things worse.
 | 6 | Isolate frontend JS, workflow templates, locales, subgraphs | One browser origin. Backend isolation buys nothing for code that runs in the page, and `WEB_DIRECTORY` works natively because the pack's `__init__.py` still runs in the host | [ADR-0031](adr/0031-frontend-javascript-isolation.md) | Never, short of iframes — recorded as deferred |
 | 7 | Wrap the node call in `inference_mode` | `no_grad` instead. Only the node call is wrapped, so a model that lazily creates an `nn.Parameter` on its first forward creates it *inside* the context — and `inference_mode` stamps it an inference tensor, which breaks it on the next call. Upstream branches on the mode, so one model family produces different conditioning under each. There is a test | `_persistent_worker.py`, `tests/test_infer_mode.py`, pytorch#90882 | PyTorch resolves the lazy-parameter case |
 | 8 | Support `async def` node functions | Every `async def execute` ComfyUI ships — all 41 — is an **API node**: an HTTP client with trivial dependencies and no reason to be isolated. Supporting them means a persistent event loop in the worker (a per-call loop would break sessions packs keep on `self`), a new concurrency surface bought for a population that does not exist yet. Fails loudly at first execution, naming the cause | [what survives isolation](node-contract-conformance.md) | A heavy-dependency pack ships an async node |
+| 9 | Forward `PromptServer.instance.routes`, `prompt_queue`, `add_on_prompt_handler` | These are the host's server, not a node's. A route handler runs inside the host's aiohttp loop; the queue and prompt handlers are the host's scheduling state. Forwarding any of them means a second RPC design, and `ROUTES` already covers the one use that has a node-shaped answer. Of the 154 surveyed packs that import `server`, 123 register routes and 7 add prompt handlers; all of them get an `AttributeError` naming what *is* forwarded (`send_sync`, `send_progress_text`, `client_id`) instead of a silent no-op or an aiohttp import error | `server_stub.py`, [what survives isolation](node-contract-conformance.md) | A pack whose routes cannot be expressed as `ROUTES` — a websocket upgrade, a streaming response |
 
 </div>
 
 ## The shapes these take
 
-Three of the eight share one reason: **the mechanism fires before the node
+Three of the nine share one reason: **the mechanism fires before the node
 executes** (rows 1, and half of 4 and 5's rationale). Forwarding anything at
 that stage means starting a process to answer a question ComfyUI asks about
 every node, every submit. comfy-env's whole cost model rests on a worker
@@ -37,9 +38,11 @@ Two are **upstream owns the fix** (rows 2 and 7): transcribing a class that
 is not ours, or working around a PyTorch limitation, would each be a copy
 that drifts.
 
-And two are **the naive fix is worse than the gap** (rows 3 and 8): writing
-to the global registry leaks across workers; a per-call event loop breaks the
-very packs it would serve.
+And three are **the naive fix is worse than the gap** (rows 3, 8 and 9):
+writing to the global registry leaks across workers; a per-call event loop
+breaks the very packs it would serve; a stand-in `routes` that collected
+handlers nobody would ever call would let a pack import and then fail its
+first request with no clue why.
 
 ## What is deliberately *not* on this page
 
