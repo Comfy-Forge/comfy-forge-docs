@@ -81,7 +81,7 @@ nav:
   - comfy-env:
       - Architecture: comfy-env/index.md
       - Limitations:
-          - Gaps: comfy-env/gaps.md
+          - Gap inventory: comfy-env/gaps.md
           - Deliberately unsupported: comfy-env/deliberately-unsupported.md
       - Nodepacks:
           - ComfyUI custom nodepack background: comfy-env/comfyui-custom-nodepack-background.md

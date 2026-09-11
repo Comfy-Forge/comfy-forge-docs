@@ -1,4 +1,4 @@
-# Gaps
+# Gap inventory
 
 *Everything ComfyUI does that comfy-env does not carry across the process
 boundary, in one place. What breaks, how loudly, and whether anyone has
