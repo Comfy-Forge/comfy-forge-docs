@@ -80,9 +80,6 @@ nav:
   - Roadmap: roadmap.md
   - comfy-env:
       - Architecture: comfy-env/index.md
-      - Limitations:
-          - Gap inventory: comfy-env/gaps.md
-          - Deliberately unsupported: comfy-env/deliberately-unsupported.md
       - The nodepack contract:
           - ComfyUI custom nodepack background: comfy-env/comfyui-custom-nodepack-background.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
@@ -147,6 +144,9 @@ nav:
           - Import layering: comfy-env/import-layering.md
           - Module inventory: comfy-env/modules.md
           - Code breakdown: comfy-env/code-breakdown.md
+      - Limitations:
+          - Gap inventory: comfy-env/gaps.md
+          - Deliberately unsupported: comfy-env/deliberately-unsupported.md
       - Decision records:
           - Index: comfy-env/adr/index.md
           # Process model
