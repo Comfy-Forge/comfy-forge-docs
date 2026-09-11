@@ -80,6 +80,12 @@ nav:
   - Roadmap: roadmap.md
   - comfy-env:
       - Architecture: comfy-env/index.md
+      - Internals:
+          - Why not just conda?: comfy-env/why-not-conda.md
+          - Worker lifecycle: comfy-env/worker-lifecycle.md
+          - Import layering: comfy-env/import-layering.md
+          - Module inventory: comfy-env/modules.md
+          - Code breakdown: comfy-env/code-breakdown.md
       - The nodepack contract:
           - ComfyUI custom nodepack background: comfy-env/comfyui-custom-nodepack-background.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
@@ -140,12 +146,6 @@ nav:
           - Settings reference: comfy-env/settings.md
           - System footprint: comfy-env/system-footprint.md
           - Drives and volumes: comfy-env/drives-and-volumes.md
-      - Internals:
-          - Why not just conda?: comfy-env/why-not-conda.md
-          - Worker lifecycle: comfy-env/worker-lifecycle.md
-          - Import layering: comfy-env/import-layering.md
-          - Module inventory: comfy-env/modules.md
-          - Code breakdown: comfy-env/code-breakdown.md
       - Limitations:
           - Gap inventory: comfy-env/gaps.md
           - Deliberately unsupported: comfy-env/deliberately-unsupported.md
