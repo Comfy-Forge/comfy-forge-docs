@@ -123,7 +123,9 @@ nav:
           - Errors and Cancel: comfy-env/comfyui-exceptions.md
           - How comfy-env handles it: comfy-env/exceptions.md
       - The three calls:
-          - "install()": comfy-env/install.md
+          - "install()":
+              - Overview: comfy-env/install.md
+              - The three seals: comfy-env/seals.md
           - "setup_env()": comfy-env/setup-env.md
           - "register_nodes()": comfy-env/register-nodes.md
       - Nodepack author reference:
@@ -140,7 +142,6 @@ nav:
           - The process boundary: comfy-env/process-boundary.md
           - Worker lifecycle: comfy-env/worker-lifecycle.md
           - Zero-copy CUDA transfer: comfy-env/zero-copy-ipc.md
-          - The three seals: comfy-env/seals.md
           - Import layering: comfy-env/import-layering.md
           - Module inventory: comfy-env/modules.md
           - Code breakdown: comfy-env/code-breakdown.md
