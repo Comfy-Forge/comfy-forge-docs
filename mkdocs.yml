@@ -83,9 +83,13 @@ nav:
       - Limitations:
           - Gap inventory: comfy-env/gaps.md
           - Deliberately unsupported: comfy-env/deliberately-unsupported.md
-      - Nodepacks:
+      - The nodepack contract:
           - ComfyUI custom nodepack background: comfy-env/comfyui-custom-nodepack-background.md
           - Import-time side effects in the wild: comfy-env/import-side-effects.md
+      - The node contract:
+          - What survives isolation: comfy-env/node-contract-conformance.md
+          - The two classmethods: comfy-env/comfyui-caching-validation.md
+          - How comfy-env handles it: comfy-env/caching-and-validation.md
       - Memory management:
           - comfy-env's memory management: comfy-env/memory-approach.md
           - Where the stand-in is inaccurate: comfy-env/model-stand-in-inaccuracies.md
@@ -105,24 +109,20 @@ nav:
           - Logging context:
               - How programs write output: comfy-env/streams-and-descriptors.md
               - ComfyUI logging background: comfy-env/comfyui-logging.md
-      - How ComfyUI saves metadata:
+      - Workflow metadata:
           - Hidden inputs and PNG chunks: comfy-env/comfyui-png-metadata.md
           - How comfy-env handles it: comfy-env/png-metadata.md
-      - How ComfyUI handles folder and file paths:
+      - Folders and file paths:
           - The model path registry: comfy-env/comfyui-folder-paths.md
           - How comfy-env handles it: comfy-env/folder-paths.md
           - Live dropdowns: comfy-env/live-dropdowns.md
-      - The node contract:
-          - What survives isolation: comfy-env/node-contract-conformance.md
-          - The two classmethods: comfy-env/comfyui-caching-validation.md
-          - How comfy-env handles it: comfy-env/caching-and-validation.md
-      - ComfyUI CLI args:
+      - CLI args:
           - The args namespace: comfy-env/comfyui-cli-args.md
           - How comfy-env mirrors it: comfy-env/args-mirror.md
-      - How ComfyUI picks an attention backend:
+      - Attention:
           - The backend ladder: comfy-env/comfyui-attention.md
           - How comfy-env handles it: comfy-env/attention.md
-      - How ComfyUI handles exceptions:
+      - Exceptions:
           - Errors and Cancel: comfy-env/comfyui-exceptions.md
           - How comfy-env handles it: comfy-env/exceptions.md
       - Nodepack author reference:
