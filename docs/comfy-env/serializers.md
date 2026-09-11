@@ -29,7 +29,7 @@ The comfy-env inter process transport walks the object structurally: it dispatch
 | Primitives (1) | inline in the JSON message |
 | Tensors (2) | the [serialization ladder](process-boundary.md#tensor-serialization-ladder): CUDA IPC where available, else shared memory. No copy of the bulk |
 | Dicts and lists (3, 4) | walked recursively; every tensor inside takes the tensor path, so `LATENT` costs the same as the tensor it wraps |
-| Model handles (5) | **they do not cross.** The model stays resident in the worker; the parent gets a `SubprocessModelPatcher` duck-type so ComfyUI's VRAM manager can still see and evict it ([ADR-0035](adr/0035-duck-typed-model-proxy.md)) |
+| Model handles (5) | **they do not cross — in either direction** ([ADR-0040](adr/0040-models-never-cross.md)). Worker→host: the model stays resident in the worker and the parent gets a `SubprocessModelPatcher` duck-type so ComfyUI's VRAM manager can still see and evict it ([ADR-0035](adr/0035-duck-typed-model-proxy.md)). Host→worker: a `MODEL`, `CLIP`, `VAE` or `CONTROL_NET` handed to an isolated node is **refused** at the boundary. Until the guard lands, a `MODEL` silently pickles into a divergent copy and a `VAE`/`CONTROL_NET` fails with a misleading serializer error — see the ADR |
 
 That covers most of ComfyUI's vocabulary for free, because most of it is
 tensors, dicts, lists and primitives all the way down.

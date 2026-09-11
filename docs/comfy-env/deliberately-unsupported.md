@@ -1,4 +1,4 @@
-# Gaps on purpose
+# Deliberately unsupported
 
 *Things comfy-env could carry across the process boundary and has decided
 not to. Each one has a reason, the reason is written down here rather than

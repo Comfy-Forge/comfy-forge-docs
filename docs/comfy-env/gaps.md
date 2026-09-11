@@ -106,7 +106,7 @@ Bad, but visible.
 Eight gaps are decisions, not defects, and each has a written reason and a
 stated condition under which it would be revisited. They live on their own
 page so the reasoning is not buried in a list of things that are simply
-missing: **[Gaps on purpose](gaps-on-purpose.md)**.
+missing: **[Deliberately unsupported](deliberately-unsupported.md)**.
 
 In short: `IS_CHANGED` / `VALIDATE_INPUTS` bodies, `DYNPROMPT`,
 `add_model_folder_path` into the global registry, cancel without progress,

@@ -155,12 +155,25 @@ shows up in the browser terminal panel, prefixed with which worker said it.
 | Node code does | Route | Terminal | Web UI |
 |---|---|---|---|
 | `print(...)` | hijacked builtin -> IPC -> host | yes | **yes** |
-| `logging.info(...)` | `SocketLogHandler` -> IPC -> host | yes | **yes** |
+| `logging.warning(...)` and above | `SocketLogHandler` -> IPC -> host | yes | **yes** |
+| `logging.info(...)` | `SocketLogHandler` -> IPC -> host, at the host's level | yes | **yes** |
 | `sys.stdout.write(...)` | worker fd 1, which is `DEVNULL` | **no** | **no** |
 | `tqdm`, C-library writes to fd 2 | worker fd 2, inherited | yes | no |
 | a native crash (SIGSEGV, SIGABRT) | `faulthandler` -> file -> parent reads it back | yes | **yes** |
 
-The third row is a real hole. The worker hijacks `builtins.print` but never
+The `logging.info` row is a second real hole, and a quiet one. The worker
+attaches `SocketLogHandler` to `logging.root` but never sets the root
+**logger's** level, and `grep -rn setLevel src/comfy_env/` returns nothing.
+The host does set it — `logger.setLevel(min([console_level, *file_levels]))`
+resolves to 15 (`DETAIL`) under default args (`app/logger.py:116`) — so
+INFO flows there. In a worker the root logger sits at the interpreter default
+of `WARNING`, which filters the record *before* any handler is consulted.
+Measured: a handler on root with no `setLevel` captures `WARNING` and `ERROR`
+and never sees `INFO`. A pack that logs at INFO loses every line the moment it
+is isolated, while `warning` and above keep working — which is precisely why
+it looks like logging is fine.
+
+The `sys.stdout.write` row is a real hole too. The worker hijacks `builtins.print` but never
 reassigns `sys.stdout` or `sys.stderr` (grepped: zero assignments in
 `isolation/workers/`), so a pack that writes through the stream object rather
 than the builtin vanishes completely — not even the launching terminal sees it.
@@ -309,18 +322,20 @@ Stated plainly, because none of these are hypothetical.
 
 | # | Weakness | Consequence |
 |---|---|---|
-| 1 | `sys.stdout.write` in node code goes to `DEVNULL` | output disappears entirely, with no error and no terminal copy |
-| 2 | `comfy_worker_debug.log` is always on and never rotated | it grows for the life of the machine — measured at 805 KB on a developer machine from ordinary use, with nothing to cap it |
-| 3 | All workers share one debug log file | the pid prefix disambiguates lines, but nothing separates sessions, and a concurrent read sees interleaving |
-| 4 | The forwarder drops `end=` | `print(x, end="")` becomes a line; a pack's hand-rolled progress output becomes spam |
-| 5 | Ordinary C-level stderr is terminal-only by design | a library's warning, or a native progress bar, is invisible to anyone running ComfyUI as a service. Crashes are exempt — those go through faulthandler |
+| 1 | ~~`logging.info()` and `logging.debug()` from node code are dropped~~ **Fixed 2026-09-11.** The worker added a handler to `logging.root` but never set the root *logger's* level, so it sat at `WARNING` and filtered INFO before any handler saw it. The parent now ships its resolved root level as `COMFY_ENV_HOST_LOG_LEVEL` and the worker applies it — parity with the host, not "forward everything", so DEBUG stays out when the host keeps it out | was: every INFO line vanished on isolation while `warning` and above kept working — which is exactly why it looked fine |
+| 2 | `sys.stdout.write` in node code goes to `DEVNULL` | output disappears entirely, with no error and no terminal copy |
+| 3 | `comfy_worker_debug.log` is always on and never rotated | it grows for the life of the machine — measured at 805 KB on a developer machine from ordinary use, with nothing to cap it |
+| 4 | All workers share one debug log file | the pid prefix disambiguates lines, but nothing separates sessions, and a concurrent read sees interleaving |
+| 5 | The forwarder drops `end=` | `print(x, end="")` becomes a line; a pack's hand-rolled progress output becomes spam |
+| 6 | Ordinary C-level stderr is terminal-only by design | a library's warning, or a native progress bar, is invisible to anyone running ComfyUI as a service. Crashes are exempt — those go through faulthandler |
 
-Numbers 1 and 4 are fixable in the worker's forwarder and nowhere else.
-Numbers 2 and 3 want the same fix — one file per worker generation, truncated
-at spawn — which would also make the crash readback in
-`_worker_exit_diagnostic` unambiguous about whose tail it is printing. Number 5
-is the price of not deadlocking, and closing it would need the same pty
-machinery the progress bar rejected for the same reasons.
+Number 1 is fixed. Numbers 2 and 5
+are fixable in the worker's forwarder and nowhere else. Numbers 3 and 4 want
+the same fix — one file per worker generation, truncated at spawn — which would
+also make the crash readback in `_worker_exit_diagnostic` unambiguous about
+whose tail it is printing. Number 6 is the price of not deadlocking, and
+closing it would need the same pty machinery the progress bar rejected for the
+same reasons.
 
 ## See also
 

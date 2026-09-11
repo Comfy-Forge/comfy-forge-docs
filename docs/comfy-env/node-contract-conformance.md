@@ -64,25 +64,10 @@ sides of the boundary.*
 
 ## Deliberately unsupported
 
-Two rows are decisions rather than gaps, and both are reversible the day a
-real pack needs them.
-
-**`async def` node functions (row 5).** Every `async def execute` ComfyUI
-ships — all 41 — is an **API node**: an HTTP client calling Comfy.org's
-services, with trivial dependencies. Isolation exists for packs whose
-dependencies are heavy or conflict with the host's, so no API node has a
-reason to be isolated, and no isolated pack has yet shipped an async node.
-Supporting them is not one line: the worker would need a single event loop
-for its whole life — a fresh loop per call would break the HTTP sessions
-such packs keep on `self` — which is a new concurrency surface in a process
-that is deliberately one-call-at-a-time. Until a heavy-dependency pack
-actually needs it, the honest position is a loud failure that names the
-cause, which is what ships today.
-
-**Cancel between progress ticks (row 8).** Recorded in
-[ADR-0018](adr/0018-worker-call-timeout.md): a node that never reports
-progress is uncancellable until the timeout. The successor is a heartbeat
-frame, which is a protocol change rather than a patch.
+Two rows are decisions rather than gaps: `async def` node functions (row 5)
+and cancel between progress ticks (row 8). Each has a written reason and a
+condition under which it would be revisited, alongside six others, on
+**[Deliberately unsupported](deliberately-unsupported.md)**.
 
 ## The pattern behind the table
 
