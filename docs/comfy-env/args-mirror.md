@@ -80,13 +80,13 @@ in families the allowlist was never built around:
 
 | Flag | Read at | Effect in a worker |
 |---|---|---|
-| `use_split_cross_attention`, `use_quad_cross_attention`, `use_pytorch_cross_attention`, `use_ck_attention`, `disable_xformers` | `model_management.py:403, 463-473, 519, 1688` | a `--use-quad-cross-attention` host (the documented low-VRAM workaround) gets workers on SDPA and OOMs in the pack only; a `--disable-xformers` host gets xformers back |
-| `force_upcast_attention`, `dont_upcast_attention` | `attention.py:78-86` | black images from the isolated pack while the same model is fine in a host node — the exact symptom the flag exists to cure |
-| `cuda_malloc` / `disable_cuda_malloc` | `comfy/ops.py:402` | the env var crosses but the flag is `False`, so a worker allocates cast buffers on `cudaMallocAsync` — a combination the host never runs |
+| `use_split_cross_attention`, `use_quad_cross_attention`, `use_pytorch_cross_attention`, `use_ck_attention`, `disable_xformers` | `model_management.py, 463-473, 519, 1688` | a `--use-quad-cross-attention` host (the documented low-VRAM workaround) gets workers on SDPA and OOMs in the pack only; a `--disable-xformers` host gets xformers back |
+| `force_upcast_attention`, `dont_upcast_attention` | `attention.py` | black images from the isolated pack while the same model is fine in a host node — the exact symptom the flag exists to cure |
+| `cuda_malloc` / `disable_cuda_malloc` | `comfy/ops.py` | the env var crosses but the flag is `False`, so a worker allocates cast buffers on `cudaMallocAsync` — a combination the host never runs |
 | `verbose`, `log_stdout` | `app/logger.py` | the worker's log level is fixed at `WARNING` regardless — see [logging](logging-approach.md) |
-| `enable_triton_backend` / `disable_triton_backend` | `comfy/quant_ops.py:50-56` | a host that force-disabled the ROCm Triton backend gets it back in workers |
+| `enable_triton_backend` / `disable_triton_backend` | `comfy/quant_ops.py` | a host that force-disabled the ROCm Triton backend gets it back in workers |
 | `disable_comfy_compiler`, `disable_cuda_graphs`, `assert_graph_breaks` | `model_prefetch.py`, `gemma4.py` | host disabled the compiler; the worker compiles and CUDA-graphs anyway |
-| `directml` | `model_management.py:112-116` | a DirectML host runs GPU; the worker silently falls to CPU |
+| `directml` | `model_management.py` | a DirectML host runs GPU; the worker silently falls to CPU |
 
 The pattern is consistent: the allowlist was built around **dtype and memory**,
 so flags that *also* freeze at import but live in the attention, allocator or

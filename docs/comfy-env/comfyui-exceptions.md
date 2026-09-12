@@ -35,7 +35,7 @@ property subclasses `BaseException` directly. That is what ComfyUI does.
 ## A node that throws
 
 The executor wraps each node call and catches two things
-(`execution.py:619-650`):
+(`execution.py`):
 
 ```python
 except comfy.model_management.InterruptProcessingException as iex:
@@ -67,11 +67,11 @@ heuristics, telemetry — keys on that type name.
 
 ## Cancel is an exception, on purpose
 
-The Cancel button is `POST /interrupt` (`server.py:1160`), which does one
+The Cancel button is `POST /interrupt` (`server.py`), which does one
 thing: set a module-level flag.
 
 ```python
-# comfy/model_management.py:2107-2131
+# comfy/model_management.py
 class InterruptProcessingException(BaseException):     # <- not Exception
     pass
 
@@ -93,11 +93,11 @@ something **polls** it. And the polls are everywhere:
 
 | Poll site | Granularity |
 |---|---|
-| `nodes.py:50` `before_node_execution` | once per node |
-| `comfy/ops.py:38` `run_every_op` | **every Linear and Conv forward** — 14 call sites in `ops.py` |
-| `comfy/sd.py:392` | every tile of a tiled VAE encode/decode |
-| `comfy/context_windows.py:654` | every context window |
-| `comfy/ldm/minimax_music/ar.py:286` | every autoregressive step |
+| `nodes.py` `before_node_execution` | once per node |
+| `comfy/ops.py` `run_every_op` | **every Linear and Conv forward** — 14 call sites in `ops.py` |
+| `comfy/sd.py` | every tile of a tiled VAE encode/decode |
+| `comfy/context_windows.py` | every context window |
+| `comfy/ldm/minimax_music/ar.py` | every autoregressive step |
 
 So a running sampler checks the flag many times per step. The moment it sees
 it, `throw_exception_if_processing_interrupted` raises, and the exception

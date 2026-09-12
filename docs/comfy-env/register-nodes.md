@@ -70,9 +70,9 @@ Step by step:
     ```
 
     The metadata scan collects `ROUTES` from the package module and every
-    imported submodule (`metadata.py:301-310`), and `register_nodes()`
+    imported submodule (`metadata.py`), and `register_nodes()`
     registers a forwarding handler on the parent's server for each
-    (`_register_proxy_routes`, `pool.py:359`): the endpoint answers on
+    (`_register_proxy_routes`, `pool.py`): the endpoint answers on
     ComfyUI's own server, the JSON body crosses to the worker over IPC, and
     the handler's dict comes back as the response.
 

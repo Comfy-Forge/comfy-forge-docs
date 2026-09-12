@@ -19,10 +19,10 @@ unconditional.
 
 | # | Destination | What it is | On by default |
 |---|---|---|---|
-| 1 | **The real terminal** | the original `sys.stdout` / `sys.stderr`, written last by `super().write(data)` (`app/logger.py:70`) | yes |
-| 2 | **A 300-entry ring** | `deque(maxlen=capacity)`, `capacity=300` (`app/logger.py:97,103`), in memory, module-global | yes |
-| 3 | **The browser terminal panel** | pushed over the websocket by `TerminalService`, which registers `on_flush(self.send_messages)` (`api_server/services/terminal_service.py:12`) | only while a client is subscribed |
-| 4 | **A log file** | a `logging.FileHandler` added by `setup_logger` (`app/logger.py:140`); fed by `logging` records only, never by `print()` or by a traceback written to `sys.stderr` | **on Desktop yes, running `main.py` yourself no** |
+| 1 | **The real terminal** | the original `sys.stdout` / `sys.stderr`, written last by `super().write(data)` (`app/logger.py`) | yes |
+| 2 | **A 300-entry ring** | `deque(maxlen=capacity)`, `capacity=300` (`app/logger.py,103`), in memory, module-global | yes |
+| 3 | **The browser terminal panel** | pushed over the websocket by `TerminalService`, which registers `on_flush(self.send_messages)` (`api_server/services/terminal_service.py`) | only while a client is subscribed |
+| 4 | **A log file** | a `logging.FileHandler` added by `setup_logger` (`app/logger.py`); fed by `logging` records only, never by `print()` or by a traceback written to `sys.stderr` | **on Desktop yes, running `main.py` yourself no** |
 
 Which of those a line reaches depends on how it was produced, not on which
 stream it names. Both streams are wrapped, each by its own `LogInterceptor`,
@@ -55,7 +55,7 @@ python main.py --verbose DETAIL comfyui.log
 It briefly worked the other way. `comfyui_detail.log` was on by default for one
 day — added 2026-07-29 (#15064), switched off 2026-07-30 (#15159) — and before
 that `setup_logger` had no file output at all. The `if file_outputs is None`
-default still sitting at `app/logger.py:111` is left over from that day;
+default still sitting in `app/logger.py` is left over from that day;
 `main.py` always passes a real list, so it never fires.
 
 ## The interception point
@@ -63,8 +63,8 @@ default still sitting at `app/logger.py:111` is left over from that day;
 At startup ComfyUI replaces both standard streams with a wrapper:
 
 ```python
-stdout_interceptor = sys.stdout = LogInterceptor(sys.stdout)   # app/logger.py:107
-stderr_interceptor = sys.stderr = LogInterceptor(sys.stderr)   # app/logger.py:108
+stdout_interceptor = sys.stdout = LogInterceptor(sys.stdout) # app/logger.py
+stderr_interceptor = sys.stderr = LogInterceptor(sys.stderr) # app/logger.py
 ```
 
 **This replaces the Python object, not the file descriptor.** That one
@@ -76,7 +76,7 @@ inherits. Anything reaching the terminal without passing through the
 Each write fans out, terminal last:
 
 ```python
-def write(self, data):                                  # app/logger.py:60
+def write(self, data): # app/logger.py
     entry = {"t": datetime.now().isoformat(), "m": data}
     with self._lock:
         self._logs_since_flush.append(entry)            # -> websocket, on flush
@@ -94,7 +94,7 @@ batches rather than per write.
 ## The ring is a replay buffer
 
 The ring exists to backfill the browser. Opening the terminal panel makes two
-calls (`api_server/routes/internal/internal_routes.py:22-43`):
+calls (`api_server/routes/internal/internal_routes.py`):
 
 ```
 GET   /internal/logs/raw        -> {"entries": list(get_logs()), "size": {...}}

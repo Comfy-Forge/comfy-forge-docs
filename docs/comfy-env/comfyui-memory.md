@@ -74,7 +74,7 @@ swap and the file are where it can **end up**.
 !!! note "Compressed RAM is named once, in order to exclude it"
     `get_disk_swap_total()` sums `/proc/swaps` to size the pinned memory budget
     and skips any device whose name begins with `zram`
-    (`model_management.py:1574`). Compressed RAM is not backing store, so
+    (`model_management.py`). Compressed RAM is not backing store, so
     counting it would let the budget promise pins against memory that cannot
     absorb a spill. It returns zero when `/proc/swaps` is absent, so this is
     Linux only by construction rather than by an OS check.
@@ -120,15 +120,15 @@ each one a function you can grep for.
 
 | # | Mechanism | Where it lives | What it frees |
 |---|---|---|---|
-| M1 | **VRAM pressure** | aimdo page eviction, or `free_memory` (`model_management.py:863`) | **1 Model weights** |
+| M1 | **VRAM pressure** | aimdo page eviction, or `free_memory` (`model_management.py`) | **1 Model weights** |
 | M2 | **Refcount** | no call site. torch's allocator takes the blocks back into its own pool | **2 Work** |
-| M3 | **Node end call** | `reset_cast_buffers` (`model_management.py:1418`) and `cleanup_prefetch_queues`, both from `execution.py:550` | **3 Carry**, plus Model weights' patch pins, plus part of Everything else |
-| M4 | **Host RAM pressure** | `RAMPressureCache.ram_release` (`caching.py:550`), `free_pins` (`model_management.py:695`) | **4 Results**, and Model weights' pinned copies |
-| M5 | **Prompt start key sweep** | `clean_unused` (`execution.py:756`) into `_clean_cache` (`caching.py:175`) | **5 State**. Results too, but only on the classic and LRU caches |
-| M6 | **Nothing** | `sys.modules` interning at `nodes.py:2243` | **6 Everything else**, and `PromptQueue.history` |
-| M7 | **Local LRU** | a feature's own free memory check, such as `model_animate2.py:149` | nothing in the six kinds |
-| M8 | **Kernel reclaim** | no ComfyUI call site. the mmap at `utils.py:145` | the file backed half of **Model weights** |
-| M9 | **On request** | `POST /free` into `main.py:424` | **Model weights**, **Results**, **State**, torch's pool |
+| M3 | **Node end call** | `reset_cast_buffers` (`model_management.py`) and `cleanup_prefetch_queues`, both from `execution.py` | **3 Carry**, plus Model weights' patch pins, plus part of Everything else |
+| M4 | **Host RAM pressure** | `RAMPressureCache.ram_release` (`caching.py`), `free_pins` (`model_management.py`) | **4 Results**, and Model weights' pinned copies |
+| M5 | **Prompt start key sweep** | `clean_unused` (`execution.py`) into `_clean_cache` (`caching.py`) | **5 State**. Results too, but only on the classic and LRU caches |
+| M6 | **Nothing** | `sys.modules` interning in `nodes.py` | **6 Everything else**, and `PromptQueue.history` |
+| M7 | **Local LRU** | a feature's own free memory check, such as `model_animate2.py` | nothing in the six kinds |
+| M8 | **Kernel reclaim** | no ComfyUI call site. the mmap in `utils.py` | the file backed half of **Model weights** |
+| M9 | **On request** | `POST /free` into `main.py` | **Model weights**, **Results**, **State**, torch's pool |
 
 </div>
 
@@ -153,7 +153,7 @@ wrong:
 
 **M6 carries one thing the six kinds never mention.** `PromptQueue.history`
 holds up to 10000 deep copied prompts (`MAXIMUM_HISTORY_SIZE`,
-`execution.py:1249`), bounded by count rather than by bytes. `POST /free` does
+`execution.py`), bounded by count rather than by bytes. `POST /free` does
 not touch it, and `POST /history {"clear": true}` does.
 
 !!! warning "Neither table is a partition, and that is why there are two"
@@ -185,7 +185,7 @@ total. That is management, but it is management without a defined manager.
 
 !!! note "M3 and M2 look alike from outside and are opposites"
     **Carry** is released **deliberately**: `reset_cast_buffers()` at
-    `execution.py:550`, inside a `finally`, so it runs even when the node raises.
+    `execution.py`, inside a `finally`, so it runs even when the node raises.
 
     **Work** is released by **nobody**. Nothing frees an activation when a pass
     ends. The tensors lose their last reference and torch's allocator reclaims
@@ -196,7 +196,7 @@ total. That is management, but it is management without a defined manager.
 
 !!! warning "Carry is only released on the aimdo path"
     `reset_cast_buffers()` has one caller in the tree and it sits inside
-    `if comfy.memory_management.aimdo_enabled` (`execution.py:547`). On the
+    `if comfy.memory_management.aimdo_enabled` (`execution.py`). On the
     legacy ledger it never runs.
 
     That costs less than it sounds, and it costs something different for each
@@ -209,19 +209,19 @@ total. That is management, but it is management without a defined manager.
       of the process instead of being freed at each node.
     * **Dirty mmaps** never accumulate at all. `_comfy_tensor_mmap_refs` is only
       set by `load_safetensors`, and `load_torch_file` only calls that when
-      aimdo is enabled (`utils.py:164`). The legacy path loads through
+      aimdo is enabled (`utils.py`). The legacy path loads through
       `safetensors.safe_open`, so `DIRTY_MMAPS` stays empty and there is nothing
       to bounce.
     * **Cross step state** persists on the legacy path. `_register_cross_step` is called
-      from model code with no aimdo gate (`llama.py:876`, `gemma4.py:556`,
-      `ar.py:267`) and nothing clears it. It is a `weakref.WeakSet`, so an entry
+      from model code with no aimdo gate (`llama.py`, `gemma4.py`,
+      `ar.py`) and nothing clears it. It is a `weakref.WeakSet`, so an entry
       does go away once its module is collected, but not at the node boundary.
 
 !!! danger "The two managers share a channel for RAM and have none for VRAM"
     They do talk. Before it pins a tensor the **Model weights** manager calls the
-    **Results** cache's release hook (`model_management.py:1628`,
-    `pinned_memory.py:94`), and the cache's own eviction loop turns around and
-    asks the weight manager to drop pins (`execution.py:805`). That channel
+    **Results** cache's release hook (`model_management.py`,
+    `pinned_memory.py`), and the cache's own eviction loop turns around and
+    asks the weight manager to drop pins (`execution.py`). That channel
     carries host RAM in both directions.
 
     There is no equivalent for VRAM. So a cached output holding VRAM is the one
@@ -236,7 +236,7 @@ total. That is management, but it is management without a defined manager.
 !!! note "The Results poll has two rules, not one"
     Cached outputs from an **earlier prompt** are dropped after every node
     regardless of pressure, because the target gating that sweep is set to the
-    machine's total RAM capped at 128 GB (`main.py:356`), so on any machine with
+    machine's total RAM capped at 128 GB (`main.py`), so on any machine with
     less than that it can never be satisfied. Outputs from the **current
     prompt** are dropped only when free RAM falls below roughly two to ten
     gigabytes, and on the first pass only if the entry is at least half a
@@ -283,18 +283,18 @@ ComfyUI tells you which one you got, in the log:
 | `DynamicVRAM support detected and enabled` | **aimdo**. Weights are paged in per layer |
 | `No working comfy-aimdo install detected... Falling back to legacy ModelPatcher.` | **the ledger**. Whole models, evicted whole |
 
-aimdo is the default. `main.py:272` picks it unless one of four things stops it:
+aimdo is the default. `main.py` picks it unless one of four things stops it:
 a flag (`--disable-dynamic-vram`, `--highvram`, `--gpu-only`, `--novram`,
 `--cpu`), an unsupported GPU (aimdo needs NVIDIA, or AMD on ROCm 7.14 and later), torch below
 2.8, or a failed init.
 
 !!! warning "The escape hatch is being removed. The ledger is not"
     `--disable-dynamic-vram` prints *"this argument will be removed soon"*
-    (`main.py:599`). That notice is about the **flag**, not the code.
+    (`main.py`). That notice is about the **flag**, not the code.
 
     The ledger stays, because ordinary workflows still reach it.
-    `samplers.py:1204` calls `get_non_dynamic_delegate()` whenever a cond carries
-    hooks, and `model_patcher.py:438` builds that delegate with
+    `samplers.py` calls `get_non_dynamic_delegate()` whenever a cond carries
+    hooks, and `model_patcher.py` builds that delegate with
     `disable_dynamic=True`. A CPU load device
     and multi GPU deepclones take the same path.
 
@@ -417,7 +417,7 @@ Pinned RAM is the only place with a real budget: `MAX_PINNED_MEMORY`, with
     * In the default configuration the branch taken never consults
       `MAX_PINNED_MEMORY` at all. It probes system available RAM instead.
     * `ensure_pin_registerable()` returns a value that four of its five callers
-      discard and pin anyway. Only `pinned_memory.py:96` checks it.
+      discard and pin anyway. Only `pinned_memory.py` checks it.
 
 !!! warning "Nothing budgets pageable RAM"
     `free_memory` takes a `ram_required` parameter. It appears in one log string
@@ -443,7 +443,7 @@ The knob differs by manager, which catches people out:
 | Path | Knob | What it does |
 |---|---|---|
 | aimdo | `--vram-headroom` | keeps this much free, *"even counting VRAM from other apps"* |
-| both | `--reserve-vram` | replaces `EXTRA_RESERVED_VRAM` on either path, and is handed to aimdo as its simple VRAM headroom (`main.py:71`) |
+| both | `--reserve-vram` | replaces `EXTRA_RESERVED_VRAM` on either path, and is handed to aimdo as its simple VRAM headroom (`main.py`) |
 
 On top of the constant sits an estimate, `area × dtype × memory_usage_factor`,
 where the factor is one of roughly 47 hand tuned per architecture constants from
@@ -459,7 +459,7 @@ where the factor is one of roughly 47 hand tuned per architecture constants from
     the flat constant instead.
 
     Text encoders are budgeted at zero unless they define
-    `memory_estimation_function`. Two files implement one, `ace15.py:366` and `lt.py:244`. Both
+    `memory_estimation_function`. Two files implement one, `ace15.py` and `lt.py`. Both
     estimate for fp32 and halve the constant when bf16 is available.
 
 That constant is a guess, so the guess is sometimes wrong. Sixteen places
@@ -505,8 +505,8 @@ than Carry: see M3.
 
     Separately, the cast buffers need an offload stream. With
     `--disable-async-offload` or on anything that is not NVIDIA or AMD,
-    `get_offload_stream` returns `None` (`model_management.py:1461`) and the
-    staging buffer becomes a per call `torch.empty` at `ops.py:158`, which is
+    `get_offload_stream` returns `None` (`model_management.py`) and the
+    staging buffer becomes a per call `torch.empty` in `ops.py`, which is
     **Work**, not Carry.
 
 !!! warning "One caller, and no other way back"
@@ -523,7 +523,7 @@ What each node returned, kept in case you run the graph again. In an ordinary
 install this is the largest thing in the process, larger than any model.
 
 On the default cache nothing frees a Results entry at the prompt boundary.
-`RAMPressureCache.clean_unused` (`caching.py:535`) drops the parent's key sweep
+`RAMPressureCache.clean_unused` (`caching.py`) drops the parent's key sweep
 and keeps only subcache cleanup, so an entry survives until host RAM pressure
 picks it (M4) or you ask for it to go (M9). On `--cache-classic` and
 `--cache-lru` the parent sweep runs and M5 applies instead. That is a
@@ -558,7 +558,7 @@ key sweep (M5), and the key is the node id plus its class type, nothing else.
 Changing a seed, a prompt string or any widget does not free it. Loading a
 different workflow frees it only if no node in the new graph carries that same id
 and class. What reliably clears it is `POST /free` with `{"free_memory": true}`,
-which rebuilds the cache set (`execution.py:672`), or `--cache-none`, which makes
+which rebuilds the cache set (`execution.py`), or `--cache-none`, which makes
 the objects cache a `NullCache` so no instance is retained at all.
 
 The practical shape of that: fill your RAM, keep running the same workflow, and
@@ -630,8 +630,8 @@ the arithmetic around it is [comfy-env's memory management](memory-approach.md).
 ### Isolation is what costs you aimdo
 
 A worker never runs `main.py`, and inside ComfyUI `aimdo_enabled` is set in
-exactly one place: `main.py:300`, defaulting to `False` at
-`memory_management.py:173`. Left alone, every isolated worker would therefore
+exactly one place: `main.py`, defaulting to `False` at
+`memory_management.py`. Left alone, every isolated worker would therefore
 resolve to the ledger. comfy-env closes that gap: `maybe_enable_aimdo`
 initialises aimdo at worker start (`memory_manager.maybe_enable_aimdo`)
 whenever the wheel imports and a CUDA device is visible. **A worker falls back
@@ -675,7 +675,7 @@ development machine were in that state.
 
 ### What a worker never releases
 
-Inside ComfyUI, `reset_cast_buffers` has one caller, `execution.py:550`, and a
+Inside ComfyUI, `reset_cast_buffers` has one caller, `execution.py`, and a
 worker does not run ComfyUI's executor. comfy-env therefore mirrors the release
 at its own node boundary: `release_node_boundary` runs in a `finally` around
 every worker call, and fires whenever aimdo is live in that worker, which is the
@@ -694,7 +694,7 @@ unrelated to aimdo and it is true today.
 ### A CPU worker on the ledger is correct
 
 aimdo has no CPU path. `ModelPatcherDynamic._vbar_get` returns `None` for a CPU
-load device (`model_patcher.py:1797`) and `partially_unload` asserts a non CPU
+load device (`model_patcher.py`) and `partially_unload` asserts a non CPU
 device. So a worker started under `--cpu` resolves to the ledger because there
 is nothing else it could resolve to.
 
@@ -721,7 +721,7 @@ treating aimdo as the only path.
   deleted without deleting CPU support.
 * **`RAMPressureCache` stops overriding `clean_unused`.** One deleted method
   puts **Results** back on M5 and makes half of section 4 wrong.
-* **The cache flag chain at `main.py:362` is reordered.** `--high-ram`
+* **The cache flag chain in `main.py` is reordered.** `--high-ram`
   overriding `--cache-none` is precedence, not intent, and the **Present when**
   column depends on it.
 * **`current_loaded_models` stops being a list.** Everything comfy-env does

@@ -37,7 +37,7 @@ contract** by writing into core's registry instead of exporting
 
 ## Writing into ComfyUI's own directory, then deleting from it
 
-`comfyui_ryanonyheinside/__init__.py:64-76`, at import:
+`comfyui_ryanonyheinside/__init__.py`, at import:
 
 ```python
 extension_path = os.path.join(os.path.dirname(folder_paths.__file__), "web", "extensions")
@@ -65,7 +65,7 @@ your install.
 
 ## Updating its own source code at startup
 
-`comfyui_tinyterranodes/__init__.py:113-121`:
+`comfyui_tinyterranodes/__init__.py`:
 
 ```python
 if config_value_validator("ttNodes", "auto_update", 'false') == 'true':
@@ -88,7 +88,7 @@ restart with no local change, and the pack is the only thing that knows why.
 
 ## Replacing a core method
 
-`comfyui-mixlab-nodes/__init__.py:574`:
+`comfyui-mixlab-nodes/__init__.py`:
 
 ```python
 PromptServer.start = new_start
@@ -120,10 +120,10 @@ time, once, where it can fail visibly -- see
 ## Starting threads before the server exists
 
 ```python
-# comfyui-impact-pack/__init__.py:61
+# comfyui-impact-pack/__init__.py
 threading.Thread(target=impact.wildcards.wildcard_load).start()
 
-# comfyui-promptchain/__init__.py:230
+# comfyui-promptchain/__init__.py
 _threading.Thread(target=_preload, daemon=True).start()
 ```
 
@@ -155,7 +155,7 @@ alphabet.
 ## The harmless one, for calibration
 
 ```python
-# ComfyUI-JoyCaption/__init__.py:17, and ComfyUI-MiniCPM/__init__.py:14
+# ComfyUI-JoyCaption/__init__.py, and ComfyUI-MiniCPM/__init__.py
 if sys.platform == 'win32':
     os.system('color')
 ```

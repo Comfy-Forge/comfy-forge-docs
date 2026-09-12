@@ -16,7 +16,7 @@ subject of its own page.
 
 The host does not ship its attention *flags*. It ships its **resolved
 backend**, as one synthetic key in the args-mirror payload
-(`src/comfy_env/mirrored_args.py:107-116`):
+(`src/comfy_env/mirrored_args.py`):
 
 ```python
 def resolve_host_attention(args):
@@ -34,7 +34,7 @@ inputs.
 
 The worker applies it at its own attention site, before its first comfy
 import, with an importability check
-(`isolation/workers/_persistent_worker.py:1594-1634`): if the host said
+(`isolation/workers/_persistent_worker.py`): if the host said
 `sage` and the worker's env cannot `import sageattention`, it does not fake
 it. It logs, and falls through to whatever the worker's own probe finds.
 

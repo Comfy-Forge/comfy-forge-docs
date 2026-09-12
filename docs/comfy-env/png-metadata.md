@@ -27,7 +27,7 @@ So they get their own field on the request frame, and never enter `kwargs`:
 
 Each entry carries the sentinel that decides *whether* a value crosses and the
 parameter name that decides *where it lands*, which is exactly the split
-upstream makes (`execution.py:212-224`).
+upstream makes (`execution.py`).
 
 The field is plain JSON on the frame, deliberately **not** routed through
 `_to_shm`. Every sentinel comfy-env forwards is a string or a dict the browser
@@ -84,7 +84,7 @@ nothing regressed. The work to support it is understood and small if a real
 pack ever needs it; it is not being carried speculatively.
 
 Note that a node *returning* an expand graph already works and always did:
-the worker returns a plain dict and `execution.py:361` splices it in with an
+the worker returns a plain dict and `execution.py` splices it in with an
 ungated `if 'expand' in r:`. Only *reading* dynprompt is unsupported.
 
 ## Known gaps
@@ -97,7 +97,7 @@ this change.
 | 1 | **`EXTRA_PNGINFO` mutation does not travel back.** A worker mutates its own copy | A node writing an entry for a *downstream* node to read is not seen. **This is the common use, not the edge case**: of 505 packs surveyed, 84 declare the input and every pack that *writes* to it does so for a downstream saver — `mikey_nodes.AddMetaData` (returns `IMAGE`, saves nothing), `bjornulf` `resize_image`, `Simple_Readable_Metadata-SG`. Isolated, the note is written on the worker's copy and the host's `SaveImage` never sees it. ~25 lines to return it on the reply and apply in place |
 | 2 | **`prompt_id` is not forwarded**, so the worker does not enter `CurrentNodeContext` | Isolated API nodes drop the `Comfy-Job-Id` header |
 | 3 | **`cls.hidden` is only set when the node declares something** | Upstream always sets a `HiddenHolder`, whose `__getattr__` returns `None`. In a worker a node that declared nothing sees `cls.hidden is None`, so reading through it raises instead of yielding `None` |
-| 4 | **`GraphBuilder.set_default_prefix` is parent-only** (`execution.py:541`) | Two isolated expanding nodes in one prompt would mint colliding ids. Latent — needs gap 1's sibling, expansion, to matter |
+| 4 | **`GraphBuilder.set_default_prefix` is parent-only** (`execution.py`) | Two isolated expanding nodes in one prompt would mint colliding ids. Latent — needs gap 1's sibling, expansion, to matter |
 
 ## See also
 

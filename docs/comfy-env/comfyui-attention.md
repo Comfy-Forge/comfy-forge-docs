@@ -7,7 +7,7 @@ is decided once, in one place, and never revisited.*
 
 ## One assignment, decided at import
 
-`comfy/ldm/modules/attention.py:857-882` is a single if/elif chain that runs
+`comfy/ldm/modules/attention.py` is a single if/elif chain that runs
 when the module is first imported:
 
 ```python
@@ -42,13 +42,13 @@ Two of the predicates read a flag directly; the rest read **module globals in
 
 | Rung | Predicate | Decided by |
 |---|---|---|
-| sage | `args.use_sage_attention` | the flag, verbatim (`model_management.py:1685`) |
-| flash | `args.use_flash_attention` | the flag, verbatim (`:1691`) |
-| xformers | `XFORMERS_IS_AVAILABLE` and not CPU/DirectML | `--disable-xformers` forces `False` (`:401-402`); otherwise an import probe |
-| pytorch | `ENABLE_PYTORCH_ATTENTION` | `--use-pytorch-cross-attention` sets it (`:463-465`); **or the auto-enable** below |
+| sage | `args.use_sage_attention` | the flag, verbatim (`model_management.py`) |
+| flash | `args.use_flash_attention` | the flag, verbatim |
+| xformers | `XFORMERS_IS_AVAILABLE` and not CPU/DirectML | `--disable-xformers` forces `False`; otherwise an import probe |
+| pytorch | `ENABLE_PYTORCH_ATTENTION` | `--use-pytorch-cross-attention` sets it; **or the auto-enable** below |
 | split | `args.use_split_cross_attention` | the flag |
 | sub-quad | none of the above | the default |
-| comfy-kitchen | `args.use_ck_attention` | the flag (`:1688`), applied last and overriding |
+| comfy-kitchen | `args.use_ck_attention` | the flag, applied last and overriding |
 
 ### The auto-enable that makes the "off" flags matter
 
@@ -56,7 +56,7 @@ Most users never pass an attention flag, so on NVIDIA the rung that fires is
 pytorch — but only because of this:
 
 ```python
-# model_management.py:467-470
+# model_management.py
 if is_nvidia():
     if torch_version_numeric[0] >= 2:
         if ENABLE_PYTORCH_ATTENTION == False and args.use_split_cross_attention == False \
@@ -67,7 +67,7 @@ if is_nvidia():
 So `--use-split-cross-attention` and `--use-quad-cross-attention` do not
 *select* their backend so much as **suppress the auto-enable** of pytorch
 attention, letting the chain fall through to the `else` branch. The same
-shape repeats for Intel XPU (`:471-473`) and AMD (`:519-522`).
+shape repeats for Intel XPU and AMD.
 
 That is why these two flags are the documented low-VRAM workaround: SDPA's
 memory behaviour on a small card is what people are escaping, and the escape
@@ -78,7 +78,7 @@ is to stop it being chosen.
 Independent of *which* kernel runs is *what dtype* it runs in:
 
 ```python
-# comfy/ldm/modules/attention.py:78-86
+# comfy/ldm/modules/attention.py
 FORCE_UPCAST_ATTENTION_DTYPE = model_management.force_upcast_attention_dtype()
 
 def get_attn_precision(attn_precision, current_dtype):

@@ -12,7 +12,7 @@ executes**. That timing is what makes them hard to isolate.
 ComfyUI caches node outputs keyed on inputs. For a node whose result does not
 depend only on its inputs — reading a file off disk, fetching a URL,
 generating a random number — that cache is a bug. `IS_CHANGED` is the
-override (`execution.py:73-101`):
+override (`execution.py`):
 
 ```python
 if issubclass(class_def, _ComfyNodeInternal) and first_real_override(class_def, "fingerprint_inputs") is not None:
@@ -45,7 +45,7 @@ Two properties are easy to miss:
 
 Returning `True` accepts the prompt; returning a string rejects it with that
 message. But the part that catches people is what its **argspec** does
-(`execution.py:889-893, 1019`):
+(`execution.py, 1019`):
 
 ```python
 argspec = inspect.getfullargspec(validate_function)

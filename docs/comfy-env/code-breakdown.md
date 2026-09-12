@@ -202,7 +202,7 @@ those four files' sizes added together. Both halves are wrong.
 
 **~2,100 lines across nine files, not 2,719 across four.** `wrap.py` --
 which contributed 590 to the old claim -- reaches into ComfyUI in exactly one
-place: `folder_paths.base_path` at `:327-330`. Meanwhile the transport files
+place: `folder_paths.base_path` at. Meanwhile the transport files
 and `environment/cache.py` contribute ~200 lines the four-file framing missed
 entirely.
 
@@ -245,7 +245,7 @@ leak was fixed where **`echo()` omitted the `_cleanup_ipc_cache()` its two
 siblings call**, leaving CUDA-IPC entries unevicted on every worker start.
 Three copies of one function is why nobody noticed.
 
-**2. `main()` in the worker is one 1,608-line function** (`:864-2471`),
+**2. `main()` in the worker is one 1,608-line function**,
 containing 23 nested definitions totalling 573 lines. It was 863 lines at the
 previous snapshot and has not been split; it has nearly doubled. ADR-0006
 justifies the *module* being one program shipped as source text. It does not

@@ -10,7 +10,7 @@ drag-and-drop workflow restore.*
 A node declares these in `INPUT_TYPES`, alongside `required` and `optional`:
 
 ```python
-# nodes.py:1678-1680 (SaveImage)
+# nodes.py (SaveImage)
 "hidden": {
     "prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
 },
@@ -26,8 +26,8 @@ The two halves of each entry in the "hidden" dict are not symmetrical:
 ### The complete list of sentinels
 
 There are **seven**, and the list is closed. The V1 executor matches them in
-a flat `if` chain (`execution.py:212-224`) and V3 declares the same seven as
-an enum (`comfy_api/latest/_io.py:1592-1606`), so neither path has anything
+a flat `if` chain (`execution.py`) and V3 declares the same seven as
+an enum (`comfy_api/latest/_io.py`), so neither path has anything
 the other lacks.
 
 *Last verified against ComfyUI `15b212cc` (2026-09-07). All seven resolve on
@@ -65,7 +65,7 @@ data, and that is exactly the one that cannot survive a process boundary.
 ### What "mutates during execution" means
 
 A node may return a **subgraph** instead of a value, and the executor splices
-it into the running prompt (`execution.py:589-592`):
+it into the running prompt (`execution.py`):
 
 ```python
 dynprompt.add_ephemeral_node(node_id, node_info, unique_id, display_id)
@@ -97,11 +97,11 @@ returns nothing, and V3 gates it behind `enable_expand=True` on the schema.
 
 This is worth being exact about, because the loose reading is the one that
 misleads. The ephemeral dicts have two write sites in the whole tree —
-`__init__` (`graph.py:26-28`) and `add_ephemeral_node` (`:41-43`) — and
+`__init__` (`graph.py`) and `add_ephemeral_node` — and
 `add_ephemeral_node` has exactly one caller:
 
 ```
-execution.py:592   inside `if has_subgraph:`                     (:579)
+execution.py inside `if has_subgraph:` (:579)
                    and has_subgraph is known only AFTER
                    get_output_data() returns                     (:545)
 ```
@@ -131,7 +131,7 @@ normally.
 ## The two `add_text` calls that make restore work
 
 `SaveImage` writes those two values into the PNG as text chunks
-(`nodes.py:1701-1708`):
+(`nodes.py`):
 
 ```python
 metadata = None
@@ -151,7 +151,7 @@ That is the entire mechanism behind drag-and-drop workflow restore. The
 executed form.
 
 The V3 path does the same thing through a helper
-(`comfy_api/latest/_ui.py:85-95`), reading from `cls.hidden` instead of
+(`comfy_api/latest/_ui.py`), reading from `cls.hidden` instead of
 arguments:
 
 ```python

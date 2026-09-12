@@ -82,7 +82,7 @@ Sinks 3 to 5 are files because the worker cannot safely print — see below.
 Those file sinks are not write-only, which is the answer to "why write
 somewhere nobody looks". When a worker dies, the parent assembles a diagnostic
 block before raising — `_worker_exit_diagnostic`,
-`isolation/workers/subprocess.py:316-354`: the exit code
+`isolation/workers/subprocess.py`: the exit code
 decoded to a signal name, then the **last 20 lines of the worker debug log**
 and the **last 20 lines of the faulthandler dump**, read off disk and printed
 into the ComfyUI console.
@@ -90,7 +90,7 @@ into the ComfyUI console.
 So the moment the information matters, it crosses back into all four of
 ComfyUI's destinations by a path that does not depend on the dead worker's
 streams. The
-faulthandler basename is a shared constant in `_ipc_shared.py:103` rather than
+faulthandler basename is a shared constant in `_ipc_shared.py` rather than
 a literal on each side, because the two spellings drifted apart once and the
 readback silently found nothing.
 
@@ -109,7 +109,7 @@ the file throws, and worth keeping for exactly that.
 
 This is the part that matters. A worker is a subprocess in a different
 interpreter with a different environment, spawned like this
-(`isolation/workers/subprocess.py:570-576`):
+(`isolation/workers/subprocess.py`):
 
 ```python
 self._process = subprocess.Popen(
@@ -128,7 +128,7 @@ host's own output unlabelled. So comfy-env forwards output **in band, over the
 IPC socket it already has**, and lets the host re-emit it.
 
 The worker replaces `print` and adds a root logging handler
-(`isolation/workers/_persistent_worker.py:999-1032`):
+(`isolation/workers/_persistent_worker.py`):
 
 ```python
 def _forwarded_print(*args, **kwargs):
@@ -145,7 +145,7 @@ class SocketLogHandler(logging.Handler):               # :1020
 ```
 
 and the parent recognises those frames anywhere in the stream, not just in
-replies (`isolation/workers/subprocess.py:803`):
+replies (`isolation/workers/subprocess.py`):
 
 ```python
 if kind == "log":
@@ -173,7 +173,7 @@ The `logging.info` row is a second real hole, and a quiet one. The worker
 attaches `SocketLogHandler` to `logging.root` but never sets the root
 **logger's** level, and `grep -rn setLevel src/comfy_env/` returns nothing.
 The host does set it — `logger.setLevel(min([console_level, *file_levels]))`
-resolves to 15 (`DETAIL`) under default args (`app/logger.py:116`) — so
+resolves to 15 (`DETAIL`) under default args (`app/logger.py`) — so
 INFO flows there. In a worker the root logger sits at the interpreter default
 of `WARNING`, which filters the record *before* any handler is consulted.
 Measured: a handler on root with no `setLevel` captures `WARNING` and `ERROR`
@@ -201,7 +201,7 @@ a node's deliberate stderr write is re-emitted on the host's stderr regardless.
 ### Why not just print from the worker
 
 `wlog`'s comment states the constraint directly
-(`_persistent_worker.py:91,105`):
+(`_persistent_worker.py,105`):
 
 ```python
 """Log to file only - stdout causes pipe buffer deadlock after many requests."""
@@ -220,7 +220,7 @@ anyway.
 
 Every worker on the machine appends to the *same* file, so each line carries an
 identity prefix built from the pack directory and pid
-(`_persistent_worker.py:87`):
+(`_persistent_worker.py`):
 
 ```python
 _WLOG_PREFIX = "%s:%d" % (os.path.basename(os.getcwd()) or "?", os.getpid())
@@ -235,7 +235,7 @@ subprocess, which means it is on the far side of the very boundary this page is
 about: its output does not reach the web UI, and comfy-env cannot change that.
 What it can do is keep a complete record on disk.
 
-`_make_tee_log` (`install/helpers.py:47`) wraps the caller's log callback so
+`_make_tee_log` (`install/helpers.py`) wraps the caller's log callback so
 every line goes to both the console and `<workspace>/install.log`, which opens
 with the interpreter and platform that produced it:
 
@@ -247,13 +247,13 @@ with the interpreter and platform that produced it:
 
 Two helpers hang off that tee:
 
-- **`_run_streaming`** (`install/helpers.py:83`) runs a subprocess with both
+- **`_run_streaming`** (`install/helpers.py`) runs a subprocess with both
   pipes drained live — stderr on a thread, stdout on the main loop — so pixi's
   output appears as it happens rather than in one dump at the end. It passes
   `stdin=DEVNULL` deliberately: stdin used to be inherited, so a child that
   decided to prompt blocked forever against a console nobody was watching,
   inside an install that looked hung.
-- **`_log_subprocess`** (`install/helpers.py:69`) writes a completed
+- **`_log_subprocess`** (`install/helpers.py`) writes a completed
   subprocess's full stdout and stderr to the log file *only*, reached through
   the `tee.file` attribute. This is how `install.log` ends up more verbose than
   the console without making the console unreadable.

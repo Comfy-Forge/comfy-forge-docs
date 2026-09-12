@@ -19,7 +19,7 @@ them are read **at import time**, into module-level globals that never change
 again:
 
 ```python
-# comfy/model_management.py:462-465
+# comfy/model_management.py
 ENABLE_PYTORCH_ATTENTION = False
 if args.use_pytorch_cross_attention:
     ENABLE_PYTORCH_ATTENTION = True
@@ -53,12 +53,12 @@ that follows.
 `main.py` is the only entry point that turns on argument parsing:
 
 ```python
-comfy.options.enable_args_parsing()      # main.py:2
+comfy.options.enable_args_parsing() # main.py
 ```
 
 Any other process that imports `comfy.cli_args` — a test, a script, a worker —
 gets `args_parsing = False` and parses an **empty argv**
-(`comfy/cli_args.py:279-282`). Every one of the 107 flags resolves to its
+(`comfy/cli_args.py`). Every one of the 107 flags resolves to its
 default.
 
 So a host started with `--fp8_e4m3fn-unet` and a worker importing the same

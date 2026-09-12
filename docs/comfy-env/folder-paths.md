@@ -16,9 +16,9 @@ the system.
 
 At spawn the parent snapshots `folder_names_and_paths` along with the
 input/output/temp/user directories and `base_path`
-(`isolation/workers/subprocess.py:639-652`), and the worker applies them onto
+(`isolation/workers/subprocess.py`), and the worker applies them onto
 its own `folder_paths` module before any pack code runs
-(`isolation/workers/_persistent_worker.py:953-962`).
+(`isolation/workers/_persistent_worker.py`).
 
 So `get_full_path`, `get_save_image_path`, `recursive_search` and the rest
 simply work in a worker, against the host's real directories, including
@@ -38,7 +38,7 @@ The snapshot carried `base_path`, the four working directories and the whole
 `folder_names_and_paths` registry — and not `folder_paths.models_dir`.
 
 They are independent after import. `models_dir` is the root the registry was
-*built from* (`folder_paths.py:23`), but once built the registry is a dict of
+*built from* (`folder_paths.py`), but once built the registry is a dict of
 absolute paths and `models_dir` is just a string nobody recomputes. In a
 worker it was set from the worker's own default `base_path` before comfy-env
 overrode anything, and the override does not reach it.
@@ -66,7 +66,7 @@ than captured at scan time. See [Dynamic combos](live-dropdowns.md).
 
 When a pack calls `add_model_folder_path` itself, comfy-env records it in a
 **private registry** and never writes it into ComfyUI's global dict
-(`isolation/metadata.py:1139-1153`).
+(`isolation/metadata.py`).
 
 The consequence is split:
 

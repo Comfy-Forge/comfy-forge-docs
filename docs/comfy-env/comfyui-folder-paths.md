@@ -27,7 +27,7 @@ It is not only a lookup table. It keeps four different kinds of state.
 
 </div>
 
-Row 4 is a third of the module (`:157-372`), and it is not defensive
+Row 4 is a third of the module, and it is not defensive
 hypothesising: it is the fix for **GHSA-779p-m5rp-r4h4**, a real advisory whose
 numbered fixes each have their own regression test in
 `tests-unit/security_test/` — preview traversal, annotated-path traversal,
@@ -37,8 +37,8 @@ user-controlled files (`/view`, `/userdata`, the assets download route) cannot
 drift apart. A change there is a security change, not a bookkeeping one.
 
 The two caches in row 3 are unrelated to each other despite living side by
-side: `filename_list_cache` (`:74`) is the long-lived one keyed on folder
-mtimes, while `CacheHelper` (`:76-104`) is a context manager that only holds
+side: `filename_list_cache` is the long-lived one keyed on folder
+mtimes, while `CacheHelper` is a context manager that only holds
 results while something has entered it, and clears on exit.
 
 ## What ComfyUI registers, and when
@@ -50,7 +50,7 @@ The registry is not filled in one go. It grows in three phases:
 | # | Phase | What lands |
 |---|---|---|
 | 1 | **Import** of `folder_paths` | 27 categories: 25 rooted at `models_dir`, and `custom_nodes` + `datasets` rooted at `base_path` |
-| 2 | **`main.py` startup**, `apply_custom_paths()` `:140` | first any `extra_model_paths.yaml` and `--extra-model-paths-config` files (`:142-148`), then five output subdirectories appended to `checkpoints`, `clip`, `vae`, `diffusion_models`, `loras` so `CheckpointSave` has somewhere to write (`:164-171`) |
+| 2 | **`main.py` startup**, `apply_custom_paths()` | first any `extra_model_paths.yaml` and `--extra-model-paths-config` files, then five output subdirectories appended to `checkpoints`, `clip`, `vae`, `diffusion_models`, `loras` so `CheckpointSave` has somewhere to write |
 | 3 | **Any time after** | a custom node calling `add_model_folder_path` at import |
 
 </div>
@@ -65,12 +65,12 @@ a "category" can be:
 | `configs` | `[".yaml"]` | text, not weights |
 | `diffusers` | `["folder"]` | the entry is a **directory**, not a file |
 | `classifiers` | `{""}` | extensionless files only |
-| `custom_nodes`, `datasets` | `set()` | empty set means **accept everything** (`:437`) |
+| `custom_nodes`, `datasets` | `set()` | empty set means **accept everything** |
 
 ## Where the roots come from
 
 Two values are computed at import and everything else hangs off them
-(`:14-23`):
+:
 
 ```python
 base_path  = os.path.abspath(args.base_directory) if args.base_directory \
@@ -92,7 +92,7 @@ the base rather than deriving from it:
 | `--base-directory` | models, custom_nodes, input, output, temp, user — all at once |
 | `--models-directory` | just the models root, overriding `--base-directory` |
 | `--output-directory`, `--input-directory`, `--temp-directory`, `--user-directory` | one working directory each, overriding `--base-directory` |
-| `extra_model_paths.yaml` | adds directories to existing categories; `~` and environment variables are expanded (`utils/extra_config.py:17`) |
+| `extra_model_paths.yaml` | adds directories to existing categories; `~` and environment variables are expanded (`utils/extra_config.py`) |
 
 ## What actually differs between operating systems
 
@@ -104,12 +104,12 @@ separators:
 
 | Behaviour | Windows | Linux / macOS | Why |
 |---|---|---|---|
-| **The output filename counter** | `IMG_00001_.png` and `img_00001_.png` collide, so the counter continues across both | they are different files and each gets its own counter | `os.path.normcase` lowercases on Windows and is a no-op on POSIX (`:562`) |
-| **Containment check across drives** | comparing `C:\...` with `D:\...` raises `ValueError`, which is caught and treated as *outside* | not reachable | upstream's own comment at `:337-340` |
-| **MIME type spelling** | `guess_type` may return `text/javascript` **or** `application/javascript` | same variance | why `DANGEROUS_CONTENT_TYPES` lists both spellings (`:274-286`) |
-| **Subfolder paths in API responses** | `\` is rewritten to `/` before the list is returned | already `/` | `rel_path.replace(os.sep, '/')` (`:584`) |
-| **Symlinked model directories** | followed, but creating one needs privilege or developer mode | followed | `os.walk(..., followlinks=True)` (`:416`) |
-| **Extension matching** | case-insensitive | **also** case-insensitive | `filter_files_extensions` lowercases before comparing (`:437`), so `.SAFETENSORS` works everywhere |
+| **The output filename counter** | `IMG_00001_.png` and `img_00001_.png` collide, so the counter continues across both | they are different files and each gets its own counter | `os.path.normcase` lowercases on Windows and is a no-op on POSIX |
+| **Containment check across drives** | comparing `C:\...` with `D:\...` raises `ValueError`, which is caught and treated as *outside* | not reachable | upstream's own comment at |
+| **MIME type spelling** | `guess_type` may return `text/javascript` **or** `application/javascript` | same variance | why `DANGEROUS_CONTENT_TYPES` lists both spellings |
+| **Subfolder paths in API responses** | `\` is rewritten to `/` before the list is returned | already `/` | `rel_path.replace(os.sep, '/')` |
+| **Symlinked model directories** | followed, but creating one needs privilege or developer mode | followed | `os.walk(..., followlinks=True)` |
+| **Extension matching** | case-insensitive | **also** case-insensitive | `filter_files_extensions` lowercases before comparing, so `.SAFETENSORS` works everywhere |
 
 </div>
 
@@ -117,13 +117,13 @@ The last row is worth separating from the rest: extension matching is
 case-insensitive *by ComfyUI's choice*, not by the filesystem's. The
 **filename** is still whatever the filesystem says, so a workflow saved on
 Windows referencing `Model.safetensors` can fail to resolve on Linux against
-`model.safetensors` — `get_full_path` does a plain `os.path.isfile` (`:452`)
+`model.safetensors` — `get_full_path` does a plain `os.path.isfile`
 and inherits the filesystem's opinion.
 
 ## The registry itself
 
 Every model directory lives in one module-global dict
-(`folder_paths.py:12`):
+(`folder_paths.py`):
 
 ```python
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
@@ -144,7 +144,7 @@ Three of the 27 carry two directories rather than one — `text_encoders`,
 `diffusion_models` and `controlnet`. That is not an accident of tidiness: it
 is how ComfyUI absorbs a rename without breaking saved workflows. `unet` →
 `diffusion_models` and `clip` → `text_encoders` both kept the old folder in
-the list, so a model already on disk keeps resolving. `map_legacy` (`:111`)
+the list, so a model already on disk keeps resolving. `map_legacy`
 handles the other half, translating an old *category name* a node still asks
 for into the current one.
 
@@ -152,17 +152,17 @@ for into the current one.
 
 | Function | Returns |
 |---|---|
-| `get_folder_paths(name)` | a **copy** of the directory list (`:391`) |
+| `get_folder_paths(name)` | a **copy** of the directory list |
 | `get_filename_list(name)` | every file in every directory for that category, filtered by extension, sorted |
 | `get_full_path(name, filename)` | absolute path, or `None`; `get_full_path_or_raise` for the loud version |
 | `get_save_image_path(prefix, out_dir, w, h)` | output folder, filename stem and the next counter — this is what makes `ComfyUI_00017_.png` |
-| `add_model_folder_path(name, path, is_default=False)` | registers a new directory, or a whole new category (`:373`) |
+| `add_model_folder_path(name, path, is_default=False)` | registers a new directory, or a whole new category |
 
 `get_filename_list` is the one that shows up in `INPUT_TYPES`, because a
 combo widget of available checkpoints is literally
 `("checkpoints", folder_paths.get_filename_list("checkpoints"))`.
 
-It is **cached with mtime validation** (`:471-518`): the cache stores each
+It is **cached with mtime validation**: the cache stores each
 folder's modification time and is discarded when any of them changes, so
 dropping a file into `models/loras` shows up on the next graph refresh
 without a restart.
@@ -173,7 +173,7 @@ without a restart.
 library serves several installs — the same 200 GB of checkpoints pointed at
 by a git clone, a portable build and the Desktop app at once.
 
-`add_model_folder_path` (`:373`) is the programmatic version, with one
+`add_model_folder_path` is the programmatic version, with one
 subtlety worth knowing: **`is_default=True` inserts at the front** of the
 directory list, and the front is what most "where do I write this" logic
 picks. Appending is the safe default; inserting changes where new files land.

@@ -48,7 +48,7 @@ behaviour, so the ladder can only ever add.**
 ### Why "spawn one" is not a rung
 
 `/object_info` enumerates the **entire node registry** on every page load
-(`server.py:800-811`), not the nodes on your canvas. So spawning there would
+(`server.py`), not the nodes on your canvas. So spawning there would
 start every isolated environment on the machine in order to draw a dropdown —
 and `_get_or_create_worker` runs on the asyncio event loop, holding a global
 lock across the whole cold start. ComfyUI's HTTP server would freeze for the
@@ -94,7 +94,7 @@ recipe in the host: **there is no recipe to reconstruct.**
 A live dropdown is useless if execution then rejects the freshly-uploaded
 value. ComfyUI exempts an input from its built-in combo and min/max checks
 when the input's name appears in the validate function's argspec
-(`execution.py:1019`), so the proxy carries a synthesized `VALIDATE_INPUTS`
+(`execution.py`), so the proxy carries a synthesized `VALIDATE_INPUTS`
 (V1) / `validate_inputs` (V3) naming **exactly the node's combo inputs**, plus
 any the pack's own validate named.
 

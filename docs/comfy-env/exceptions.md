@@ -16,11 +16,11 @@ How ComfyUI turns a throw into a red node, and why Cancel is a
 
 A node exception in a worker is caught there, serialized with its type name,
 message and traceback, and re-raised in the host as `WorkerError`
-(`isolation/workers/base.py:59-63`). `isolation/errors.py` then translates
+(`isolation/workers/base.py`). `isolation/errors.py` then translates
 it back — for exactly two cases:
 
 ```python
-# isolation/errors.py:54-58 -- the closed vocabulary
+# isolation/errors.py -- the closed vocabulary
 {"oom", "interrupt"}
 ```
 
@@ -64,16 +64,16 @@ progress is uncancellable."*
 
 When a node does drive a `ProgressBar`, the worker's hook sends a
 `report_progress` callback, and the parent's handler
-(`isolation/pool.py:222-231`) checks the host's flag and answers with an
+(`isolation/pool.py`) checks the host's flag and answers with an
 interrupt if it is set. That is the entire cancel path. It rides on
 `PROGRESS_BAR_HOOK`, which is also the entire progress path.
 
 ### What arrives is a `RuntimeError`
 
 ```python
-# isolation/workers/_persistent_worker.py:1481
+# isolation/workers/_persistent_worker.py
 class _InterruptedError(RuntimeError):
-# isolation/workers/base.py:65
+# isolation/workers/base.py
 class InterruptRequested(RuntimeError):
 ```
 

@@ -119,7 +119,7 @@ does **not** move, is in [Drives and volumes](drives-and-volumes.md).
     - a config that does not parse -- skipped, and reported in a batch at the end;
     - **two configs deriving the same env name -- `ValueError`**, because they would
   share one env directory and rebuild over each other forever
-  (`workspace.py:226`).
+  (`workspace.py`).
 
 ### The skip gate
 
@@ -154,14 +154,14 @@ pypi-dependencies: they land in `pixi.lock`.
 !!! warning "No NVIDIA GPU means the CPU wheel index, whatever the host's torch says"
     Portable ComfyUI ships `torch+cu128` inside `python_embeded` even on
     machines with no NVIDIA driver. NVIDIA GPU presence therefore
-    **overrides** the torch build (`workspace.py:83-88`): with none detected,
+    **overrides** the torch build (`workspace.py`): with none detected,
     envs resolve torch from the CPU index and `[cuda]` packages are not
     resolved or installed at all.
 
     **This is a Linux and Windows rule and does not apply to macOS.** Darwin
-    never reaches the CUDA-index choice at all (`workspace.py:510`); macOS
+    never reaches the CUDA-index choice at all (`workspace.py`); macOS
     torch comes from ordinary PyPI, and **those wheels have MPS compiled in**
-    (`detection/backend.py:65-67`). There is no separate MPS build to pick
+    (`detection/backend.py`). There is no separate MPS build to pick
     and nothing to opt into: a Mac with MPS available is detected as backend
     `mps`, so its envs are tagged `-mps` and never share a directory with a
     genuinely CPU-only machine's.
@@ -183,21 +183,21 @@ That ordering is deliberate and produces three behaviours worth knowing:
 
 - **One `pixi install` per manifest**, so a broken manifest cannot poison another
   env's scan or install.
-- **`pixi` failures are collected and raised at the end** (`workspace.py:890`),
+- **`pixi` failures are collected and raised at the end** (`workspace.py`),
   so one run surfaces *every* broken env rather than stopping at the first.
-- **Hash files are written last** (`workspace.py:1009`), after that raise point.
+- **Hash files are written last** (`workspace.py`), after that raise point.
   So if any env fails, the run leaves no hash bookkeeping for the envs that
   succeeded alongside it, and they are re-derived next time.
 
 ## When it fails
 
 **Start here:** a workspace install that does any work tees its full output to
-`<workspace>/install.log` (`workspace.py:717`) -- the discovery list, the
+`<workspace>/install.log` (`workspace.py`) -- the discovery list, the
 resolved combo, and each `pixi install` invocation with its output.
 
 !!! warning "The log is from the last run that did work"
-    A run where every env is already current returns at `workspace.py:710`,
-    **before** the log is opened at `:717`. So after a clean run the file on
+    A run where every env is already current returns in `workspace.py`,
+    **before** the log is opened at. So after a clean run the file on
     disk is an older transcript, and its timestamp is the only tell. To force
     a fresh one, delete an env's `install.hash` -- which is what the skip
     message itself tells you to do.

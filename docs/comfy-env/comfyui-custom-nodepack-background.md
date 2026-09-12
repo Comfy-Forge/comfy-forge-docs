@@ -68,7 +68,7 @@ nothing else:
 | Attribute | Required | What it is |
 |---|---|---|
 | `NODE_CLASS_MAPPINGS` | one of these two | `id -> class` |
-| `comfy_entrypoint` | one of these two | V3 alternative. A genuine `elif` (`nodes.py:2337`), so it is called only when `NODE_CLASS_MAPPINGS` is absent **or `None`**; a pack that defines both is loaded from the dict and the entrypoint never runs |
+| `comfy_entrypoint` | one of these two | V3 alternative. A genuine `elif` (`nodes.py`), so it is called only when `NODE_CLASS_MAPPINGS` is absent **or `None`**; a pack that defines both is loaded from the dict and the entrypoint never runs |
 | `NODE_DISPLAY_NAME_MAPPINGS` | no | `id -> pretty name` |
 | `WEB_DIRECTORY` | no | frontend JS directory |
 
@@ -126,8 +126,8 @@ Registration is Python-side; execution is browser-side. Both halves matter.
 
 | Declared as | Key used | Line |
 |---|---|---|
-| `[tool.comfy] web` in `pyproject.toml` | the **Registry project name** (`project.name`) | `nodes.py:2280` |
-| `WEB_DIRECTORY` in `__init__.py` | the **module/directory name** | `nodes.py:2289` |
+| `[tool.comfy] web` in `pyproject.toml` | the **Registry project name** (`project.name`) | `nodes.py` |
+| `WEB_DIRECTORY` in `__init__.py` | the **module/directory name** | `nodes.py` |
 
 Both are guarded by `os.path.isdir()`, and they are **separate `if` blocks**,
 not a fallback chain.
@@ -135,7 +135,7 @@ not a fallback chain.
 **Serving the JS code** is a static route per registered directory,
 `/extensions/<node_pack_name>` → the nodepack's web folder.
 
-**Auto-import** is driven by `GET /extensions` (`server.py:357-368`), which
+**Auto-import** is driven by `GET /extensions` (`server.py`), which
 returns a flat JSON list of URLs the browser then imports. For each registered
 directory:
 
