@@ -32,15 +32,24 @@ wire cannot express "the host had it available and chose not to" — host-False
 looks identical to host-default — so the parent sends the outcome, not the
 inputs.
 
-The worker applies it at its own attention site, before its first comfy
-import, with an importability check
+The worker applies it at its own attention site, before its first
+`comfy.model_management` import, with an importability check
 (`isolation/workers/_persistent_worker.py`): if the host said
 `sage` and the worker's env cannot `import sageattention`, it does not fake
-it. It logs, and falls through to whatever the worker's own probe finds.
+it and it does not probe for something else either. It logs `host attention
+backend 'sage' not importable in this env; using comfy's default`, records
+`attention` under `skipped` in the mirror report, and leaves both flags
+untouched -- so that worker lands on whatever ComfyUI's own default ladder
+picks (pytorch attention on NVIDIA). A mirrored backend is followed or
+skipped, never substituted.
 
-`COMFY_ENV_WORKER_ATTENTION=auto` disables following the host entirely and
-restores the worker's own probe — for a pack env that is richer than the host
-and *should* diverge.
+The worker's own **auto-probe** -- try `sageattention`, then `flash_attn`, and
+set the matching flag for whichever imports -- exists, but runs *only* under
+`COMFY_ENV_WORKER_ATTENTION=auto`, and only on a CUDA device of compute
+capability 8.0 or newer. That mode disables following the host entirely, for a
+pack env that is richer than the host and *should* diverge. It used to be the
+default, which is how an operator who removed sage because it broke on their
+card got it back in every worker.
 
 ## What does not cross
 

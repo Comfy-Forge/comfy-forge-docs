@@ -14,10 +14,11 @@ subject of its own page, and none of this makes sense without it.
 **Neither is forwarded by spawning a worker, and that is deliberate.**
 
 `VALIDATE_INPUTS` runs once per node and `IS_CHANGED` once per node per
-prompt, both before execution. Forwarding either by starting the pack's
-process would **cold-spawn every isolated environment on the machine before
-a single node ran**. On a box with twenty packs that turns every prompt
-submission into a multi-minute stall.
+prompt, both before execution. Both only visit the nodes in the submitted
+prompt, so forwarding either by starting the pack's process would
+**cold-spawn every isolated environment that prompt references before a
+single node ran**. On a workflow that spans a handful of packs that turns
+every submission into a multi-minute stall.
 
 The two get different treatment because they fail in different directions.
 `IS_CHANGED` has a safe answer when the worker is not there ("changed", so
@@ -29,16 +30,31 @@ is never called.
 
 ## `VALIDATE_INPUTS` becomes `return True`
 
-comfy-env builds a classmethod with *exactly* the original parameter names,
-each defaulted to `None`, plus `**kwargs` only if the original had it
-(`_make_named_validate` in `isolation/metadata.py`):
+comfy-env builds a classmethod whose parameter list is **every combo input
+on the node, followed by the original validate's parameter names** not
+already in that set — each defaulted to `None` — plus `**kwargs` only if the
+original had it (`_combo_input_names` and `_make_named_validate` in
+`isolation/metadata.py`):
 
 ```python
 exec(f"def _cev_validate(cls, {sig}):\n    return True\n", ns)
 ```
 
 The signature is the point: it reproduces the exemptions the original
-declared. `_named_args` captures both the named parameters and whether the
+declared, and adds one set on top. The combos come first because of
+[live dropdowns](live-dropdowns.md): the refresh can put a value into a
+combo's option list that the scan-time snapshot never saw, and ComfyUI's
+built-in check rejects any combo value that is not in the list it holds
+unless the input's name is in the validate argspec. Naming every combo is
+what lets a freshly uploaded file get past that check and reach the node.
+It also means a node with **no** `VALIDATE_INPUTS` at all still gets a
+synthesized one if it has any combo; a node with neither gets none. The
+combo detection reads the V1 spec shape — an entry whose first element is a
+list — so a V3 `Combo` input, which serializes as
+`("COMBO", {"options": [...]})`, is not picked up; a V3 node is exempted
+only for the names its own validate declared.
+
+`_named_args` captures both the named parameters and whether the
 original had a `**kwargs` catch-all, because ComfyUI reads both: an input is
 exempted from the built-in checks if it is named in the argspec *or* the
 function takes `**kwargs`. A pack that wrote `(cls, **kwargs)` therefore keeps
@@ -54,7 +70,11 @@ readable message.
 ## `IS_CHANGED` runs in the worker, or answers "changed"
 
 When a pack node defines `IS_CHANGED` (V1) or `fingerprint_inputs` (V3), the
-proxy carries a fingerprint of the same name. It is a plain `(cls, **kwargs)`
+proxy carries a fingerprint under the name its own shape needs:
+`fingerprint_inputs` on a V3 proxy, `IS_CHANGED` on a V1 proxy. A V3 node
+that falls back to the V1 proxy therefore carries `IS_CHANGED`, but the
+worker is still asked for `fingerprint_inputs`, because that is what the real
+class defines. It is a plain `(cls, **kwargs)`
 classmethod, because ComfyUI never inspects a fingerprint's signature; it
 calls it with every declared input as keyword arguments and hands linked
 inputs in as `None`. The proxy walks the same ladder as
@@ -63,7 +83,7 @@ inputs in as `None`. The proxy walks the same ladder as
 
 | Rung | Worker for this env | Answer |
 |---|---|---|
-| 0 | any input or hidden value is not a JSON primitive | *changed*, nothing is sent |
+| 0 | any input or hidden value is not JSON data — a primitive, or a list or dict built only from primitives (a multiselect list and the `PROMPT` dict pass; a tensor does not) | *changed*, nothing is sent |
 | 1 | alive and idle, lock won within 0.25 s | the pack's own fingerprint, as a primitive |
 | 2 | alive but mid-call | *changed* |
 | 3 | dead or never started | *changed* |

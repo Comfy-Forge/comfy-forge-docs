@@ -21,6 +21,14 @@ are the facts which an env config is computed *from*:
 6. a **manifest-format constant** (bumped when the *shape* of what install
    writes changes, so an on-disk layout from an older comfy-env cannot
    survive the skip -- added in 0.4.31 for the wheel inlining)
+7. the host's **pins for `comfy-aimdo` and `comfy-kitchen`** (`read_host_pin`:
+   the version installed in the host env, falling back to ComfyUI's
+   `requirements.txt`). comfy-env replicates
+   these pins rather than authoring them, so they are a local input like
+   any other: a ComfyUI update that moves the aimdo pin misses the fast key
+   even when nothing under `custom_nodes/` changed. Without this the gate
+   would read "nothing changed locally" and an existing env would keep the
+   old wheel for the life of the install.
 
 The **output** is what the derivation produces from them: the generated
 `pixi.toml` plus the resolved cuda wheel URLs.

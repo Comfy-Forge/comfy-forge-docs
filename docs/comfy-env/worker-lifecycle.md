@@ -14,17 +14,24 @@ the only copy of anything.
 ## Birth: lazy, verified, then trusted
 
 Nothing spawns at ComfyUI startup. Browsing the node menu, loading
-workflows, even `/object_info` never touch a worker -- proxies answer from
-the [metadata snapshot](live-dropdowns.md), and the live parts (file
-dropdowns) are re-computed parent-side. A worker exists only once a node
-from its env actually **executes**.
+workflows, even `/object_info` never *spawn* a worker -- proxies answer
+from the [metadata snapshot](live-dropdowns.md). They may *talk* to one,
+though: a proxy's `INPUT_TYPES` calls `_refresh_combo_options`, which
+sends `refresh_input_types` to this env's worker only if it is already
+alive **and** idle (`send_command_no_spawn`), and falls back to the cached
+options when the worker is busy, dead, or was never started. A worker
+comes into existence only once a node from its env actually **executes**.
 
 The first call pays for: materializing the worker source into a temp dir
 ([ADR-0006](adr/0006-worker-crosses-the-boundary-as-source-text.md)),
 launching the env's interpreter (which imports torch -- the dominant cost,
 seconds to tens of seconds), the auth handshake, the config push, and the
 transport canary ([the spawn-time channel](process-boundary.md#the-spawn-time-channel)).
-A worker whose canary fails verification is refused, not used.
+A worker whose CPU-tier canary fails verification is refused, not used
+(`verify_transport` raises). A GPU-tier canary failure, or a device-UUID
+mismatch between parent and worker, is a *demotion*: the worker is still
+used, with `gpu_zero_copy_ok` cleared so its CUDA tensors take the CPU
+shared-memory path.
 
 ## Life: warm, single-file, and paid for
 
@@ -33,9 +40,11 @@ the second call skips the torch import entirely. The standing cost of a
 warm worker is **~180-550 MB host RAM plus a CUDA context** (and VRAM for
 whatever models it holds).
 
-That VRAM is released two ways, not one. The worker sheds it on its own
-idle sweep, **and** ComfyUI's own eviction reaches into the worker from
-outside: comfy-env registers a stand-in for each of the worker's models in
+That VRAM is released two ways, not one. A host-side idle sweep (a 10 s
+daemon timer in `pool.py`) sends `full_release` to workers that have sat
+idle long enough, and the worker gives back everything it holds, **and**
+ComfyUI's own eviction reaches into the worker from outside: comfy-env
+registers a stand-in for each of the worker's models in
 `current_loaded_models`, so upstream's `free_memory` can unload it exactly
 as it unloads a host model
 ([comfy-env's memory management](memory-approach.md),
@@ -44,8 +53,12 @@ said outside eviction no longer happens; that describes a design that was
 reversed before it shipped.
 
 - **One call at a time.** A worker serves a single in-flight call
-  ([ADR-0020](adr/0020-concurrency-and-env-granularity.md)); eviction
-  commands are the exception, answered even mid-call.
+  ([ADR-0020](adr/0020-concurrency-and-env-granularity.md)). Eviction
+  commands are a partial exception: they are answered mid-call only while
+  the worker is blocked in `_call_parent` waiting on its own callback
+  (progress, VRAM budget). A worker in pure compute answers nothing, and a
+  parent thread trying to `send_command` to it gives up after
+  `_COMMAND_LOCK_TIMEOUT` (30 s) rather than block ComfyUI.
 - **Health checks are idle-only.** A worker idle for more than 60 s gets a
   `ping` before its next call; a busy worker is never pestered.
 - **What accumulates inside** -- loaded models, the object cache, JIT state
@@ -61,11 +74,11 @@ this page kills it.
 
 | # | Trigger | What happens |
 |---|---|---|
-| 1 | **Crash or timeout** (segfault in a native lib, [ADR-0018](adr/0018-worker-call-timeout.md) kill) | The in-flight call fails with a named error; the worker object is permanently retired. The next call gets a **fresh worker with a bumped generation** -- the caller never sees a dead worker, only a new one. The crash costs the call and the worker's caches, nothing the parent holds. |
+| 1 | **Crash or timeout** (segfault in a native lib, [ADR-0018](adr/0018-worker-call-timeout.md) kill) | The in-flight call fails with a named error; the worker object is permanently retired. The next call gets a **fresh worker with a bumped generation** -- the caller never sees a dead worker, only a new one. The crash costs the call and the worker's caches, nothing the parent holds. Known gap: the timeout path calls `self._process.kill()`, not `procgroup.kill_process_tree`; under `pixi run` that kills the wrapper and can leave the Python grandchild running until it next touches the dead socket (being fixed separately). |
 | 2 | **Clean ComfyUI stop** (Ctrl-C, normal exit) | An atexit hook sends every worker a `shutdown` frame, waits 5 s, then kills; temp dirs are removed. Workers die with the parent. |
 | 3 | **ComfyUI killed hard, worker idle** (SIGKILL, crash, OOM -- atexit never runs) | The idle worker is blocked reading its socket; the parent's death closes it, the read fails, and the worker's own loop exits promptly. No parent needed. |
-| 4 | **ComfyUI killed hard, worker mid-computation** | The worker is not reading the socket, so it does not notice. It **finishes the running call for nobody** -- holding its RAM and VRAM the whole time -- and only exits when it returns to the socket for the next request. A worker deep in a 30-minute bake outlives its parent by up to 30 minutes. |
-| 5 | **The sweep at next startup** | The backstop for case 4 and anything else left behind: the next `register_nodes()` reaps workers whose parent pid no longer exists, plus their dead-owner socket files and unused temp dirs -- the pid is embedded in the socket filename precisely so this check is possible. |
+| 4 | **ComfyUI killed hard, worker mid-computation** | The worker is not reading the socket, so it does not notice. It **finishes the running call for nobody** -- holding its RAM and VRAM the whole time -- and only exits when it tries to *send* its reply: `transport.send` raises on the dead socket, the error handler tries to send an error frame, that raises again unhandled, and the process dies. A worker deep in a 30-minute bake outlives its parent by up to 30 minutes. |
+| 5 | **The sweep at next startup** | The backstop for anything left behind: the next `register_nodes()` runs `_cleanup_stale_workers`, which kills `persistent_worker.py` processes whose parent pid no longer exists, unlinks dead-owner socket files (macOS only -- the `unix://` filename embeds the owning pid; Linux uses the abstract namespace and leaves no file), and removes `comfyui_pvenv_*` temp dirs no live process has in its cwd or command line. The orphan check is `psutil.pid_exists(ppid)`, which on Linux and macOS is always true for an orphan (it is reparented to pid 1), so the process reap is effective only on Windows; cases 3 and 4 are what actually end an orphan on POSIX. |
 
 ## The subtlest rule: what replacement must preserve
 

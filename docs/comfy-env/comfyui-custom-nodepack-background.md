@@ -122,7 +122,7 @@ expected to run them manually.
 Registration is Python-side; execution is browser-side. Both halves matter.
 
 **Registration** happens in `load_custom_node` (`nodes.py`), and there are
-**two independent and reciprocally exclusive paths** to register JS code, which write to the same dict under *different keys*:
+**two independent paths** to register JS code -- not mutually exclusive, both can fire for one pack -- which write to the same dict under *different keys*:
 
 | Declared as | Key used | Line |
 |---|---|---|

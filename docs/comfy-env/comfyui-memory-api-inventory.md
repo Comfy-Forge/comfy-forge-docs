@@ -24,7 +24,7 @@ and patches three.
 
 | Function | Returns | comfy-env |
 |---|---|---|
-| `get_free_memory(device)` | driver free plus torch's own cache | **calls**, six sites, and corrects the answer |
+| `get_free_memory(device)` | driver free plus torch's own cache | **calls**, eleven sites, and corrects the answer |
 | `get_total_memory(device)` | device total | **calls** |
 | `module_size(module)` | bytes of a state dict, nothing else the module holds | inherits |
 | `minimum_inference_memory()` | the floor that must stay free | **calls**, in the admission sum |
@@ -100,7 +100,7 @@ couplings, so these are tracked rather than incidental.
 
 | Function | Answers | comfy-env |
 |---|---|---|
-| `get_torch_device()` | the device in use | **calls**, five sites |
+| `get_torch_device()` | the device in use | **calls**, nine sites |
 | `intermediate_device()` | where node outputs go. CPU normally, **the GPU under `--gpu-only`** | inherits, **watch** |
 | `intermediate_dtype()` | dtype for those outputs | inherits |
 | `unet_offload_device()` | where a UNet goes when evicted | **calls** |
@@ -119,16 +119,21 @@ couplings, so these are tracked rather than incidental.
 | Function | Does | comfy-env |
 |---|---|---|
 | `get_cast_buffer(...)` / `get_aimdo_cast_buffer(...)` | the per stream staging buffers | inherits |
-| `reset_cast_buffers()` | releases all of them, plus cross step tensors, dirty mmaps and pinned patch memory | inherits, **watch** |
+| `reset_cast_buffers()` | releases all of them, plus cross step tensors, dirty mmaps and pinned patch memory | **calls**, in the worker, from three sites in `memory_manager.py`: `release_node_boundary` (per node, aimdo workers), `cast_epoch_boundary` (per prompt epoch, every worker) and `full_release` |
 | `get_offload_stream(device)` / `sync_stream(...)` / `current_stream(...)` | the async offload streams | inherits |
 | `cast_to(...)` / `cast_to_device(...)` / `cast_to_gathered(...)` | weight casting | inherits |
 | `mark_mmap_dirty(storage)` | flags a checkpoint page for writeback | inherits |
 
 !!! danger "`reset_cast_buffers` is the whole of Carry"
-    One caller, in a `finally` around a single node. It is the only release path
-    for a sixteen gibibyte reservation and the static tensors
-    a sampler reuses between steps. comfy-env does not interact with it, but a
-    worker node that never returns holds all of it.
+    One caller in ComfyUI, in a `finally` around a single node. It is the only
+    release path for a sixteen gibibyte reservation and the static tensors
+    a sampler reuses between steps. A worker never runs that executor, so
+    comfy-env calls it itself: `release_node_boundary` mirrors the per node
+    `finally` in aimdo workers, `cast_epoch_boundary` resets the cast buffers
+    at every prompt epoch change in every worker (the non-aimdo ratchet
+    upstream's gate leaves unreleased), and `full_release` runs it as one step
+    of a full worker release. A worker node that never returns still holds all
+    of it until it does.
 
 ## Flushing and synchronisation
 
@@ -144,13 +149,13 @@ couplings, so these are tracked rather than incidental.
 | `is_oom(e)` / `raise_non_oom(e)` | classify, and re-raise anything that is not an OOM | inherits |
 | `OOM_EXCEPTION` | the type, falling back to bare `Exception` where absent | inherits |
 | `discard_cuda_async_error()` | clear a queued async error | inherits |
-| `interrupt_current_processing()` / `processing_interrupted()` | the interrupt flag | inherits |
-| `throw_exception_if_processing_interrupted()` | the check nodes are expected to call | **calls** |
+| `interrupt_current_processing()` / `processing_interrupted()` | the interrupt flag | **calls** `processing_interrupted()` in the host, from `pool._handle_progress`, as the non-consuming read that forwards a cancel to the worker without spending the click; `contract.py` lists it as a FATAL floor entry for that reason |
+| `throw_exception_if_processing_interrupted()` | the check nodes are expected to call | inherits; never called by comfy-env, because it clears the flag before raising |
 | `InterruptProcessingException` | the exception type | **calls** |
 
 ## Module state comfy-env writes to
 
-Five assignments. Four are inside the worker, on the worker's own copy; the
+Seven assignments. Six are inside the worker, on the worker's own copy; the
 `EXTRA_RESERVED_VRAM` write is the only one that happens in the host process,
 and it is a value written into a knob `--reserve-vram` already writes.
 
@@ -161,6 +166,8 @@ and it is a value written into a knob `--reserve-vram` already writes.
 | `load_models_gpu` | wrapped, so a worker load can negotiate a budget with the parent before it happens |
 | `aimdo_enabled` | set when the worker brings the pager up, so upstream's own aimdo branches take the right path |
 | `free_model_pins` | wrapped for per victim eviction counting; the wrapper calls the original and changes no decision |
+| `comfy.model_patcher.CoreModelPatcher` | set to `ModelPatcherDynamic` when the worker brings the pager up (`memory_manager.py`), which is the same assignment `main.py` makes in the host, so a worker model gets the paged patcher |
+| `comfy.cli_args.args.<flag>` | every mirrored host flag is `setattr` onto the worker's args object (`mirrored_args.apply_host_args`), since a worker parses an empty argv and would otherwise resolve every dtype and memory flag to its default |
 
 !!! note "Nothing is patched in the parent"
     comfy-env adds an entry to `current_loaded_models` and otherwise leaves the

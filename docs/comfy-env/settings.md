@@ -12,7 +12,15 @@ and no per-pack override:
 COMFY_ENV_POOL_IPC=1 python main.py
 ```
 
-Truthy values for boolean env vars: `1`, `true`, `yes` (case-insensitive).
+Boolean env vars are parsed by whichever module reads them, and the rules
+differ (all case-insensitive):
+
+- `COMFY_ENV_DEBUG*` and `COMFY_ENV_POOL_IPC` are **on only** for `1`, `true`
+  or `yes`; anything else, including unset, is off.
+- `COMFY_ENV_PIN_MARKS`, `COMFY_ENV_MIRROR_ARGS` and `COMFY_ENV_NODE_STATE`
+  are **on unless** set to `0`, `false` or `off`.
+- `COMFY_ENV_WORKER_AIMDO` is on for any non-empty value except `0`, `false`,
+  `no` or `off`; unset means "no parent signal", which lands on the ledger.
 
 The one exception is debug logging, which has a persistent file as well --
 see [Debug logging](#debug-logging) for why that one can work and a general
@@ -32,8 +40,8 @@ and measurements: [ADR-0038](adr/0038-the-memory-floor.md).
 
 | Env var | default | meaning |
 |---|---|---|
-| `COMFY_ENV_WORKER_AIMDO` | on | `0` stops a worker enabling comfy-aimdo, so it runs the legacy ledger instead of paging. Every failure path already falls through to the ledger; this forces it. The one memory switch an operator is likely to want, and the one comfy-env's own warning tells them to reach for. |
-| `COMFY_ENV_RESIDENCY_REFRESH` | `boundary` | Which residency reports the host believes. `boundary` applies the census riding every frame; `command` trusts only command echoes; `off` reverts to registration-time pinning. Deliberately has no interval knob. |
+| `COMFY_ENV_WORKER_AIMDO` | follow host | The parent writes `1` or `0` into every worker's environment to match its own `comfy.memory_management.aimdo_enabled`, so a worker pages exactly when the host does. Pin `0` (in the environment or a pack's `[env_vars]`) to stop a worker enabling comfy-aimdo, so it runs the legacy ledger instead of paging. Every failure path already falls through to the ledger; this forces it. A worker with the variable unset also lands on the ledger ("no parent signal"). The one memory switch an operator is likely to want, and the one comfy-env's own warning tells them to reach for. |
+| `COMFY_ENV_RESIDENCY_REFRESH` | `boundary` | Whether the host applies the residency census riding every worker frame. `boundary` (or any value other than the ones below) applies it; `off`, `command`, `0` and `false` all do the same one thing -- skip the frame census. Command echoes (the reply to an eviction command) are applied regardless of this setting, so `command` and `off` are two spellings of one behaviour. Deliberately has no interval knob. |
 | `COMFY_ENV_PIN_MARKS` | on | Gates the prompt-epoch pin marks that protect a worker's in-use models from its own pin eviction. Off restores byte-identical pre-mark behaviour. |
 | `COMFY_ENV_NODE_STATE` | `sync` | Whether a node's mutated `self` state returns from the worker. `off` is the pre-2026-09 in-only wire. |
 | `COMFY_ENV_NODE_STATE_MAX_BYTES` | 8 MiB | Per-attribute cap on returned state. Anything larger stays worker-held behind a named marker: never silently truncated, never shipped. |
@@ -81,11 +89,13 @@ are forwarded to and parsed by workers directly.
     A file tier only reaches readers that import the module which loads it.
     `comfy_env.debug` is imported on the ComfyUI runtime path, so a key in
     `debug.env` lands in `os.environ` before a worker is spawned and is
-    inherited by it. `comfy_env.settings` is not, so the general
-    `~/.comfy-env/settings.env` that used to sit beside it was read only by
-    the CLI and the installer -- a toggle that reported itself as on and
-    changed nothing about how workers ran. It was deleted rather than wired
-    up; the settings it held are environment variables now.
+    inherited by it. `comfy_env.settings` loads no file: it is imported from
+    `comfy_env/__init__.py` today only so its removed-variable tombstones
+    can raise, but when the general `~/.comfy-env/settings.env` existed the
+    module was off the ComfyUI runtime path entirely and the file was read
+    only by the CLI and the installer -- a toggle that reported itself as on
+    and changed nothing about how workers ran. It was deleted rather than
+    wired up; the settings it held are environment variables now.
 
 Other `COMFY_ENV_*` variables you may see in a worker's environment
 (`COMFY_ENV_SERIALIZER_FILES`, `COMFY_ENV_ACCEL_PKGS`, ...) are internal

@@ -56,17 +56,21 @@ Every key in `comfy-env.toml` falls into one of four buckets:
 
 - **Ours**: comfy-env consumes it and emits something else. Exactly four keys.
 - **Passthrough**: copied into the generated `pixi.toml` untouched.
-- **Rewritten**: passed through, but not unchanged. Only the torch family.
+- **Rewritten**: passed through, but not unchanged. The torch family, plus the
+  two packages whose pin comfy-env replicates from the host (`comfy-aimdo`,
+  `comfy-kitchen`).
 - **Refused**: a hard error, because comfy-env generates it.
 
 | Key(s) | Bucket | Fate |
 |---|---|---|
 | `python` | ours | the env's interpreter pin (quoted string, 3.10 minimum) |
-| `[cuda]` | ours | packages resolved to prebuilt wheel URLs at install time |
-| `[env_vars]` | ours | env vars on this env's workers and scans -- never reaches pixi. **These land before comfy-env's own spawn-time writes and outrank them**, so a value pinned here wins over the host-derived one. That makes it a lever as well as a setting: pinning `COMFY_ENV_MIRROR_ARGS=0` here disables the host CLI flag mirror for this pack. Values are coerced with `str()`, so `{ N = 4 }` arrives as `"4"` |
+| `[cuda]` | ours | packages resolved to prebuilt wheel URLs at install time, inlined into the manifest as direct-URL pypi dependencies |
+| `[env_vars]` | ours | env vars on this env's workers and scans -- never reaches pixi. **These land before comfy-env's own spawn-time writes, and the host-derived writes (args mirror, aimdo enable/version/headroom, `COMFY_CPU`) are guarded not-in-env**, so a value pinned here wins over the host-derived one. That makes it a lever as well as a setting: pinning `COMFY_ENV_MIRROR_ARGS=0` here disables the host CLI flag mirror for this pack. A few writes are unconditional and overwrite a pack's value: `COMFY_ENV_IPC_ADDR`, `COMFY_ENV_IPC_AUTHKEY`, `COMFY_ENV_PARENT_CUDA_IPC`, `COMFY_ENV_HOST_LOG_LEVEL`, `COMFYUI_BASE`, `COMFYUI_ISOLATION_WORKER`, `PYTHONNOUSERSITE`, and `PYTHONPATH` / `PYTHONHOME` / `PYTHONSTARTUP` / `PYTHONUSERBASE` are removed (`subprocess.py`, `subenv.py`). Values are coerced with `str()`, so `{ N = 4 }` arrives as `"4"` |
 | `[options]` | ours | runtime knobs -- never reaches pixi. Exactly one exists today: `health_check_timeout` (seconds, per-env worker ping timeout, default 5.0); `call_timeout` is planned ([ADR-0018](adr/0018-worker-call-timeout.md)) |
-| `[dependencies]`, `[pypi-dependencies]`, `[target.*]`, `[activation]`, `[tasks]`, `[pypi-options]`, `[system-requirements]`, `[workspace]` | passthrough | forwarded verbatim into the generated `pixi.toml` (`[activation]` and `workspace.channels` are *merged* with comfy-env's own entries) |
+| `[dependencies]`, `[pypi-dependencies]`, `[target.*]`, `[activation]`, `[tasks]`, `[pypi-options]`, `[system-requirements]` | passthrough | forwarded into the generated `pixi.toml` at feature level (`[activation]` is *merged* with comfy-env's own `KMP_DUPLICATE_LIB_OK` entry; `[target.*]` keeps only the current platform's table) |
+| `[workspace]` | passthrough, partially | only `workspace.channels` is read and *merged* after `conda-forge`; every other `[workspace]` key is silently dropped (the generated `[workspace]` is comfy-env's own) |
 | `torch` / `torchvision` / `torchaudio` pins | rewritten | stripped and replaced with the workspace-wide pin, with a log line |
+| `comfy-aimdo` / `comfy-kitchen` pins | rewritten | replaced with the host ComfyUI's exact pin (or dropped when the host has none, leaving the solver to pick); an exact `==` pin that disagrees with the host is a `ValueError`. Both are also injected into every torch env that never declared them (`comfy-aimdo` only on CUDA stacks) |
 | `[environments]`, `[feature.*]` | refused | compiler-owned: the manifest is single-feature/single-environment by design |
 | `workspace.name` / `.version` / `.platforms` | refused | compiler-owned: env identity and host-derived platforms |
 | `[node_packs]`, `[types]` | refused | root-file sections -- the two files do not share a vocabulary |
@@ -97,8 +101,8 @@ something pixi understands.
 
 | You write | What it becomes | When |
 |---|---|---|
-| `python = "3.11"` | `[feature.<env>.dependencies] python = "3.11.*"` | build |
-| `[cuda] packages` | resolved wheel URLs, installed after pixi (see [cuda-wheels](../cuda-wheels/index.md)) | build |
+| `python = "3.11"` | `[feature.node.dependencies] python = "3.11.*"` (the single feature is always named `node`; the pixi environment is always `default`) | build |
+| `[cuda] packages` | resolved wheel URLs, inlined into the manifest as direct-URL `[feature.node.pypi-dependencies]` entries so they are solved and recorded in `pixi.lock` (see [cuda-wheels](../cuda-wheels/index.md)) | build |
 | `[env_vars]` | environment variables set on the worker process at spawn | run |
 | `[options]` | the one runtime knob: `health_check_timeout` (seconds, default 5.0) | run |
 
@@ -107,8 +111,11 @@ is **not** `[activation.env]`: it is applied when comfy-env spawns the metadata
 scan and the persistent worker, so it affects those processes and nothing else.
 
 Careful with `cuda`: it is not a pixi *table*, but it **is** a valid key
-*inside* `[system-requirements]`. Different thing, and comfy-env sets that one
-itself from the host.
+*inside* `[system-requirements]`. Different thing, and comfy-env never emits
+it: the only system requirements it derives from the host are `glibc` (Linux)
+and `macos` (macOS), written as keys on the workspace `platforms` entry, and
+only when the pack declared no `[system-requirements]` of its own. The CUDA
+major it detects is used for the torch index choice, not for this key.
 
 #### 2. Passthrough
 
@@ -125,6 +132,22 @@ Forwarded, but not unchanged: **torch-family pins**. `torch`, `torchvision`
 and `torchaudio` in `[dependencies]` or `[pypi-dependencies]` are stripped and
 replaced with the workspace-wide pin, and you get a log line saying so.
 The parent and every worker ideally share one identical torch for compatibility and disk space reasons.
+
+The same rule covers the two packages whose version comfy-env **replicates
+from the host** rather than authors: `comfy-aimdo` and `comfy-kitchen`
+(`_HOST_DERIVED_PKGS` in `toml_generator.py`). A pack's declaration in
+`[pypi-dependencies]` (or the current platform's `[target.*]` table) is
+replaced with the host ComfyUI's exact pin, read from the installed
+distribution or ComfyUI's `requirements.txt`; when the host has no pin the
+declaration is dropped and the solver picks. A wildcard or open range is
+normalised silently; an exact `==` pin that disagrees with the host raises
+`ValueError`, because a worker and its host must agree on these. Both are
+also **injected** into every env that has torch at all, even when the pack
+never declared them, since the host's ComfyUI imports them unguarded on the
+`comfy.model_patcher` import chain (`comfy-aimdo` is skipped on CPU stacks,
+where it has no code path). There is no operator switch for this: the
+`host_derived` parameter exists on `build_env_toml`, but `install_workspace`
+always leaves it at its default of on.
 
 #### 4. Refused
 
@@ -166,8 +189,10 @@ Notes:
 
 ### `[node_packs]`
 We can declare nodepacks to install together with our main one in various ways, both from the registry and from github.
-After cloning/downloading, the peer's own `requirements.txt` is
-pip-installed and its `install.py` run (the standard ComfyUI install flow)
+After cloning/downloading, the peer's own `install.py` is run (if it has
+one). Its `requirements.txt` is **not** pip-installed by comfy-env
+(`packages/node_packs.py` has no pip step); a peer that needs host packages
+must install them from its own `install.py`
 
 | Spelling | Example | What happens |
 |---|---|---|
@@ -178,9 +203,12 @@ pip-installed and its `install.py` run (the standard ComfyUI install flow)
 | `registry` | `{ registry = "pack-id" }` | zip download via `api.comfy.org/nodes/<id>/install` (latest version) |
 | `registry` + `version` | `{ registry = "pack-id", version = "1.2.0" }` | same endpoint, pinned version |
 
-`repo` is accepted as an alias for `github`. `tag`/`branch`/`commit` are
-mutually exclusive in effect (tag wins over branch; commit only consulted
-when neither is set).
+`repo` is accepted as an alias for `github`. `tag` wins over `branch` for
+the clone (`--depth 1 --branch <ref>`); `commit` alone forces a full clone.
+The post-clone `git checkout <commit>` runs whenever `commit` is set, tag or
+branch included -- so `{ tag = ..., commit = ... }` shallow-clones the tag
+and then fails the checkout unless the commit is reachable in that
+single-depth history.
 
 !!! tip "Note:"
     Isolation is per-directory, not per-pack: `nodes/main/` with no config

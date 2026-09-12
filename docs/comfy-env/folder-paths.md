@@ -1,7 +1,7 @@
 # comfy-env and model paths
 
 *The whole registry crosses the process boundary, so path handling simply
-works in a worker. One deliberate exception.*
+works in a worker. One exception, and it is a side effect.*
 {: .subtitle }
 
 ## ComfyUI background
@@ -31,8 +31,9 @@ plumbing they already have.
 
 ## One scalar that did not cross: `models_dir`
 
-**Fixed 2026-09-11** — `models_dir` is now in the snapshot. What follows is
-why it was missed, kept because the shape of the mistake is instructive.
+**Fixed 2026-09-12** (`fe9ff74`) — `models_dir` is now in the snapshot. What
+follows is why it was missed, kept because the shape of the mistake is
+instructive.
 
 The snapshot carried `base_path`, the four working directories and the whole
 `folder_names_and_paths` registry — and not `folder_paths.models_dir`.
@@ -57,16 +58,29 @@ silent duplicate downloads, or "model not found" for a file visibly on disk.
 
 ## Live re-listing is separate
 
-`get_filename_list` gets its own treatment, because a frozen list would go
-stale the moment a user drops in a new checkpoint. It is shimmed so a combo's
-options are resolved by the **parent**, at the moment ComfyUI asks, rather
-than captured at scan time. See [Dynamic combos](live-dropdowns.md).
+`get_filename_list` itself is not touched: nothing in comfy-env wraps it, in
+either process. What keeps a combo from freezing at scan time is that the
+**worker** re-runs the node's own `INPUT_TYPES` when ComfyUI asks for
+`/object_info` (`_refresh_combo_options` in `isolation/metadata.py`,
+`_handle_refresh_input_types` in the worker) — and only when that worker is
+already alive and idle. Otherwise the proxy serves the option list the scan
+captured. Because the call runs inside the worker, it goes through the
+worker's `folder_paths`, which is the snapshot described above. See
+[Live dropdowns](live-dropdowns.md).
 
-## One deliberate exception
+## One exception, and it is a side effect
 
-When a pack calls `add_model_folder_path` itself, comfy-env records it in a
-**private registry** and never writes it into ComfyUI's global dict
-(`isolation/metadata.py`).
+When a pack calls `add_model_folder_path` itself — typically at import, to
+register `models/mypack` — the call runs in the **worker**, against the
+worker's own `folder_paths` module. That module was rebuilt from the parent's
+snapshot before any pack code was imported, and nothing copies the worker's
+registry back. So the new category, or the new directory on an existing one,
+exists in the worker and nowhere else.
+
+comfy-env does not intercept the call. `isolation/metadata.py` declares a
+`_PACK_FOLDER_REGISTRY` and a `_LIVE_CACHE` for exactly this purpose, but
+nothing reads or writes either of them. The host dict is left untouched by
+the process boundary, not by a decision.
 
 The consequence is split:
 
@@ -78,12 +92,13 @@ The consequence is split:
 | The asset seeder | no |
 
 This is the one place where "a pack does not need to know it is isolated"
-stops being true. The rationale is recorded in a code comment and nowhere
-else, and it has no ADR.
+stops being true. It has no ADR; the two unused module globals are the only
+trace of an intended design.
 
 ## See also
 
-- [Dynamic combos](live-dropdowns.md) — how `get_filename_list` stays live
+- [Live dropdowns](live-dropdowns.md) — how a combo built from
+  `get_filename_list` stays live
 - [The process boundary](process-boundary.md) — the rest of what crosses
 - [Saved-image metadata](png-metadata.md) — `get_save_image_path` works;
   the metadata that should accompany it currently does not

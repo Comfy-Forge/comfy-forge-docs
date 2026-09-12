@@ -94,7 +94,7 @@ something **polls** it. And the polls are everywhere:
 | Poll site | Granularity |
 |---|---|
 | `nodes.py` `before_node_execution` | once per node |
-| `comfy/ops.py` `run_every_op` | **every Linear and Conv forward** — 14 call sites in `ops.py` |
+| `comfy/ops.py` `run_every_op` | **every Linear and Conv forward** — 13 call sites in `ops.py` |
 | `comfy/sd.py` | every tile of a tiled VAE encode/decode |
 | `comfy/context_windows.py` | every context window |
 | `comfy/ldm/minimax_music/ar.py` | every autoregressive step |
@@ -135,7 +135,7 @@ exception is not swallowed by ordinary code.
 
 ## What this means for a second process
 
-Three separate facts, each of which is a gap on its own:
+Three separate facts, the first two of which are gaps on their own:
 
 1. **The flag is a module global in the host's `comfy.model_management`.** A
    worker imports its own copy of that module, with its own flag, which
@@ -144,10 +144,16 @@ Three separate facts, each of which is a gap on its own:
 2. **The only way a cancel reaches a worker is as a reply to something the
    worker sent.** If the node drives a `ProgressBar`, the progress callback's
    reply can say "stop". If it does not, there is no channel.
-3. **What the worker raises on that reply is not a `BaseException`.**
-   comfy-env's `_InterruptedError` and `InterruptRequested` both subclass
-   `RuntimeError` — so the tile loop above swallows it, and because the host
-   already cleared its flag before replying, the cancel is lost for good.
+3. **What the worker raises on that reply has to be a `BaseException` too,
+   and the host must not spend the flag when it answers.** comfy-env's
+   worker-side `_InterruptedError` subclasses `BaseException`, so the tile
+   loop above lets it through; and the host reads the flag with
+   `processing_interrupted()` (a read that does not clear it) rather than
+   `throw_exception_if_processing_interrupted()`, so a swallowed reply
+   would not lose the click — upstream's own per-node check still finds
+   the flag set. `InterruptRequested`, the host-side `RuntimeError`, never
+   passes through node code: it is raised in the progress handler and
+   caught by the callback dispatcher that called it.
 
 [How comfy-env handles it](exceptions.md) covers each.
 

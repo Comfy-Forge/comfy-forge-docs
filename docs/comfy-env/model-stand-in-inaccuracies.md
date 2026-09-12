@@ -18,7 +18,9 @@ the card whole? The stand-in always answers **False**, even when the worker's
 model really is paged.
 
 **Why.** Answering True opens a door. ComfyUI then reads `dynamic_pins` off
-the object, a dictionary keyed by device holding six positional tuples, and
+the object, a dictionary keyed by device, each entry holding four six element
+positional tuples and four flags (`reset_cast_buffers` rewrites two of the
+tuples' buckets), and
 walks it after every node to manage pinned host RAM. That layout is internal,
 it changed twice in one year, and getting it wrong does not raise an error;
 it corrupts an accounting the host uses to decide what to page. Answering
@@ -35,7 +37,7 @@ wide figure that already sees every process, so nothing runs away; but it
 backs off at a different threshold than the host, and the host cannot ask it
 to do anything.
 
-## 2. One number stands in for three questions
+## 2. Its residency is a receipt, not a reading
 
 ComfyUI asks a loaded model three different things: how big is it
 (`model_size`), how much of it is on the card right now (`loaded_size`), and
@@ -43,20 +45,34 @@ therefore how much is already offloaded (`model_offloaded_memory`). It uses
 the third to decide which model to evict first, on the reasoning that a model
 already half on the CPU is the cheapest one to finish evicting.
 
-The stand-in answers all three from **one measured scalar**: the maximum of
-what comfy-aimdo says the worker holds and what torch says it has reserved.
+The stand-in answers the first two separately and lets upstream derive the
+third. `model_size()` returns the parameter plus buffer total the worker
+computed when it registered the model. `loaded_size()` returns
+`model_loaded_weight_memory` on its inner stand-in module, and that field is
+written only by the host applying what the worker last said: a command echo
+(`state_sync.apply_echo`, after a partial load, partial unload or detach) or
+the node boundary census (`state_sync.apply_residency`), both carrying the
+worker's own real `loaded_size()`, measured with whichever patcher the worker
+actually runs. The `max(aimdo, torch)` figure the worker also reports is a
+different number for a different consumer: it is the per worker `held`
+scalar, read by `pool._worker_charges` to size the reserve, and it never
+reaches the stand-in.
 
-**Why.** Those are the only two honest numbers a worker can report, and they
-overlap rather than add: a 4 GiB model measured 4.02 GiB in torch and 4.03 GiB
-in aimdo at the same instant, so summing them would book 8 GiB for a 4 GiB
-model. The maximum is the closest thing to truth available, and it is a single
-number because that is what the worker can measure about itself.
+**Why.** The worker is the only process that can measure its own residency,
+and it can only say so when it is talking: at a command reply, or at the
+boundary of a call. Between those moments the host has no channel, and under
+aimdo the pager faults pages in and out on the worker's own schedule with no
+message to anyone.
 
-**What it costs.** The eviction ordering is worse than it looks on paper.
-ComfyUI believes it is choosing the cheapest victim and is really choosing
-from an approximation. On a card with one host model and one worker model the
-choice is between two things and the ordering barely matters; with several of
-each it can evict something more expensive than it needed to.
+**What it costs.** Freshness. The honest gloss on `loaded_size()` is "how
+much was on the card when we last talked". An idle worker cannot re-fault
+(faults are synchronous worker Python), so for an idle worker the receipt is
+exact; a worker mid call can have moved gigabytes since its last echo. The
+eviction sort key is built from that stale number, so ComfyUI believes it is
+choosing the cheapest victim and is really choosing from a snapshot. On a card
+with one host model and one worker model the choice is between two things and
+the ordering barely matters; with several of each it can evict something more
+expensive than it needed to.
 
 ## 3. On Linux, its size is already counted
 

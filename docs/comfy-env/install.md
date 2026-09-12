@@ -101,7 +101,7 @@ geometrypack-nodes_py311-torch2.10-cpu
 geometrypack-nodes_py313-torch2.8-cu128
 ```
 
-[`comfy-env gc`](commands.md#comfy-env-gc) is a command that can be used to clear nodepacks that no
+[`comfy-env gc`](commands.md#comfy-env-gc) is a command that can be used to delete envs under `<root>/envs/` that no
 installed pack references ([ADR-0028](adr/0028-workspace-disk-lifecycle.md)).
 Full disk layout, including the pixi package cache that `COMFY_ENV_ROOT`
 does **not** move, is in [Drives and volumes](drives-and-volumes.md).
@@ -116,7 +116,9 @@ does **not** move, is in [Drives and volumes](drives-and-volumes.md).
     - configs outside `nodes/comfy-env.toml` or `nodes/<subdir>/comfy-env.toml` --
   invisible, deliberately, because the runtime binder can only bind those two
   shapes;
-    - a config that does not parse -- skipped, and reported in a batch at the end;
+    - a config that does not parse -- skipped, warned inline as the scan hits it,
+  then listed again as a batch as soon as discovery finishes (before the skip
+  gate, not at the end of the install);
     - **two configs deriving the same env name -- `ValueError`**, because they would
   share one env directory and rebuild over each other forever
   (`workspace.py`).

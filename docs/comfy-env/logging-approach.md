@@ -38,14 +38,16 @@ for us, it is the normal case.
 ## The shape of it
 
 comfy-env does not use the `logging` module for user-facing output. It prints.
-Four files reach for `logging.getLogger` and all four are internal;
-everything an operator ever reads is a `print()` with a bracketed prefix:
+Five files reach for `logging.getLogger` and all five are internal (three
+module loggers, a filter attached to the root logger, and the parent reading
+the root level to ship it to workers); everything an operator ever reads is a
+`print()` with a bracketed prefix. Counts at `fe9ff74`, by `grep`:
 
 | Prefix | Sites | Emitted by |
 |---|---|---|
-| `[comfy-env]` | 149 | the normal user-facing voice — 43 direct `print()` on the runtime path, 106 through the install path's `log` callback |
+| `[comfy-env]` | ~200 | the normal user-facing voice — about 45 are direct `print()` calls on the runtime path, the rest go through a `log` callback (the install path, and the memory seam's `_log`) |
 | `[SubprocessWorker]` | 15 | parent-side worker spawn and health, mostly behind `COMFY_ENV_DEBUG_WORKER` |
-| `[meta-scan]` | 9 | metadata scan and proxy synthesis |
+| `[meta-scan]` | 11 | metadata scan and proxy synthesis |
 | `[worker:<name>]` | 1 | the host re-emitting a line forwarded from a worker |
 
 The install path does not print directly. It threads a
@@ -61,9 +63,10 @@ UI, the ring and the terminal with no configuration, no handler, and no
 dependency on ComfyUI's logger surviving a refactor. Adding a `logging` handler
 would buy levels and cost a coupling.
 
-Roughly a third of those calls pass `file=sys.stderr` (53 of 152). Both streams
-are intercepted, so the choice affects ordering and `--log-stdout` behaviour,
-not visibility.
+Roughly a third of the host-side `print()` calls pass `file=sys.stderr` (51
+of 145 at `fe9ff74`, leaving out the worker script, whose `print` is
+hijacked anyway). Both streams are intercepted, so the choice affects
+ordering and `--log-stdout` behaviour, not visibility.
 
 ## Where comfy-env writes
 
@@ -71,8 +74,8 @@ not visibility.
 |---|---|---|---|
 | 1 | **The ComfyUI console** (and therefore the web UI) | everything printed in the host process | always |
 | 2 | **`<workspace>/install.log`** | the full install narration, plus subprocess stdout/stderr at a verbosity the console never shows | during `install()`, which runs outside the host process and so never reaches sink 1 |
-| 3 | **`$TMPDIR/comfy_worker_debug.log`** | worker-internal trace, 102 call sites | **always**, unrotated |
-| 4 | **`$TMPDIR/comfy_worker_watchdog.log`** | every thread's stack, every 60 s | `COMFY_ENV_DEBUG_WATCHDOG` |
+| 3 | **`$TMPDIR/comfy_worker_debug.log`** | worker-internal trace, 110 `wlog(` call sites at `fe9ff74` | **always**, unrotated |
+| 4 | **`$TMPDIR/comfy_worker_watchdog.log`** | every thread's stack, every 60 s | the watchdog thread starts when `COMFY_ENV_DEBUG_WATCHDOG` **or any of** `COMFY_ENV_DEBUG_SERIALIZE` / `IPC` / `WORKER` / `MODELS` (or the `COMFY_ENV_DEBUG` master) is on; it always writes the file, and only *prints* the dumps under `COMFY_ENV_DEBUG_WATCHDOG` |
 | 5 | **`$TMPDIR/comfy_worker_faulthandler.log`** | native traceback on SIGSEGV, SIGABRT and friends | always armed |
 
 Sinks 3 to 5 are files because the worker cannot safely print — see below.
@@ -134,14 +137,25 @@ The worker replaces `print` and adds a root logging handler
 def _forwarded_print(*args, **kwargs):
     sep = kwargs.get('sep', ' ')
     message = sep.join(str(a) for a in args)
-    transport.send({"type": "log", "message": message})
+    try:
+        transport.send({"type": "log", "message": message})
+    except Exception:
+        pass  # Don't fail if transport is closed
     wlog(f"[print] {message}")
 
-builtins.print = _forwarded_print                      # :1012
+builtins.print = _forwarded_print
 
-class SocketLogHandler(logging.Handler):               # :1020
+class SocketLogHandler(logging.Handler):
     def emit(self, record):
-        transport.send({"type": "log", "message": self.format(record)})
+        try:
+            msg = self.format(record)
+            transport.send({"type": "log", "message": msg})
+            wlog(f"[log] {msg}")
+        except Exception:
+            pass
+
+logging.root.addHandler(SocketLogHandler())
+logging.root.setLevel(int(os.environ.get("COMFY_ENV_HOST_LOG_LEVEL", logging.INFO)))
 ```
 
 and the parent recognises those frames anywhere in the stream, not just in
@@ -169,17 +183,21 @@ shows up in the browser terminal panel, prefixed with which worker said it.
 | `tqdm`, C-library writes to fd 2 | worker fd 2, inherited | yes | no |
 | a native crash (SIGSEGV, SIGABRT) | `faulthandler` -> file -> parent reads it back | yes | **yes** |
 
-The `logging.info` row is a second real hole, and a quiet one. The worker
-attaches `SocketLogHandler` to `logging.root` but never sets the root
-**logger's** level, and `grep -rn setLevel src/comfy_env/` returns nothing.
-The host does set it — `logger.setLevel(min([console_level, *file_levels]))`
-resolves to 15 (`DETAIL`) under default args (`app/logger.py`) — so
-INFO flows there. In a worker the root logger sits at the interpreter default
-of `WARNING`, which filters the record *before* any handler is consulted.
-Measured: a handler on root with no `setLevel` captures `WARNING` and `ERROR`
-and never sees `INFO`. A pack that logs at INFO loses every line the moment it
-is isolated, while `warning` and above keep working — which is precisely why
-it looks like logging is fine.
+The `logging.info` row used to be a second real hole, and a quiet one. A
+handler never sees a record the *logger* filtered first, and the root
+logger's interpreter default is `WARNING`; an earlier worker attached
+`SocketLogHandler` to `logging.root` without touching the level, so every
+`logging.info()` a pack emitted vanished on isolation while `warning` and
+above kept working — which is precisely why it looked fine. The worker now
+sets the root level from `COMFY_ENV_HOST_LOG_LEVEL`, which the parent fills
+with its own root logger's level at spawn (`subprocess.py`), falling back to
+`INFO` if the variable is missing or unparsable. On the host that level is
+what `setup_logger` computed: `logger.setLevel(min([console_level,
+*file_levels]))` in `app/logger.py`, which with no `--verbose` is `INFO`
+(20) — `main.py` passes an empty `file_outputs` list, so the `DETAIL`
+(15) file default inside `setup_logger` never applies. The worker admits
+exactly what the host admits: parity, not "forward everything", so `DEBUG`
+stays out when the host keeps it out (Known weakness 1, below).
 
 The `sys.stdout.write` row is a real hole too. The worker hijacks `builtins.print` but never
 reassigns `sys.stdout` or `sys.stderr` (grepped: zero assignments in
@@ -201,7 +219,7 @@ a node's deliberate stderr write is re-emitted on the host's stderr regardless.
 ### Why not just print from the worker
 
 `wlog`'s comment states the constraint directly
-(`_persistent_worker.py,105`):
+(`_persistent_worker.py`):
 
 ```python
 """Log to file only - stdout causes pipe buffer deadlock after many requests."""

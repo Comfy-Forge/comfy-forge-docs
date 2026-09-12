@@ -46,7 +46,7 @@ must not upgrade past.
 |---|---|
 | `lowvram` / `novram` / `highvram` | `vram_state` already crosses per call on the budget RPC; a second authority can disagree with it |
 | `cuda_device` | the worker inherits the host's already-narrowed `CUDA_VISIBLE_DEVICES`; the flag would re-index a second time |
-| `cpu` | `COMFY_ENV_COMFY_CPU` / `COMFY_CPU` owns it |
+| `cpu` | `COMFY_CPU` owns it: the parent sets `COMFY_CPU=1` at spawn when it runs `--cpu` and the worker sets `args.cpu=True` from it. (The `mirrored_args.py` docstring also names a `COMFY_ENV_COMFY_CPU`; no code reads that spelling) |
 | `reserve_vram` | crosses three times with one owner — `SIMPLE_HEADROOM` at spawn, `EXTRA_RESERVED_VRAM` as the budget owner's advance payment, settled by every budget reply |
 | `cache_*` | executor-side; workers run no prompt queue |
 | listen, port, auth, path flags | host server surface |
@@ -69,7 +69,7 @@ against the allowlist *and* its stated rationale:
 | mirrored | 33 | the contract |
 | stated reason, confirmed correct | ~12 | fine |
 | covered by an env var or a dedicated seam instead | ~12 | fine — `CUDA_VISIBLE_DEVICES`, `COMFY_ENV_AIMDO_*`, `COMFY_CPU` |
-| path flags, covered by the `folder_paths` snapshot | 7 | fine, with one residue: [`models_dir`](folder-paths.md#one-scalar-does-not-cross-models_dir) |
+| path flags, covered by the `folder_paths` snapshot | 7 | fine; the one former residue, [`models_dir`](folder-paths.md#one-scalar-that-did-not-cross-models_dir), now crosses in the snapshot too |
 | no worker-side reader at all | ~28 | correctly ignored |
 | **read in a worker, absent from both the list and the rationale** | **~15** | **the "nobody noticed" set** |
 
@@ -80,10 +80,10 @@ in families the allowlist was never built around:
 
 | Flag | Read at | Effect in a worker |
 |---|---|---|
-| `use_split_cross_attention`, `use_quad_cross_attention`, `use_pytorch_cross_attention`, `use_ck_attention`, `disable_xformers` | `model_management.py, 463-473, 519, 1688` | a `--use-quad-cross-attention` host (the documented low-VRAM workaround) gets workers on SDPA and OOMs in the pack only; a `--disable-xformers` host gets xformers back |
+| `use_split_cross_attention`, `use_quad_cross_attention`, `use_pytorch_cross_attention`, `use_ck_attention`, `disable_xformers` | `model_management.py` | a `--use-quad-cross-attention` host (the documented low-VRAM workaround) gets workers on SDPA and OOMs in the pack only; a `--disable-xformers` host gets xformers back |
 | `force_upcast_attention`, `dont_upcast_attention` | `attention.py` | black images from the isolated pack while the same model is fine in a host node — the exact symptom the flag exists to cure |
 | `cuda_malloc` / `disable_cuda_malloc` | `comfy/ops.py` | the env var crosses but the flag is `False`, so a worker allocates cast buffers on `cudaMallocAsync` — a combination the host never runs |
-| `verbose`, `log_stdout` | `app/logger.py` | the worker's log level is fixed at `WARNING` regardless — see [logging](logging-approach.md) |
+| `verbose`, `log_stdout` | `app/logger.py` | the *level* now crosses out-of-band rather than through the mirror: the parent ships its resolved root level as `COMFY_ENV_HOST_LOG_LEVEL` at spawn and the worker applies it to `logging.root`, so a `--verbose DEBUG` host gets DEBUG workers. `log_stdout` has no worker-side effect (worker output is forwarded over the socket, not written to a stream) — see [logging](logging-approach.md) |
 | `enable_triton_backend` / `disable_triton_backend` | `comfy/quant_ops.py` | a host that force-disabled the ROCm Triton backend gets it back in workers |
 | `disable_comfy_compiler`, `disable_cuda_graphs`, `assert_graph_breaks` | `model_prefetch.py`, `gemma4.py` | host disabled the compiler; the worker compiles and CUDA-graphs anyway |
 | `directml` | `model_management.py` | a DirectML host runs GPU; the worker silently falls to CPU |

@@ -4,8 +4,13 @@
 process. Both have semantics that surprise people.*
 {: .subtitle }
 
-Both run **at validation time, in the ComfyUI process, before anything
-executes**. That timing is what makes them hard to isolate.
+Both run **in the ComfyUI process, before anything executes** — but not at
+the same moment. `VALIDATE_INPUTS` runs inside `validate_prompt`, on the
+server side, when the prompt is submitted. `IS_CHANGED` is evaluated later:
+`PromptExecutor.execute_async`, on the prompt-worker thread after the prompt
+is dequeued, hands an `IsChangedCache` to each cache's `set_prompt`, and the
+fingerprints are computed there while the cache keys are built, before any
+node runs. That timing is what makes them hard to isolate.
 
 ## `IS_CHANGED` — telling the cache it is wrong
 
@@ -45,7 +50,7 @@ Two properties are easy to miss:
 
 Returning `True` accepts the prompt; returning a string rejects it with that
 message. But the part that catches people is what its **argspec** does
-(`execution.py, 1019`):
+(`execution.py`):
 
 ```python
 argspec = inspect.getfullargspec(validate_function)

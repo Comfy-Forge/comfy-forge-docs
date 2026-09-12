@@ -100,8 +100,12 @@ any the pack's own validate named.
 
 Combos only, and deliberately. They are the exact set whose options the
 refresh can rewrite, and they have no min/max — so numeric clamps keep
-working. A `**kwargs` form would exempt every input on the node and silently
-disable those clamps, which is why the names are exact.
+working. comfy-env never *adds* a `**kwargs` form, because that would exempt
+every input on the node and silently disable those clamps. It does
+*reproduce* one: if the pack's own validate was written `(cls, **kwargs)`,
+the synthesized signature carries `**kwargs` too (`validate_varkw`, captured
+by the scan), and every built-in check is waived — exactly as it is
+natively.
 
 Only the *signature* is reproduced. The synthesized body is `return True`, so
 the pack's own validation logic never runs — see
@@ -115,8 +119,8 @@ stale dropdown.
 
 So every failure on this path returns `None` and the proxy keeps its cached
 options: a dead socket, a busy worker, a pack whose `INPUT_TYPES` throws, a
-malformed reply. The worker logs its own error once; the user sees a dropdown
-that has not moved.
+malformed reply. The worker logs the error on every failed call — once per
+`/object_info` request — and the user sees a dropdown that has not moved.
 
 ## Limits — read this part
 
@@ -131,6 +135,10 @@ that has not moved.
   says so. The miss answer is inverted on purpose: a stale dropdown is
   cosmetic, a stale cached result is wrong. See
   [caching and validation](caching-and-validation.md).
+- **V1-shaped combos only.** Both the worker's reply and the parent's splice
+  recognise a combo by its spec's first element being a list. A V3 `Combo`
+  input serializes as `("COMBO", {"options": [...]})`, so it is neither
+  refreshed nor exempted from validation; it stays at its scan-time list.
 - **Everything else in the payload stays frozen** — `RETURN_TYPES`, tooltips,
   and any option list computed from something other than a file listing
   (installed backends, GPU capability probes, API queries). Those are live

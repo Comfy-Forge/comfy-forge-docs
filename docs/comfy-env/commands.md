@@ -7,7 +7,7 @@
 | [`install`](#comfy-env-install) | Build/refresh every isolated env for a pack |
 | [`init`](#comfy-env-init) | Scaffold a config file in the current directory |
 | [`info`](#comfy-env-info) | Show the detected runtime (OS, python, torch, accelerator) |
-| [`settings`](#comfy-env-settings) | TUI for feature flags (`~/.comfy-env/settings.env`) |
+| [`settings`](#comfy-env-settings) | TUI for debug-logging categories (`~/.comfy-env/debug.env`) |
 | [`gc`](#comfy-env-gc) | List (and optionally delete) orphaned envs |
 
 `comfy-env --version` prints the installed version.
@@ -22,7 +22,7 @@ that page applies; the flags are the only CLI-specific part:
 | Flag | Meaning |
 |---|---|
 | `--dir`, `-d` | The pack directory. **Use this.** Without it, the config is resolved from the *current* directory, which fails from the ComfyUI root -- `comfy-env install --dir custom_nodes/<pack>` is the spelling that works from anywhere, and the one error messages print. |
-| `--dry-run` | Runs the whole derivation and stops before `pixi install`: discovers every env, resolves the torch/CUDA combo and the CUDA-wheel URLs, and **writes each env's `pixi.toml`** -- the manifests plus the printed log *are* the report. Nothing is downloaded and no env is created or modified. (It does rewrite the per-env manifests on disk; harmless to a live install, since workers launch with `pixi run --as-is` and a real install re-derives from config, not from these files.) |
+| `--dry-run` | Runs the derivation and stops before `pixi install`: discovers every env, resolves the torch/CUDA combo and the CUDA-wheel URLs, and **writes the `pixi.toml` of every env whose [fast key](seals.md) missed** (or that sits on a fallback combo) -- the manifests plus the printed log *are* the report. Envs whose fast key matches are never re-derived, so on a clean install it writes nothing; for the stale ones it skips the identity comparison and writes the manifest unconditionally. Nothing is downloaded and no env is created or modified. (Rewriting a stale env's manifest is harmless to a live install, since workers launch with `pixi run --as-is` and a real install re-derives from config, not from these files.) |
 
 Exit is non-zero on failure, with the reasons batched per
 [When it fails](install.md#when-it-fails).

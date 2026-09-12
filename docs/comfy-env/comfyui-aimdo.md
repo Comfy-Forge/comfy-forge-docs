@@ -24,7 +24,8 @@ PyTorch 2.8+, CUDA 12.8+, Windows 11 and Linux.
 !!! note "What this page is read from"
     The wheel ships **seven readable Python modules**, `control.py`,
     `model_vbar.py`, `host_buffer.py`, `vram_buffer.py`, `model_mmap.py`,
-    `torch.py`, plus `aimdo.so` and `aimdo_rocm.so`.
+    `malloc_graph.py` and `torch.py` (plus a generated `_version.py`), and the
+    two shared objects `aimdo.so` and `aimdo_rocm.so`.
 
     Most of this page comes from those shims, from ComfyUI's own call sites,
     or from aimdo's README, **quoted and attributed**. The pressure-sensing
@@ -283,12 +284,22 @@ accounting reports success, because torch never feels pressure.
 The topology used to be **asymmetric**: workers never execute `main.py`, so a
 worker's `control.lib` stayed `None` and its models used the legacy
 `ModelPatcher` while the parent paged. comfy-env closes that at worker start:
-`maybe_enable_aimdo` initialises aimdo whenever the wheel imports and a CUDA
-device is visible, mirroring the parent's headroom and refusing on a PROTOCOL
-difference rather than a version difference. Both sides normally page. The
-asymmetry that remains is deliberate and narrow: CPU workers, failed init, and
-an explicit level below `paged` stay on the ledger, and comfy-env reports
-whichever way each worker resolved. See
+`maybe_enable_aimdo` initialises aimdo when the parent told it to
+(`COMFY_ENV_WORKER_AIMDO`, exported as `1` exactly when the host's own
+`aimdo_enabled` is True, and read before anything else), the wheel imports
+and a CUDA device is visible, mirroring the parent's headroom. Nothing
+refuses on a version or protocol difference: a version mismatch against the
+host is logged and paging proceeds; `control.init` is tried with the host's
+headroom and pressure policy and falls down a `TypeError` ladder to older
+call shapes, logging which policy was dropped; and on a wheel whose
+`init_devices` takes bare ints, `aimdo_device_args` drops the per device
+headroom and says so. Both sides normally page. The asymmetry that remains is
+deliberate and narrow: a host that is itself on the ledger puts every worker
+on the ledger; CPU workers, failed init, and an explicit
+`COMFY_ENV_WORKER_AIMDO=0` stay on the ledger; and comfy-env reports
+whichever way each worker resolved. There is no level ladder any more: the
+old `COMFY_ENV_MEMORY_MANAGEMENT` variable was deleted because it gated
+nothing, and the one switch left is the enable flag plus follow-the-host. See
 [comfy-env's memory management](memory-approach.md).
 
 Three consequences, measured against comfy-env `bda45b7` and re-checked at `f1f8260`:
@@ -313,18 +324,25 @@ Three consequences, measured against comfy-env `bda45b7` and re-checked at `f1f8
     host's pin, and reports which manager every worker resolved to. It also
     moves aimdo's headroom at runtime: `set_simple_vram_headroom` is live at
     the next page fault, measured, and comfy-env forwards its published
-    reserve into it on every publish. An earlier draft of this page said the
-    headroom was fixed once devices initialise; that was wrong, and the
-    experiment behind it used plain `nn.Linear` modules which never page.
-    What is fixed once devices initialise is `init_devices` itself: a second
-    call returns `False`, and a second `control.init` segfaults the process.
+    reserve into it whenever the published value changes (`_publish_reserve`
+    writes `EXTRA_RESERVED_VRAM` and calls the forward only on a change, so
+    a republish of the same number touches nothing). An earlier draft of this
+    page said the headroom was fixed once devices initialise; that was wrong,
+    and the experiment behind it used plain `nn.Linear` modules which never
+    page. What is fixed once devices initialise is `init_devices` itself: a
+    second call returns `False`. A second `control.init` is harmless at
+    0.5.2: it short-circuits when `lib` is already loaded, re-applies the
+    headroom and NVML flag it was given, and returns `True`. The one catch is
+    that `nvml_pressure` defaults to `False`, so a bare second `init()` turns
+    NVML pressure off for the process.
 
 ## Things worth knowing before you debug
 
 - **`--lowvram` is inert here.** Upstream's own help text says so.
-- **Hooks are unimplemented.** `ModelPatcherDynamic.patch_hooks` raises
-  `RuntimeError("Hooks not implemented in ModelPatcherDynamic")`. Some `--fast`
-  arguments will refuse to run.
+- **Hooks are unimplemented.** `ModelPatcherDynamic.patch_hook_weight_to_device`
+  raises `RuntimeError("Hooks not implemented in ModelPatcherDynamic")`;
+  `patch_hooks` itself is inherited from `ModelPatcher` and only reaches the
+  raise through that override. Some `--fast` arguments will refuse to run.
 - **GGUF is the documented reason to turn this off**, and upstream would rather
   you didn't: the deprecation warning recommends keeping dynamic VRAM enabled
   and using native ComfyUI model formats instead.

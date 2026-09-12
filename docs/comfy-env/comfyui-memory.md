@@ -212,10 +212,14 @@ total. That is management, but it is management without a defined manager.
       aimdo is enabled (`utils.py`). The legacy path loads through
       `safetensors.safe_open`, so `DIRTY_MMAPS` stays empty and there is nothing
       to bounce.
-    * **Cross step state** persists on the legacy path. `_register_cross_step` is called
-      from model code with no aimdo gate (`llama.py`, `gemma4.py`,
-      `ar.py`) and nothing clears it. It is a `weakref.WeakSet`, so an entry
-      does go away once its module is collected, but not at the node boundary.
+    * **Cross step state** is empty on either path now. `_register_cross_step`
+      and its `CROSS_STEP_STATE` set are still in `model_management.py`, but
+      the three model side callers they had (`llama.py`, `gemma4.py`, `ar.py`)
+      were removed on 2026-09-05 by the Comfy Compiler commit (`804eb551`),
+      which moved that reuse into `model_prefetch.py`'s CUDA graph machinery,
+      released by `cleanup_prefetch_queues` from the same `finally`. So the
+      registry exists, nothing writes to it, and the `WeakSet` walk in
+      `reset_cast_buffers` iterates nothing.
 
 !!! danger "The two managers share a channel for RAM and have none for VRAM"
     They do talk. Before it pins a tensor the **Model weights** manager calls the
@@ -286,7 +290,11 @@ ComfyUI tells you which one you got, in the log:
 aimdo is the default. `main.py` picks it unless one of four things stops it:
 a flag (`--disable-dynamic-vram`, `--highvram`, `--gpu-only`, `--novram`,
 `--cpu`), an unsupported GPU (aimdo needs NVIDIA, or AMD on ROCm 7.14 and later), torch below
-2.8, or a failed init.
+2.8, or a failed init. One flag runs the other way: `--enable-dynamic-vram`
+forces the pager on past the first three gates, flags, GPU and torch version
+alike (`enables_dynamic_vram` in `cli_args.py` returns True before reading
+anything else, and `main.py` skips the torch floor for it), so with it only a
+failed `init_devices` still lands on the ledger.
 
 !!! warning "The escape hatch is being removed. The ledger is not"
     `--disable-dynamic-vram` prints *"this argument will be removed soon"*
@@ -633,10 +641,17 @@ A worker never runs `main.py`, and inside ComfyUI `aimdo_enabled` is set in
 exactly one place: `main.py`, defaulting to `False` at
 `memory_management.py`. Left alone, every isolated worker would therefore
 resolve to the ledger. comfy-env closes that gap: `maybe_enable_aimdo`
-initialises aimdo at worker start (`memory_manager.maybe_enable_aimdo`)
-whenever the wheel imports and a CUDA device is visible. **A worker falls back
-to the ledger on CPU, on a failed init, or when `COMFY_ENV_WORKER_AIMDO=0` is
-set.** A comfy-aimdo version difference against the host is reported and
+initialises aimdo at worker start (`memory_manager.maybe_enable_aimdo`), and
+the first thing it reads is `COMFY_ENV_WORKER_AIMDO`. The worker follows the
+host: the parent exports `1` only when its own `aimdo_enabled` is True and
+`0` otherwise, and an unset variable (no parent signal) means the ledger. So
+a host that is itself on the ledger, for any of the four reasons above, puts
+every one of its workers on the ledger too, before the wheel or the device is
+looked at. **A worker falls back to the ledger when the host is on the
+ledger, on CPU, on a failed init, or when `COMFY_ENV_WORKER_AIMDO=0` is set
+(a pack's `[env_vars]` or the operator's shell can set it either way, and
+that outranks the host-derived value).** A comfy-aimdo version difference
+against the host is reported and
 proceeds; it is not a fallback trigger. See
 [comfy-env's memory management](memory-approach.md).
 
@@ -668,20 +683,39 @@ development machine were in that state.
     not. Nobody configures this. It follows from install state, and it can
     change between runs when someone materialises an env.
 
-    comfy-env logs the resolved manager at worker start and states a mismatch
-    once per process. There is no HTTP endpoint: registering one from
+    comfy-env reports this once per environment (`_report_memory_manager`,
+    keyed on the env directory, re-armed if that worker dies and is
+    replaced). The routine "memory manager=... host=..." line is only printed
+    under `COMFY_ENV_DEBUG_WORKER`; what is always printed is the WARNING when
+    a worker resolved differently from the host, carrying the worker's own
+    reason. There is no HTTP endpoint: registering one from
     `register_nodes` collides on the second pack, because ComfyUI flushes a
     single shared route table.
 
-### What a worker never releases
+### What a worker releases, and when
 
 Inside ComfyUI, `reset_cast_buffers` has one caller, `execution.py`, and a
 worker does not run ComfyUI's executor. comfy-env therefore mirrors the release
 at its own node boundary: `release_node_boundary` runs in a `finally` around
 every worker call, and fires whenever aimdo is live in that worker, which is the
-default. On a worker that fell back to the ledger nothing releases the cast
-buffers, and they are held at their high water mark, `NUM_STREAMS` (2 on NVIDIA
-and AMD) times the largest single weight, for the worker's life.
+default. A worker that fell back to the ledger gets a coarser version of the
+same thing: `cast_epoch_boundary` (`memory_manager.py`) runs at the START of
+every worker request and calls `reset_cast_buffers` whenever the prompt epoch
+has changed, so the buffers ratchet to `NUM_STREAMS` (2 on NVIDIA and AMD)
+times the largest weight cast so far within one prompt, and are released
+before the next prompt's first node rather than held for the worker's life.
+It was written for exactly the non-aimdo worker, after measuring 2 x 512 MiB
+held through unloads and four small-model nodes. A missing epoch token
+degrades to a reset per call.
+
+One thing makes the worker's cast path unlike the host's. In the host,
+`cuda_malloc.py` sets `args.cuda_malloc` True by default and `ops.py` skips
+the torch cast buffer entirely under that flag. A worker parses an empty argv
+and never imports `cuda_malloc.py`, and the flag is not mirrored, so
+`args.cuda_malloc` is False there even though the worker inherited the
+host's `cudaMallocAsync` allocator through the environment. The worker
+therefore takes the cast buffer path a default host never does, which is why
+the ratchet above is a worker problem in the first place.
 
 ### Every process budgets pinned memory independently
 

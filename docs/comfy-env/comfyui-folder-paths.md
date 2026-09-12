@@ -20,10 +20,10 @@ It is not only a lookup table. It keeps four different kinds of state.
 
 | # | What it keeps | ELI5 | Variation |
 |---|---|---|---|
-| 1 | **The model registry** | Ask it for `loras` and it tells you which folders to search and which file extensions count as one. | `<base>/models/<name>` for 25 of the 27 categories; `custom_nodes` and `datasets` sit directly under `<base>`. `--models-directory` moves the models root on its own, and `extra_model_paths.yaml` adds further folders to any category. |
+| 1 | **The model registry** | Ask it for `loras` and it tells you which folders to search and which file extensions count as one. | `<base>/models/<name>` for 25 of the 27 categories; `custom_nodes` and `datasets` sit directly under `<base>`. `--models-directory` moves the models root on its own, and `extra_model_paths.yaml` adds further folders to any category, or registers a new one. |
 | 2 | **The four working directories** | `<base>/input` — what you upload.<br>`<base>/output` — what gets saved.<br>`<base>/temp` — previews and scratch, **wiped at every startup**.<br>`<base>/user` — `users.json`, the `comfyui.db` SQLite file, your settings and saved workflows. | This is where installs actually diverge. Manual clone and Windows portable: `<base>` is the folder holding `main.py`, so all four sit beside the code. **Desktop: `<base>` is the user data folder — `~/Documents/ComfyUI` by default, chosen at first run — while the code stays in the app bundle.** Each of the four is separately overridable, and `--temp-directory` appends `temp` to whatever you pass it. |
 | 3 | **Two caches** | Remembers what is on disk, so opening a model dropdown does not re-scan every folder. One stores each folder's **mtime** — the timestamp the filesystem stamps when entries are added, deleted or renamed — and throws the list away the moment any stamp moves. The other lives for a single request. | Memory only. Coarse mtime on FAT32/exFAT (1–2 s) can briefly hide a new file. |
-| 4 | **The file-access safety rules** | Every filename in a workflow is user input. This is what stops a `LoadImage` widget set to `../../../.ssh/id_rsa` from opening it, and stops an `evil.html` uploaded to `input/` from **running** when someone opens it through `/view` instead of downloading. | Windows only, and both are bypass risks rather than cosmetics. A path on `C:` cannot be compared against an output folder on `D:` — `commonpath` raises, and that is treated as *outside*. And `guess_type("x.js")` returns `text/javascript` on some platforms and `application/javascript` on others, so the blocklist carries both spellings; one missing spelling is a way through. |
+| 4 | **The file-access safety rules** | Every filename in a workflow is user input. This is what stops a `LoadImage` widget set to `../../../.ssh/id_rsa` from opening it, and stops an `evil.html` uploaded to `input/` from **running** when someone opens it through `/view` instead of downloading. | Both are bypass risks rather than cosmetics. One is Windows-only: a path on `C:` cannot be compared against an output folder on `D:` — `commonpath` raises, and that is treated as *outside*. The other varies by platform everywhere: `guess_type("x.js")` returns `text/javascript` on some platforms and `application/javascript` on others, so the blocklist carries both spellings; one missing spelling is a way through. |
 
 </div>
 
@@ -63,7 +63,7 @@ a "category" can be:
 | Category | Extensions | Meaning |
 |---|---|---|
 | `configs` | `[".yaml"]` | text, not weights |
-| `diffusers` | `["folder"]` | the entry is a **directory**, not a file |
+| `diffusers` | `["folder"]` | a placeholder `folder_paths` never interprets: no filename ends in `.folder`, so `get_filename_list("diffusers")` is always empty. The directory semantics live in `nodes.py` — `DiffusersLoader` walks `get_folder_paths("diffusers")` looking for a `model_index.json` |
 | `classifiers` | `{""}` | extensionless files only |
 | `custom_nodes`, `datasets` | `set()` | empty set means **accept everything** |
 
@@ -92,7 +92,7 @@ the base rather than deriving from it:
 | `--base-directory` | models, custom_nodes, input, output, temp, user — all at once |
 | `--models-directory` | just the models root, overriding `--base-directory` |
 | `--output-directory`, `--input-directory`, `--temp-directory`, `--user-directory` | one working directory each, overriding `--base-directory` |
-| `extra_model_paths.yaml` | adds directories to existing categories; `~` and environment variables are expanded (`utils/extra_config.py`) |
+| `extra_model_paths.yaml` | adds directories to existing categories, or creates a new category (with an empty extension set) for a name it has not seen — it goes through `add_model_folder_path`; `~` and environment variables are expanded (`utils/extra_config.py`) |
 
 ## What actually differs between operating systems
 
@@ -105,7 +105,7 @@ separators:
 | Behaviour | Windows | Linux / macOS | Why |
 |---|---|---|---|
 | **The output filename counter** | `IMG_00001_.png` and `img_00001_.png` collide, so the counter continues across both | they are different files and each gets its own counter | `os.path.normcase` lowercases on Windows and is a no-op on POSIX |
-| **Containment check across drives** | comparing `C:\...` with `D:\...` raises `ValueError`, which is caught and treated as *outside* | not reachable | upstream's own comment at |
+| **Containment check across drives** | comparing `C:\...` with `D:\...` raises `ValueError`, which is caught and treated as *outside* | not reachable | upstream's own comment says so |
 | **MIME type spelling** | `guess_type` may return `text/javascript` **or** `application/javascript` | same variance | why `DANGEROUS_CONTENT_TYPES` lists both spellings |
 | **Subfolder paths in API responses** | `\` is rewritten to `/` before the list is returned | already `/` | `rel_path.replace(os.sep, '/')` |
 | **Symlinked model directories** | followed, but creating one needs privilege or developer mode | followed | `os.walk(..., followlinks=True)` |

@@ -48,7 +48,7 @@ what each checker can see.
 
 | # | Behavior | Mechanism |
 |---|---|---|
-| 1 | **Precise degradation on the wrong machine.** The node still registers with its real inputs and outputs (shared workflows load, dispatcher node ids resolve) but is hidden from the node picker, its description badged "(requires CUDA, unavailable on this machine)", a startup line names it, and executing it raises a named reason error instead of a raw torch stack trace | the unavailable stub; the gate is machine backend &isin; declared list ([ADR-0012](adr/0012-unavailable-nodes-hidden-not-unregistered.md)) |
+| 1 | **Precise degradation on the wrong machine.** The node still registers with its real inputs and outputs (shared workflows load, dispatcher node ids resolve) but is hidden from the node picker, its description badged "(requires CUDA -- unavailable on this machine)", a startup line names it, and executing it raises a named reason error instead of a raw torch stack trace | the unavailable stub; the gate is machine backend &isin; declared list ([ADR-0012](adr/0012-unavailable-nodes-hidden-not-unregistered.md)) |
 | 2 | **Import hygiene, enforced twice.** The declaration tells both checkers which nodes may lazily import the `[cuda]` packages | [Enforcement](#enforcement) |
 | 3 | **Honest CPU test lanes.** comfy-test skips declared GPU nodes as "requires cuda" instead of faking their imports with empty mock modules | [What it buys you](#what-it-buys-you) |
 | 4 | **A machine readable tag**, `_comfy_env_accelerator` on the proxy class, for harnesses and future UI badging | registration |

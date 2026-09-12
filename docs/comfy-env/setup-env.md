@@ -28,7 +28,7 @@ hygiene.
     ```
     [comfy-env] comfyui-motioncapture: 1 isolation env(s):
     [comfy-env]   nodes -> ...\custom_nodes\comfyui-motioncapture\nodes
-    [comfy-env]     env: ...\comfy-env\envs\motioncapture-nodes  [OK]
+    [comfy-env]     env: ...\comfy-env\envs\motioncapture-nodes_py313-torch2.10-cu128\.pixi\envs\default  [OK]
     [comfy-env] prestartup complete
     ```
 
@@ -52,3 +52,10 @@ No pip, no pixi, no network, no writes to the workspace. A missing env is
 **reported, not repaired**.
 
 It **does not patch ComfyUI's globals** as a principle.
+
+One process-wide side effect is worth naming because it is not part of
+`setup_env()` at all but of the `import comfy_env` line that precedes it: the
+package's `install/__init__.py` (pulled in by the facade) sets
+`os.environ["PYTHONUNBUFFERED"] = "1"` and reconfigures `sys.stdout` and
+`sys.stderr` to line buffering for the whole process. That happens on import,
+before `setup_env()` runs, and stays in effect for ComfyUI's lifetime.

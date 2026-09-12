@@ -31,45 +31,66 @@ facade, and the transport leaf `_ipc_shared.py` imports nothing from
     - the worker pool moved out of `wrap.py` into `isolation/pool.py`;
       `metadata.py` imports it downward, closing the `wrap`↔`metadata` cycle.
 
-    The only lazy imports that remain are legitimate: deferring optional or
+    The lazy imports that remain are legitimate: deferring optional or
     heavy dependencies (`torch`, `comfy.*`, `aiohttp`) so the CPU metadata
-    scan runs on machines without them -- those point *down*, never up.
+    scan runs on machines without them, and a handful of intra-package
+    function-body imports (`workspace.py` reaching into `environment.cache`,
+    `metadata.py` probing `detection.backend`, `pool.py` pulling
+    `contract`) -- all of which point *down*, never up.
 
 ```mermaid
 flowchart TD
-    cli["cli.py<br/>comfy-env CLI + settings/debug TUIs"]
+    cli["cli.py<br/>comfy-env CLI + debug TUI"]
     facade["__init__.py<br/>public facade: install / setup_env / register_nodes"]
-    install["install/<br/>build-time orchestration<br/>(plugin.py, workspace.py, helpers.py)"]
-    isolation["isolation/<br/>runtime: wrap.py (register_nodes), metadata.py,<br/>pool.py, subenv.py, model_patcher.py, workers/"]
-    environment["environment/<br/>workspace layout (cache.py),<br/>prestartup (setup.py), libomp.py"]
-    packages["packages/<br/>cuda_wheels.py,<br/>toml_generator.py, node_dependencies.py"]
-    detection["detection/<br/>backend.py, cuda.py, gpu.py"]
+    install["install/<br/>build-time orchestration<br/>(plugin.py, workspace.py, helpers.py, progress.py)"]
+    isolation["isolation/<br/>runtime: wrap.py (register_nodes), metadata.py,<br/>pool.py, subenv.py, model_patcher.py, procgroup.py, workers/"]
+    floor["memory-floor modules (top-level leaves)<br/>memory_manager.py, state_sync.py, reserve.py,<br/>contract.py, mirrored_args.py"]
+    environment["environment/<br/>workspace layout (cache.py),<br/>prestartup (setup.py), libomp.py, runtime.py"]
+    packages["packages/<br/>cuda_wheels.py,<br/>toml_generator.py, node_packs.py"]
+    detection["detection/<br/>backend.py, cuda.py, gpu.py, arch.py"]
     pixi["pixi.py<br/>pinned pixi-binary provisioning (leaf)"]
     config["config/<br/>comfy-env.toml parsing"]
-    settings["settings.py<br/>feature flags"]
+    settings["settings.py<br/>removed-variable tombstones"]
     debug["debug.py<br/>debug categories"]
 
     cli --> facade
+    cli --> install
+    cli --> environment
+    cli --> config
+    cli --> debug
     facade --> install
     facade --> isolation
     facade --> environment
+    facade --> settings
     install --> packages
     install --> environment
     install --> detection
     install --> config
+    install --> pixi
     isolation --> environment
-    isolation --> packages
-    isolation --> install
+    isolation --> detection
     isolation --> config
-    isolation --> settings
     isolation --> debug
+    isolation --> pixi
+    isolation --> floor
     environment --> detection
-    environment --> settings
     packages --> detection
     packages --> config
-    detection --> pixi
     packages --> pixi
+    detection --> pixi
 ```
+
+The graph above is derived from two sources: the contracts in `.importlinter`
+(which name the layers and the forbidden edges) and a sweep of every
+`from ..`, `from comfy_env` and `import comfy_env` line under
+`src/comfy_env/`, function-body imports included. Edges that exist only as a
+function-body import (`install --> packages`, `install --> detection`,
+`isolation --> detection`, and the `contract` / `memory_manager` /
+`mirrored_args` edges into the memory-floor group) are drawn the same as
+top-level ones; every one of them points down. The five memory-floor modules,
+like `config/`, `debug.py`, `settings.py` and `pixi.py`, import nothing from
+`comfy_env`. `settings.py` is imported by the facade alone; nothing under
+`isolation/` imports `packages/` or `install/`.
 
 **The graph is fully acyclic at the module level -- no cycles, no
 exemptions for cycles.** Every edge points one way, and the only

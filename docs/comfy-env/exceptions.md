@@ -1,8 +1,8 @@
 # comfy-env and exceptions
 
-*An ordinary error in a worker comes back as `WorkerError`. A cancel comes
-back as a `RuntimeError` — which is the one thing upstream made sure it would
-never be.*
+*An ordinary error in a worker comes back as `WorkerError`. A cancel is a
+`BaseException` on both sides of the socket, as upstream made sure it would
+be — but it only reaches a node that reports progress.*
 {: .subtitle }
 
 ## ComfyUI background
@@ -14,10 +14,12 @@ How ComfyUI turns a throw into a red node, and why Cancel is a
 
 ## Ordinary errors
 
-A node exception in a worker is caught there, serialized with its type name,
-message and traceback, and re-raised in the host as `WorkerError`
-(`isolation/workers/base.py`). `isolation/errors.py` then translates
-it back — for exactly two cases:
+A node exception in a worker is caught there and serialized as an error
+frame carrying `error` (the message, `str(e)`), `traceback` (the formatted
+worker traceback, which is the only place the original type name appears)
+and, when the worker can tell, `error_kind` plus `oom_stats`; the host
+re-raises it as `WorkerError` (`isolation/workers/base.py`).
+`isolation/errors.py` then translates it back — for exactly two cases:
 
 ```python
 # isolation/errors.py -- the closed vocabulary
@@ -44,7 +46,8 @@ original type when that type is importable in the host, falling back to
 
 ## Cancel
 
-Three separate breaks, matching the three facts on the background page.
+Three parts, matching the three facts on the background page: two are
+still breaks, the third was one and is now the part that works.
 
 ### The worker's flag is never set
 
@@ -68,37 +71,42 @@ When a node does drive a `ProgressBar`, the worker's hook sends a
 interrupt if it is set. That is the entire cancel path. It rides on
 `PROGRESS_BAR_HOOK`, which is also the entire progress path.
 
-### What arrives is a `RuntimeError`
+### What arrives is a `BaseException`
 
 ```python
 # isolation/workers/_persistent_worker.py
-class _InterruptedError(RuntimeError):
+class _InterruptedError(BaseException):
 # isolation/workers/base.py
 class InterruptRequested(RuntimeError):
 ```
 
 Upstream chose `BaseException` so node code's `except Exception` cannot eat a
-cancel. comfy-env chose `RuntimeError`, which it can. Measured:
+cancel, and the worker-side class follows it: `_call_parent` raises
+`_InterruptedError` when the callback reply carries
+`error_kind: "interrupt"`, the progress hook re-raises it untouched, and it
+unwinds through the node's `except Exception` blocks exactly as upstream's
+`InterruptProcessingException` would. Every handler in the worker that must
+still turn it into an error frame names it explicitly —
+`except (Exception, _InterruptedError)` — so the main loop catches it, stamps
+`error_kind: "interrupt"`, and the host's `errors.py` re-raises upstream's
+real `InterruptProcessingException`.
 
-```
-upstream BaseException   -> survives except Exception
-comfy-env RuntimeError   -> SWALLOWED by except Exception
-```
+`InterruptRequested` is still a `RuntimeError`, and that is fine: it exists
+only on the parent side, raised by `_handle_progress` and caught by its
+caller `_handle_callback`, which turns it into the typed error reply. It never
+passes through node code on either side.
 
-And it is worse than a missed cancel, because of the one-shot flag: the host
-cleared `interrupt_processing` *before* answering the callback. Once the
-worker's `except Exception: continue` swallows the reply, the cancel is gone.
-The user presses Cancel again, and again, and only a press that lands while
-the node is *outside* its `try` block ever takes.
-
-**Fix: one word.** Both classes subclass `BaseException`. The transport
-already distinguishes them by type, so nothing else changes.
+The host's flag is not spent by the callback either. `_handle_progress` reads
+it with `mm.processing_interrupted()`, which does not clear it (only
+`throw_exception_if_processing_interrupted` does), and deliberately leaves it
+set so ComfyUI's own per-node check finds it too. The flag is reset at the
+next prompt start, not by comfy-env.
 
 ## Known gaps
 
 | # | Gap | Status |
 |---|---|---|
-| 1 | Cancel is swallowable — `RuntimeError` where upstream uses `BaseException` | open; one-word fix |
+| 1 | ~~Cancel is swallowable — `RuntimeError` where upstream uses `BaseException`~~ | **fixed**: `_InterruptedError` is a `BaseException`, and the host reads the interrupt flag without clearing it |
 | 2 | Cancel never reaches a node that does not drive a `ProgressBar` | deliberate, ADR-0018 |
 | 3 | `WorkerError` masks the original exception type | open |
 | 4 | A native crash (segfault) is not an exception at all — see the faulthandler readback in [logging](logging-approach.md) | handled, different mechanism |

@@ -47,8 +47,10 @@ Step by step:
    v3 schemas, dynamic option lists (model dropdowns). The parent never
    imports node code
    ([ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md)).
-   Scans are cached keyed by content hash, so unchanged packs skip the
-   subprocess on later launches.
+   Scans are cached keyed by a hash of every `.py` file's path and
+   `st_mtime_ns` under the package (stat calls only, no file reads), so a
+   pack whose sources have not been touched skips the subprocess on later
+   launches.
 4. **Proxy classes are synthesized** from that metadata with the standard
    node shape. When ComfyUI executes one, the call is forwarded to a
    **persistent worker** for that env, spawned on first use, kept alive
@@ -56,8 +58,13 @@ Step by step:
    down at exit. Tensors cross the boundary via the
    [serialization ladder](process-boundary.md#tensor-serialization-ladder).
 5. **Proxied API endpoints are registered.** A pack cannot hang routes off
-   `PromptServer` itself -- the server does not exist in its process -- so it
-   declares them, module-level, next to its nodes:
+   `PromptServer` itself. What its process has is a stand-in `server`
+   module (`server_stub.py`, staged beside the worker program and the scan
+   script) whose `PromptServer.instance` forwards `send_sync`,
+   `send_progress_text` and `client_id` to the host and raises
+   `AttributeError` for everything else -- there is no aiohttp app and no
+   `routes` table to hang a handler on. So a pack declares its routes,
+   module-level, next to its nodes:
 
     ```python
     ROUTES = [

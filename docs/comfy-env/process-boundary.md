@@ -17,9 +17,12 @@ Details for each follow on this page or where linked.
    ([register_nodes()](register-nodes.md)).
 3. **Spawn configuration** -- env vars: the socket address, a per-spawn auth
    secret, accelerator/serializer/debug settings ([table below](#the-spawn-time-channel)).
-4. **A ComfyUI state snapshot at startup** -- the parent's `sys.path` and its
-   entire resolved `folder_paths` state (input/output/user dirs, the models
-   search-path registry), pushed as the first config frame.
+4. **A ComfyUI state snapshot at startup** -- a purpose-built `sys_paths`
+   list (the ComfyUI base dir, the pack's working dir, the env's own
+   site-packages and the package root -- never the host's `sys.path`, whose
+   site-packages are deliberately withheld) and the parent's entire resolved
+   `folder_paths` state (input/output/user dirs, the models search-path
+   registry), pushed as the first config frame.
 5. **Node calls** -- request/response JSON over the socket. V1 nodes ship the
    proxy instance's `self_state` dict inbound, and the mutated state comes
    BACK: the worker diffs the instance after the call and returns `set` for
@@ -64,8 +67,11 @@ Details for each follow on this page or where linked.
     CUDA device UUID (mismatch demotes GPU zero-copy).
 13. **Crash evidence** -- exit code decoded to a signal name, the
     faulthandler and worker-debug log files read back by the parent, and
-    pids embedded in socket filenames so the next startup can reap stale
-    workers, sockets, and temp dirs ([ADR-0019](adr/0019-worker-lifecycle.md)).
+    a startup reaper for what a dead parent left behind: stale sockets
+    (macOS only -- the `unix://` filename carries the owning pid; Linux uses
+    the abstract namespace and has no file), orphaned workers found by
+    parent pid, and temp dirs no process is sitting in
+    ([ADR-0019](adr/0019-worker-lifecycle.md)).
 
 ## One node execution
 
@@ -109,6 +115,10 @@ sequenceDiagram
 
 Results and inputs cross the boundary via the first applicable strategy
 ([ADR-0005](adr/0005-tiered-tensor-serialization.md)):
+
+The numbering is by mechanism, not by precedence: for a CUDA tensor the
+worker's serializer tries **Pool IPC first** (when the opt-in probe passed),
+then legacy CUDA IPC, then falls to CPU shared memory (`_worker_tensor_serializer`).
 
 | # | Strategy | Wire type | Mechanism | Copies | Constraints |
 |---|----------|-----------|-----------|--------|-------------|
@@ -156,23 +166,26 @@ another name, set per worker, carrying data rather than toggles.
 | `COMFY_ENV_AIMDO_HEADROOM` | worker spawn, from `--vram-headroom` | the per-device headroom the host passed to `init_devices` |
 | `COMFY_ENV_AIMDO_SIMPLE_HEADROOM` | worker spawn, from `--reserve-vram` | the process-wide `simple_vram_headroom` seed |
 | `COMFY_ENV_AIMDO_NVML` | worker spawn | whether NVML pressure is on, mirroring `--disable-nvml-pressure` |
+| `COMFY_ENV_WORKER_AIMDO` | worker spawn, `"1"` or `"0"` following the host's `comfy.memory_management.aimdo_enabled` | which memory manager the worker resolves to: the worker follows the host rather than probing for itself (`memory_manager.py`) |
+| `COMFY_ENV_HOST_LOG_LEVEL` | worker spawn, from the host's root logger level | the worker's `logging.root.setLevel`, so it admits the same records the host does ([comfy-env's logging](logging-approach.md)) |
 | `KMP_DUPLICATE_LIB_OK`, `PYTHONIOENCODING` | env construction | two libraries' worth of scar tissue: duplicate OpenMP runtimes in one process, and Windows console encoding |
 
 !!! warning "A pack's `[env_vars]` outranks *some* of the rows above"
     A pack's `[env_vars]` lands in `env` first (`wrap.py` builds the dict,
-    `subenv.build_isolation_env` merges it), and the **host-derived** writes
-    are then guarded `if NAME not in env`, so a value pinned in a pack's
-    config wins over them. That is deliberate, and it makes `[env_vars]` a
-    lever rather than only a setting: a pack can pin
+    `subenv.build_isolation_env` merges it), and the **host-derived** memory
+    and CLI writes are then guarded `if NAME not in env`, so a value pinned
+    in a pack's config wins over them. That is deliberate, and it makes
+    `[env_vars]` a lever rather than only a setting: a pack can pin
     `COMFY_ENV_MIRROR_ARGS=0` and switch off the host CLI flag mirror for
     itself, or pin an aimdo headroom that disagrees with the host's.
 
     | Guarded -- `[env_vars]` wins | Unconditional -- overwrites `[env_vars]` |
     |---|---|
-    | `COMFY_ENV_AIMDO_VERSION`, `COMFY_ENV_AIMDO_ENABLE`, `COMFY_ENV_AIMDO_HEADROOM`, `COMFY_ENV_AIMDO_SIMPLE_HEADROOM`, `COMFY_ENV_AIMDO_NVML`, `COMFY_ENV_HOST_ARGS`, `COMFY_CPU`, `COMFY_ENV_EXTRA_RESERVED_VRAM` | `COMFY_ENV_IPC_ADDR`, `COMFY_ENV_IPC_AUTHKEY`, `COMFY_ENV_PARENT_CUDA_IPC`, `COMFYUI_BASE`, `COMFYUI_USER_DIR`, `COMFYUI_ISOLATION_WORKER`, `COMFY_ENV_ACCEL_PKGS`, `COMFY_ENV_SERIALIZER_FILES` |
+    | `COMFY_ENV_AIMDO_VERSION`, `COMFY_ENV_WORKER_AIMDO`, `COMFY_ENV_AIMDO_HEADROOM`, `COMFY_ENV_AIMDO_SIMPLE_HEADROOM`, `COMFY_ENV_AIMDO_NVML`, `COMFY_ENV_HOST_ARGS`, `COMFY_CPU`, `COMFY_ENV_EXTRA_RESERVED_VRAM` | `COMFY_ENV_IPC_ADDR`, `COMFY_ENV_IPC_AUTHKEY`, `COMFY_ENV_PARENT_CUDA_IPC`, `COMFY_ENV_HOST_LOG_LEVEL`, `COMFYUI_BASE`, `COMFYUI_USER_DIR`, `COMFYUI_ISOLATION_WORKER`, `COMFY_ENV_ACCEL_PKGS`, `COMFY_ENV_SERIALIZER_FILES` |
 
-    The split is not arbitrary: the right-hand column is the transport and
-    the identity of the worker's own ComfyUI. A pack that could pin
+    The split is not arbitrary: the right-hand column is the transport,
+    the identity of the worker's own ComfyUI, and the host's log level
+    (written last, unguarded). A pack that could pin
     `COMFY_ENV_IPC_AUTHKEY` or `COMFYUI_BASE` would not be configuring
     itself, it would be pointing the worker somewhere else. Platform
     scaffolding follows its own rule -- `KMP_DUPLICATE_LIB_OK` is
@@ -187,16 +200,17 @@ worker's import space; platform library paths (`LD_LIBRARY_PATH`,
 `DYLD_FALLBACK_LIBRARY_PATH`, win32 `PATH`) are set instead.
 
 Right after the socket handshake, one **config frame** crosses before any
-call: the parent's `sys.path` and its entire resolved `folder_paths` state --
-input/output/temp/user directories and the whole models search-path registry
--- so the worker's `folder_paths` answers match the parent's. The worker
+call: a `sys_paths` list the parent builds for the worker (the ComfyUI base
+dir, the pack's working dir, then the env's own site-packages and the package
+root from `wrap.py` -- the host's `sys.path` is deliberately *not* shipped,
+because host site-packages would leak the host's C-extension packages into an
+env that has its own torch) and the parent's entire resolved `folder_paths`
+state -- input/output/temp/user directories, `models_dir` and the whole models
+search-path registry -- so the worker's `folder_paths` answers match the
+parent's. The worker
 replies `ready`, optionally passes a CUDA mem-pool file descriptor
 (SCM_RIGHTS), and answers a canary echo that carries its `torch_version` and
 CUDA device UUID -- a mismatch demotes GPU zero-copy for that worker.
-
-`COMFY_TEST_MOCK_PACKAGES` is the comfy-test harness's variable
-(interpreted by comfy-env at import; see the accelerator page for its
-planned retirement).
 
 
 ## The channels a single call doesn't show
@@ -238,13 +252,22 @@ planned retirement).
 ## Crash and teardown
 
 Teardown is a `shutdown` frame, a 5 s grace, then `kill()`; the worker's
-temp dir is removed. A crash leaves evidence the parent reads back: the
-exit code (decoded to a signal name, Windows NTSTATUS included), the tail
-of the worker's faulthandler dump and debug log (`$TMPDIR/comfy_worker_*`
--- the faulthandler basename is a shared constant because it drifted once),
-and the watchdog's periodic all-thread stack dumps when enabled. Worker
-socket filenames embed the owning pid, so the *next* startup can reap what
-a crashed parent left behind: dead-owner sockets, orphaned worker
-processes, unused temp dirs ([ADR-0019](adr/0019-worker-lifecycle.md)).
-A restarted worker gets a new generation; stale patchers from the old one
-are quarantined as already-offloaded rather than evicted.
+temp dir is removed. A crash leaves evidence the parent reads back
+(`_worker_exit_diagnostic`): the exit code (a negative code is decoded to a
+POSIX signal name via `signal.Signals`; nothing else is decoded), and the
+last 20 lines of the worker's debug log and faulthandler dump
+(`$TMPDIR/comfy_worker_*` -- the faulthandler basename is a shared constant
+because it drifted once). The watchdog's periodic all-thread stack dumps,
+when enabled, go to their own file and are *not* read back -- open it
+yourself. The *next* startup reaps what a crashed parent left behind
+(`_cleanup_stale_workers`): on macOS the `unix://` socket filename embeds
+the owning pid, so a socket whose owner is dead is unlinked (Linux binds in
+the abstract namespace and leaves no file); worker processes are found by
+command line and killed when their parent pid is gone; `comfyui_pvenv_*`
+temp dirs are removed when no live process has them in its cwd or command
+line ([ADR-0019](adr/0019-worker-lifecycle.md)).
+Only the pool's replacement of a *dead* worker bumps the worker generation;
+the in-place restart `_ensure_started` performs after a failed health ping
+fires `_on_restart` (which invalidates the old patchers) without a new
+generation. Either way, stale patchers from the old worker are quarantined
+as already-offloaded rather than evicted.

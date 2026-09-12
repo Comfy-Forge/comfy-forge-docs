@@ -167,11 +167,20 @@ choices:
 * **A platform branch.** `blind_free_is_process_local` decides whether the
   host's free-memory reading can see other processes. Everything downstream
   asks it before trusting a number.
-* **Offset compensation.** When a pack asks the host to make room, comfy-env
-  adds the bytes packs are known to hold to the eviction target it passes to
-  `free_memory`. ComfyUI's own arithmetic then behaves as though its reading
-  were device-wide, and its eviction loop terminates at the right point
-  instead of running the candidate list dry.
+* **Offset compensation.** When a pack asks the host to make room,
+  `pool._handle_vram_budget` adds an offset to the eviction target it passes
+  to `free_memory`: ComfyUI's own `get_free_memory` reading minus the
+  device-wide free figure from NVML (or `nvidia-smi`). It does this on every
+  platform where NVML answers, not only on Windows. On WDDM the difference is
+  what the siblings hold, which is the whole point; on Linux the sibling term
+  is already in both readings and cancels, and what is left is the host's own
+  idle torch cache, which `get_free_memory` adds and NVML does not, so the
+  correction is small and about the host rather than the packs. The platform
+  verdict (`blind_free_is_process_local`) only decides the fallback when NVML
+  is unavailable: reconstruct the true figure from comfy-env's own ledger on
+  WDDM, or trust the blind reading everywhere else. ComfyUI's arithmetic then
+  behaves as though its reading were device-wide, and its eviction loop
+  terminates at the right point instead of running the candidate list dry.
 * **A reserve that is platform shaped.** On Linux comfy-env declares nothing,
   because the host already sees what packs hold. On Windows it declares what
   each pack holds right now, because the host sees none of it.

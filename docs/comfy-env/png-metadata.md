@@ -95,9 +95,15 @@ this change.
 | # | Gap | Consequence |
 |---|---|---|
 | 1 | **`EXTRA_PNGINFO` mutation does not travel back.** A worker mutates its own copy | A node writing an entry for a *downstream* node to read is not seen. **This is the common use, not the edge case**: of 505 packs surveyed, 84 declare the input and every pack that *writes* to it does so for a downstream saver — `mikey_nodes.AddMetaData` (returns `IMAGE`, saves nothing), `bjornulf` `resize_image`, `Simple_Readable_Metadata-SG`. Isolated, the note is written on the worker's copy and the host's `SaveImage` never sees it. ~25 lines to return it on the reply and apply in place |
-| 2 | **`prompt_id` is not forwarded**, so the worker does not enter `CurrentNodeContext` | Isolated API nodes drop the `Comfy-Job-Id` header |
-| 3 | **`cls.hidden` is only set when the node declares something** | Upstream always sets a `HiddenHolder`, whose `__getattr__` returns `None`. In a worker a node that declared nothing sees `cls.hidden is None`, so reading through it raises instead of yielding `None` |
-| 4 | **`GraphBuilder.set_default_prefix` is parent-only** (`execution.py`) | Two isolated expanding nodes in one prompt would mint colliding ids. Latent — needs gap 1's sibling, expansion, to matter |
+| 2 | **The worker does not enter `CurrentNodeContext`.** The prompt id itself does cross -- every call frame carries it as `prompt_gen`, read off ComfyUI's progress registry -- but the worker uses it only for memory-epoch marks and never installs it into `comfy_execution.utils` | Isolated API nodes drop the `Comfy-Job-Id` header |
+| 3 | **`GraphBuilder.set_default_prefix` is parent-only** (`execution.py`) | Two isolated expanding nodes in one prompt would mint colliding ids. Latent — needs gap 1's sibling, expansion, to matter |
+
+A former gap -- `cls.hidden` was `None` in a worker unless the node
+declared a hidden input -- is closed. The worker now runs `VALIDATE_CLASS()`
+and `PREPARE_CLASS_CLONE` on every V3 call, hidden inputs or not, and locks
+the clone with `make_locked_method_func` exactly as `execution.py` does, so a
+node that declared nothing sees a `HiddenHolder` of `None`s, the same object
+it sees under plain ComfyUI.
 
 ## See also
 

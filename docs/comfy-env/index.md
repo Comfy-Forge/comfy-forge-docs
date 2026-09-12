@@ -166,7 +166,7 @@ flowchart TD
     end
 
     subgraph ws["Machine-wide workspace"]
-        env1["%LOCALAPPDATA%/Programs/comfy-env (Windows)<br/>~/.ce (macOS, Linux)<br/>envs/&lt;name&gt;/pixi.toml<br/>envs/&lt;name&gt;/.pixi/envs/default/"]
+        env1["%LOCALAPPDATA%/Programs/comfy-env (Windows)<br/>~/.ce (macOS, Linux)<br/>envs/&lt;name&gt;_&lt;abi-tag&gt;/pixi.toml<br/>envs/&lt;name&gt;_&lt;abi-tag&gt;/.pixi/envs/default/"]
     end
 
     worker["Isolated worker subprocess<br/>(interpreter from the pixi env)"]

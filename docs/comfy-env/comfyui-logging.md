@@ -20,7 +20,7 @@ unconditional.
 | # | Destination | What it is | On by default |
 |---|---|---|---|
 | 1 | **The real terminal** | the original `sys.stdout` / `sys.stderr`, written last by `super().write(data)` (`app/logger.py`) | yes |
-| 2 | **A 300-entry ring** | `deque(maxlen=capacity)`, `capacity=300` (`app/logger.py,103`), in memory, module-global | yes |
+| 2 | **A 300-entry ring** | `deque(maxlen=capacity)`, `capacity=300` (`app/logger.py`), in memory, module-global | yes |
 | 3 | **The browser terminal panel** | pushed over the websocket by `TerminalService`, which registers `on_flush(self.send_messages)` (`api_server/services/terminal_service.py`) | only while a client is subscribed |
 | 4 | **A log file** | a `logging.FileHandler` added by `setup_logger` (`app/logger.py`); fed by `logging` records only, never by `print()` or by a traceback written to `sys.stderr` | **on Desktop yes, running `main.py` yourself no** |
 

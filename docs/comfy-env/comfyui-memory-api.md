@@ -117,12 +117,17 @@ lowvram_patch_counter  is_dynamic         is_clone
 clone_base_uuid      get_nested_additional_models
 ```
 
-!!! note "Why eighteen and not sixteen"
-    Sixteen are read as a literal `.model.<name>` in the memory manager, which is
-    what the compatibility test can detect by grepping. The other two arrive by a
-    different route: `parent` is read by the ledger entry itself when it adopts a
-    model, and `model` is the inner module the whole object stands in for. A grep
-    based check finds the sixteen; the other two have to be known.
+!!! note "Why eighteen and not fourteen"
+    Fourteen of them appear as a literal `.model.<name>` in the memory manager
+    (`model` itself among them, as `.model.model`), which is what a grep can
+    detect. The other four never do: `load_device`, `parent`,
+    `model_patches_models` and `get_nested_additional_models` are reached
+    through an alias (`model = loaded_model.model`, then `model.load_device`)
+    or read off the INCOMING model rather than a list entry. `load_device` is
+    the one upstream reads most, and a literal grep sees it zero times. That
+    is why the compatibility test walks the AST and follows the alias rather
+    than grepping; its own docstring in `tests/test_model_patcher_surface.py`
+    records the same count.
 
 Three groups, by what they are for:
 
@@ -153,9 +158,16 @@ still does the loading, but a reader who takes "no shim" literally will not
 understand where a worker's reserve comes from.
 
 The one thing it does do is **correct the numbers it reads**, because
-`get_free_memory` in a worker reports that process's own view -- though only
-where that is actually true. On Linux `cudaMemGetInfo` is device-wide, so the
-correction is a double count there and is applied on WDDM only. See
+`get_free_memory` in a worker reports that process's own view on WDDM. The
+correction itself is not platform gated: `pool._handle_vram_budget` computes
+its offset as ComfyUI's blind reading minus the NVML free figure wherever
+NVML answers, on Linux included. What differs is the arithmetic: on WDDM the
+difference is what siblings hold, while on Linux `cudaMemGetInfo` is already
+device-wide, the sibling term cancels, and the offset collapses to the host's
+own idle torch cache. The platform verdict only chooses the fallback when NVML
+is absent (reconstruct from comfy-env's ledger on WDDM, trust the blind
+reading elsewhere), so the double count it exists to avoid is the ledger's,
+not NVML's. See
 [comfy-env's memory management](memory-approach.md).
 
 ### Contract two: a duck type
@@ -212,14 +224,16 @@ the test derives one from the source rather than trusting a written record.
     list entry and no ledger-shaped sweep finds those.
 
 !!! warning "And it cannot see the failure that actually happens"
-    The canary catches a **missing** member. Both live defects in this seam are
-    **wrong values** on members the proxy implements: an eviction sort key that
-    places the proxy first, and a size that is fed into the wrong budget. A
-    surface check is structurally blind to those.
+    The canary catches a **missing** member. Every defect found in this seam has
+    been a **wrong value** on a member the proxy implements. The one still live
+    is the eviction sort key that places the proxy first; the other, a size fed
+    into the wrong pin budget through a leaked `loaded_models()` list, closed on
+    2026-09-06 when every stand-in started registering with `currently_used`
+    False. A surface check is structurally blind to both kinds.
 
-    It also only reads one file, and only literal `.model.<name>` accesses, so
-    an aliased read of the form `m = entry.model` followed by `m.load_device`
-    is invisible to it.
+    It also reads only one file. Within that file it does follow the
+    `m = entry.model` alias, as the paragraph above says; what it cannot follow
+    is a read that happens somewhere else, in node code that borrowed the list.
 
 ## What this seam costs, honestly
 
