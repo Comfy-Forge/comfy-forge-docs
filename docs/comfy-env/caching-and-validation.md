@@ -28,17 +28,15 @@ parent **synthesizes a replacement from the argument names** captured during
 the metadata scan. Names, not code: the validate body stays in the worker and
 is never called.
 
-## `VALIDATE_INPUTS` becomes `return True`
+## `VALIDATE_INPUTS`: the signature stays on the host, the body runs in the worker
 
 comfy-env builds a classmethod whose parameter list is **every combo input
 on the node, followed by the original validate's parameter names** not
 already in that set — each defaulted to `None` — plus `**kwargs` only if the
 original had it (`_combo_input_names` and `_make_named_validate` in
-`isolation/metadata.py`):
-
-```python
-exec(f"def _cev_validate(cls, {sig}):\n    return True\n", ns)
-```
+`isolation/metadata.py`). Its body does two things: when the author wrote
+a validate, it **records** the arguments it was handed; and it returns
+`True`.
 
 The signature is the point: it reproduces the exemptions the original
 declared, and adds one set on top. The combos come first because of
@@ -49,9 +47,9 @@ unless the input's name is in the validate argspec. Naming every combo is
 what lets a freshly uploaded file get past that check and reach the node.
 It also means a node with **no** `VALIDATE_INPUTS` at all still gets a
 synthesized one if it has any combo; a node with neither gets none. The
-combo detection reads the V1 spec shape — an entry whose first element is a
-list — so a V3 `Combo` input, which serializes as
-`("COMBO", {"options": [...]})`, is not picked up; a V3 node is exempted
+combo detection recognises both spec shapes — an entry whose first element
+is a list, and the canonical `("COMBO", {"options": [...]})` that every V3
+`Combo` input becomes — so a V3 node is exempted for its combos too, not
 only for the names its own validate declared.
 
 `_named_args` captures both the named parameters and whether the
@@ -62,10 +60,37 @@ the blanket exemption it asked for, and a mixed `(cls, named, **kwargs)` form
 keeps both halves. Names that are not valid identifiers are skipped, since
 they could not have been exempted this way anyway.
 
-The consequence, stated plainly: **the pack's validation body never runs.** A
-node that rejected a bad combination now accepts it, and fails later inside
-the worker with a traceback from its own code instead of a red node and a
-readable message.
+### Where the body runs
+
+Upstream calls the stand-in at submit, inside the same executing context
+(`CurrentNodeContext`, keyed by prompt id and node id) it will later wrap
+around the node's function. The stand-in records what it received under
+that key — the widget literals, `None` for every linked input, the
+`input_types` dict if the author asked for it — in a store bounded to the
+four most recent prompts, because a prompt rejected on some other node
+never executes.
+
+When the node's function is called, the proxy looks the record up under the
+same context and ships it with the call. The worker resolves the author's
+real validate (`first_real_override` on the locked class clone for V3,
+`VALIDATE_INPUTS` for V1), filters the arguments down to that function's
+own parameters exactly as upstream does (the stand-in's list is a superset,
+because of the combos), awaits it if it is `async`, and runs it
+**immediately before the function**. `True` passes. `False` or a string
+raises, and the string is the node's error message. Anything else — an
+`ExecutionBlocker` — passes, as it does at validation upstream.
+
+The one visible difference from native: the rejection lands on the node at
+execution rather than at submit, so nodes ahead of it in the graph run
+first. Everything the author's body sees is what it would have seen
+natively; a linked input is `None` in both places.
+
+Why this order and not a round trip at submit: at submit the worker may not
+exist (first prompt after launch), or may be busy with the previous prompt,
+and `validate_prompt` runs on the HTTP server's event loop, where a socket
+round trip with a timeout has exactly one honest failure mode, killing the
+worker. Running the body where the worker already is makes validation
+deterministic and costs nothing at submit.
 
 ## `IS_CHANGED` runs in the worker, or answers "changed"
 
@@ -102,10 +127,12 @@ non-primitive, one that raises, and one declared `async`. All answer
 
 ## Why the two differ
 
-Both rationales are the same until the miss case. A fingerprint that cannot
-be computed has a correct conservative answer; a validation that cannot be
-run does not. That asymmetry, not the cold-spawn cost, is why one is
-forwarded and the other synthesized.
+Both are asked before the node runs, and neither can spawn a worker to
+answer. A fingerprint that cannot be computed has a correct conservative
+answer, *changed*, so it is asked of a warm worker and defaults otherwise.
+A validation has no conservative answer — accepting is wrong, rejecting is
+wrong — so instead of being asked early and sometimes, it is asked late and
+always, at the one moment the worker is certain to exist.
 
 ## See also
 

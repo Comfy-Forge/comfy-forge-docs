@@ -251,7 +251,7 @@ CUDA device UUID -- a mismatch demotes GPU zero-copy for that worker.
 
 ## Crash and teardown
 
-Teardown is a `shutdown` frame, a 5 s grace, then `kill()`; the worker's
+Teardown is a `shutdown` frame, a 5 s grace, then a kill of the worker's whole process group; the worker's
 temp dir is removed. A crash leaves evidence the parent reads back
 (`_worker_exit_diagnostic`): the exit code (a negative code is decoded to a
 POSIX signal name via `signal.Signals`; nothing else is decoded), and the

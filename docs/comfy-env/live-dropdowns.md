@@ -108,7 +108,8 @@ by the scan), and every built-in check is waived — exactly as it is
 natively.
 
 Only the *signature* is reproduced. The synthesized body is `return True`, so
-the pack's own validation logic never runs — see
+the pack's own validation body runs in the worker, right before the node's
+function, with what upstream handed the stand-in at submit — see
 [Caching and validation](caching-and-validation.md).
 
 ## Never raises
@@ -135,10 +136,12 @@ malformed reply. The worker logs the error on every failed call — once per
   says so. The miss answer is inverted on purpose: a stale dropdown is
   cosmetic, a stale cached result is wrong. See
   [caching and validation](caching-and-validation.md).
-- **V1-shaped combos only.** Both the worker's reply and the parent's splice
-  recognise a combo by its spec's first element being a list. A V3 `Combo`
-  input serializes as `("COMBO", {"options": [...]})`, so it is neither
-  refreshed nor exempted from validation; it stays at its scan-time list.
+- **`remote` combos are left alone.** Both spec shapes are recognised — the
+  hand-written `(["a", "b"], {...})` and the canonical
+  `("COMBO", {"options": [...]})` every V3 `Combo` input becomes — but a
+  combo declared `remote` carries no options for anyone to refresh: the
+  frontend fetches them from a route, and the author's own validate
+  exemption covers the value, as natively.
 - **Everything else in the payload stays frozen** — `RETURN_TYPES`, tooltips,
   and any option list computed from something other than a file listing
   (installed backends, GPU capability probes, API queries). Those are live

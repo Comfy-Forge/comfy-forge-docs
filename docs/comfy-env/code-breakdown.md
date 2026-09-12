@@ -113,7 +113,7 @@ snapshot; not re-run for this one):
 | `_probe_cuda_ipc` | 23 | 34 | 20 |
 | `_serialize_tensor_native*` | 56 | 44 | 35 |
 | `_deserialize_tensor_*` | 52 | 63 | 36 |
-| `TensorKeeper` | 13 | 32 | 7 |
+| `TensorKeeper` (parent / worker) | — | 32 | 7 |
 | **Total** | **381** | **396** | **225** |
 
 **~388 lines per copy, 777 in total, 225 byte-identical.** Read as
@@ -174,7 +174,7 @@ hang. Merge them carelessly and a segfault reports as a ten-minute stall.
 | `isolation/model_patcher.py` | 401 | `SubprocessModelPatcher` -- resident models obey ComfyUI's VRAM manager. |
 | `isolation/subenv.py` | 121 | Launch-env construction for the worker subprocess. |
 | `isolation/errors.py` | 88 | Error translation across the boundary: a closed vocabulary, never a pickled exception class. |
-| `isolation/tensor_utils.py` | 83 | `TensorKeeper`, madvise reclaim. |
+| `isolation/tensor_utils.py` | 64 | clone-on-foreign-storage for CUDA re-export, madvise reclaim. |
 | `server_stub.py` | 110 | The stand-in `server` module staged beside the worker and the scan: `PromptServer.instance` forwards `send_sync` / `send_progress_text` / `client_id`, everything else raises with a pointer to the docs. Top-level, stdlib-only, so it parses on the oldest worker Python. |
 | `isolation/procgroup.py` | 66 | Run a child in its own process group so a timeout kills its whole tree (`killpg` on POSIX, `taskkill /T` on Windows), for the scan under `pixi run`. |
 | `isolation/__init__.py` | 34 | Re-exports. |
@@ -280,14 +280,14 @@ carries two value types: `__shm_np__` is `True` on the fd path and the block
 *name* on the copy path, so a reader must check `"fd" in obj` first or hand
 `True` to `SharedMemory(name=...)`.
 
-**5. Three `TensorKeeper` classes, three lifetimes, and only one implements the
-ack protocol.** The worker's honours ADR-0032's consumed-ack release; **the
-parent's is still pure TTL**, so parent->worker input tensors are pinned for a
-fixed 60 s regardless of when the worker finishes reading. A third, in
-`tensor_utils.py`, shares the same 60 s `TENSOR_KEEPER_TTL` and is fed by
-`prepare_for_ipc_recursive`, which `_call_in_worker` runs over every call's
-kwargs and result before the transport sees them -- so the parent holds the
-same shared-memory input tensors in two pure-TTL keepers at once.
+**5. Two `TensorKeeper` classes, two lifetimes.** The worker's honours
+ADR-0032's consumed-ack release. The parent's keeps shm inputs and CUDA
+re-export clones from their serialization until `end_call()` empties it,
+with the 60 s TTL as the crash fallback. A third, in `tensor_utils.py`, was
+deleted on 2026-09-12: it held every call's inputs *and results* and pruned
+only on the next keep, so the last call's tensors stayed pinned while
+ComfyUI idled, protecting nothing (torch's CUDA IPC has its own
+cross-process refcount).
 
 **6. Both registration paths in `wrap.py` are copy-pasted** -- the
 root-level `nodes/comfy-env.toml` branch and the per-subdir `_scan_isolation`

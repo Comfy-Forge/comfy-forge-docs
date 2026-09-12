@@ -29,7 +29,6 @@ matching without raising.
 | Code | Meaning |
 |---|---|
 | **fixed** | in the tree, with a test that fails without it |
-| **in tree** | fixed in code; no test yet guards it |
 | **decided** | an ADR says what to do; enforcement not yet built |
 | **deliberate** | won't fix, reason recorded |
 | **open** | nobody has decided |
@@ -63,7 +62,7 @@ The node runs, the result is subtly incorrect, nothing is logged.
 | 19 | `set_cudnn_benchmark()` not re-applied | Upstream resets a cuDNN flag after loading nodes because packs flip it; the worker doesn't | open | — | A |
 | 20 | Worker cwd is the pack directory | Relative paths resolve somewhere unexpected | open | — | A |
 | 21 | No `SIGTERM` handler, no session | `docker stop` never tells the workers; they hold VRAM until the socket dies, or forever mid-call | open | — | A |
-| 22 | `no_grad` vs `inference_mode` | Upstream branches on the mode; one model family produces different conditioning | deliberate | [deliberately unsupported](deliberately-unsupported.md) row 7 | A |
+| 22 | `no_grad` vs `inference_mode` | Upstream branches on the mode; one model family produces different conditioning | deliberate | [deliberately unsupported](deliberately-unsupported.md) row 6 | A |
 | 48 | `self.cache[k] = v` never returned to the host | The worker fingerprinted inbound state *after* the call, against the very dict the node had just mutated: identical on both sides, nothing shipped. Rebinding (`self.n += 1`) worked; in-place mutation of a dict or list, the usual shape of a node cache, did not | **fixed** | [conformance](node-contract-conformance.md) | V |
 | 49 | `__init__` never re-ran after a worker restart | The parent's seed flag was set once and never cleared, so a fresh process got the old markers and no `__init__`; a node holding a thread pool or lock on `self` raised "its value is gone and will be recomputed" on every call, and nothing recomputed it. `crt-nodes`' image crawler is the idiomatic case. The worker now keeps its own book of seeded instances | **fixed** | [conformance](node-contract-conformance.md) | V |
 | 50 | A node whose `INPUT_TYPES` raised registered with zero widgets | It looked healthy in the menu, and a workflow saved with it lost every widget value, because the frontend serialises a registered node from its live widgets. It is now a *missing* node, which keeps saved data verbatim | **fixed** | [conformance](node-contract-conformance.md) | V |
@@ -78,10 +77,10 @@ Bad, but visible.
 | 24 | `import nodes` resolves to the pack's `nodes/` | The path list was applied backwards, so the pack dir shadows ComfyUI's `nodes.py` | open | — | V |
 | 25 | `<ComfyUI>/comfy` not on the worker's path | Old packs do `import model_management` bare; upstream allows it, the worker doesn't | open | — | V |
 | 26 | `init_extra_nodes()` never runs | `NODE_CLASS_MAPPINGS` has ~65 core entries; all 138 extras are missing. `KeyError` on `"SamplerCustom"` | open | — | V |
-| 27 | Native `@PromptServer.instance.routes` at import | `import server` failed in a lean worker env and **every node in the pack vanished**. The import now succeeds; the route decorator raises an `AttributeError` naming what is forwarded and pointing at `ROUTES` | deliberate | [deliberately unsupported](deliberately-unsupported.md) row 9 | V |
+| 27 | Native `@PromptServer.instance.routes` at import | `import server` failed in a lean worker env and **every node in the pack vanished**. The import now succeeds; the route decorator raises an `AttributeError` naming what is forwarded and pointing at `ROUTES` | deliberate | [deliberately unsupported](deliberately-unsupported.md) row 8 | V |
 | 28 | Lazy inputs / `check_lazy_status` | Forwarded when the author defined one, so the taken branch is computed. A node declaring `lazy` *without* one still gets `None` — and so does plain ComfyUI, whose own default is unreachable; that half is upstream's | **fixed** | comfy-env `4eece2c` | V |
 | 29 | `async def` node functions | A coroutine reaches the serializer | open | partial: [ADR-0001](adr/0001-process-isolation-via-persistent-subprocess-workers.md) | A |
-| 30 | `cls.SCHEMA` was `None` in the worker | Every `NodeOutput(expand=…)` died with an error naming nothing about expansion. The worker now calls the node's inherited `GET_SCHEMA()` before dispatch when `SCHEMA` is `None`; nothing in `tests/` exercises it | **in tree** | [conformance](node-contract-conformance.md) | V |
+| 30 | `cls.SCHEMA` was `None` in the worker | Every `NodeOutput(expand=…)` died with an error naming nothing about expansion. The worker calls the node's inherited `GET_SCHEMA()` before dispatch when `SCHEMA` is `None`; a test pins upstream's contract (an unregistered V3 class still dereferences an unset `SCHEMA`) and that an expand graph survives a real worker | **fixed** | [conformance](node-contract-conformance.md) | V |
 | 31 | `validate_inputs(cls, **kwargs)` lost its blanket exemption | ComfyUI rejected values the node would have accepted; the node never ran. The scan now records whether the author's validate declares a catch-all, and the stand-in emits `**kwargs` only when it did | **fixed** | [conformance](node-contract-conformance.md) | V |
 | 32 | `send_progress_text` has no crossing | The API for writing status into a node's body; core's own mesh and 3D nodes use it. Forwarded; the host packs the TEXT frame with upstream's own code | **fixed** | [conformance](node-contract-conformance.md) | V |
 | 33 | `PromptServer.instance` is `None` | `client_id` now answers with the host's own, shipped per call. `prompt_queue`, `last_node_id` and the rest raise an `AttributeError` that says so | **fixed** | [conformance](node-contract-conformance.md) | V |
@@ -95,25 +94,30 @@ Bad, but visible.
 | # | Gap | In plain English | Code | Docs | ✓ |
 |---|---|---|---|---|---|
 | 38 | Progress v2 (`set_progress`, `ProgressRegistry`) | The API upstream tells authors to migrate *to*. No bar, no error | open | — | A |
-| 39 | Latent / `ProgressBar` previews | The preview during sampling stayed blank. The worker now ships the preview on the progress callback (`_encode_preview`, with a 1 MiB cap above which the tick still goes and the image is dropped) and the host rebuilds it for `PROGRESS_BAR_HOOK` (`_decode_preview`). The host-side decode has unit tests; nothing drives a preview end to end from a worker | **in tree** | [conformance](node-contract-conformance.md) | V |
+| 39 | Latent / `ProgressBar` previews | The preview during sampling stayed blank. The worker ships the preview on the progress callback (1 MiB cap, above which the tick still goes and the image is dropped) and the host rebuilds it for `PROGRESS_BAR_HOOK`; a test drives ComfyUI's own `ProgressBar` from a worker and checks the tuple arrives at original size | **fixed** | [conformance](node-contract-conformance.md) | V |
 | 40 | `send_sync` | A pack's own websocket events never left the worker; its JS was fine, so it looked like a frontend bug. Forwarded on the callback channel; `sid=None` broadcasts as upstream | **fixed** | [conformance](node-contract-conformance.md) | V |
 | 41 | `ComfyExtension.get_routes()` | V3's proper route registration is never called. Endpoints 404 | open | — | A |
 | 42 | Sampler / scheduler registration | Registers into the worker's list; the host's dropdown never shows it | open | — | A |
 | 43 | `hook_breaker_ac10a0` never runs | Upstream actively undoes one monkeypatch every few seconds; the worker doesn't | open | — | A |
 | 44 | `log_startup_warning` lands in the worker's own list | Never appears in the end-of-startup replay block that exists so warnings aren't buried | open | — | A |
 | 45 | sqlite session unavailable | ComfyUI's database isn't reachable from a worker | open | — | A |
-| 46 | `add_on_prompt_handler`, `node_replacement.register`, `Caching.register_provider` | Registered into worker-local state; no effect, no error. `add_on_prompt_handler` now raises an `AttributeError` naming what is forwarded; the other two are unchanged | open | [deliberately unsupported](deliberately-unsupported.md) row 9 for the first | A |
+| 46 | `add_on_prompt_handler`, `node_replacement.register`, `Caching.register_provider` | Registered into worker-local state; no effect, no error. `add_on_prompt_handler` now raises an `AttributeError` naming what is forwarded; the other two are unchanged | open | [deliberately unsupported](deliberately-unsupported.md) row 8 for the first | A |
 | 47 | `PROGRESS_BAR_HOOK` absent from ADR-0024's loan book | We depend on it from both sides; an upstream rename kills cancel *and* progress with green CI | open | — | A |
 | 51 | The metadata scan had no timeout | A pack that hung at import held ComfyUI's startup forever with nothing printed. A plain timeout would not have fixed it: under `pixi run` the scanning Python is a grandchild, and on Windows the parent then blocks on its pipe. The whole process tree is now killed after `COMFY_ENV_SCAN_TIMEOUT` and the log names the node | **fixed** | [conformance](node-contract-conformance.md) | V |
+| 52 | Live dropdowns never fired for `("COMBO", {"options"})` inputs | Every V3 `io.Combo.Input` (and some core V1 nodes) uses that shape; every site recognised a combo only by a list in first position. V3 model dropdowns stayed at the scan's listing across restarts and a new file was rejected as not-in-list. Both shapes are recognised now | **fixed** | [dynamic combos](live-dropdowns.md) | V |
+| 53 | The 600 s timeout killed only the `pixi` wrapper | The Python grandchild lived on with its VRAM, parent pid 1, invisible to the reaper. Workers spawn in their own group; one `_kill_tree()` serves all four kill sites; the reaper decides by the host pid in the temp-dir name | **fixed** | [worker lifecycle](worker-lifecycle.md) | V |
+| 54 | The last call's tensors stayed pinned until the next call | A keeper held every call's inputs and results for 60 s and pruned only on the next keep: indefinitely while idle. It protected nothing (torch's CUDA IPC has a cross-process refcount). Gone; the one load-bearing keep is released at end of call | **fixed** | [the process boundary](process-boundary.md) | V |
+| 55 | V1 proxies dropped every class attribute but seven | No `DESCRIPTION`, `OUTPUT_TOOLTIPS`, `SEARCH_ALIASES`, `DEPRECATED`, `EXPERIMENTAL`, `NOT_IDEMPOTENT` for ~155 packs. The scan sweeps every uppercase JSON-shaped attribute; a canary walks upstream's `node_info` | **fixed** | [conformance](node-contract-conformance.md) | V |
+| 56 | `VALIDATE_INPUTS` bodies never ran | ~200 real validate bodies in ~80 packs; a rejected value failed deeper with a traceback. The host stand-in records what it was handed; the worker runs the real body right before the function | **fixed** | [caching and validation](caching-and-validation.md) | V |
 
 ## Deliberate, and recorded
 
-Nine gaps are decisions, not defects, and each has a written reason and a
+Eight gaps are decisions, not defects, and each has a written reason and a
 stated condition under which it would be revisited. They live on their own
 page so the reasoning is not buried in a list of things that are simply
 missing: **[Deliberately unsupported](deliberately-unsupported.md)**.
 
-In short: `VALIDATE_INPUTS` bodies, `DYNPROMPT`,
+In short: `DYNPROMPT`,
 `add_model_folder_path` into the global registry, cancel without progress,
 the 600 s silence timeout, frontend isolation, `async def` nodes, and the
 host's own server surface (`routes`, `prompt_queue`, prompt handlers).
@@ -122,11 +126,10 @@ host's own server surface (`routes`, `prompt_queue`, prompt handlers).
 
 | | |
 |---|---|
-| Distinct gaps | **51** |
-| Fixed | 15 |
-| In tree, no test yet | 2 |
+| Distinct gaps | **56** |
+| Fixed | 22 |
 | Decided, enforcement pending | 3 (one ADR) |
-| Deliberate, recorded | 2 in these tables (rows 22 and 27); the full list of nine lives on [its own page](deliberately-unsupported.md) |
+| Deliberate, recorded | 2 in these tables (rows 22 and 27); the full list of eight lives on [its own page](deliberately-unsupported.md) |
 | Open | **29** |
 
 ## Where isolation genuinely does not apply

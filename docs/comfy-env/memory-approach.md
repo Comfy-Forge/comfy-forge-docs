@@ -145,11 +145,11 @@ Each is deliberate, each has a cost, and they are worked through in
 [where the stand-in is inaccurate](model-stand-in-inaccuracies.md).
 
 **It is not easily maintainable.** There is a contract, and it does not cover
-this. `contract.py` lists thirty couplings comfy-env reads OFF ComfyUI
+this. `contract.py` lists twenty-four couplings comfy-env reads OFF ComfyUI
 (seventeen memory symbols across `comfy`, `comfy_aimdo` and the CLI args,
-plus thirteen `folder_paths` entries); the host checks its share of them
-once, when the first worker is spawned (`_get_or_create_worker`) rather than
-at ComfyUI startup, and raises on a fatal gap. Every entry runs in that one
+plus seven `folder_paths` entries); the host checks its share of them
+once, on the first call that needs a worker (`_get_or_create_worker`, before
+anything is spawned) rather than at ComfyUI startup, and raises on a fatal gap. Every entry runs in that one
 direction; not one describes what ComfyUI reads off us, which is the direction
 that breaks. What covers this direction is a single test that greps ComfyUI's
 source for the places it reads a list entry and fails when that set moves.

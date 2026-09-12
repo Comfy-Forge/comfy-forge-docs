@@ -81,7 +81,7 @@ comfy-env does not intercept the call, and it does not copy the worker's
 registry back. The second half is the decision: the host's registry is
 snapshot-pushed into every worker, so one pack's registration copied back
 would appear in every other pack's process
-([deliberately unsupported](deliberately-unsupported.md), row 3).
+([deliberately unsupported](deliberately-unsupported.md), row 2).
 
 The consequence is split:
 
