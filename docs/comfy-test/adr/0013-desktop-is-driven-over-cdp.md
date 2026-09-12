@@ -1,8 +1,12 @@
 # ADR-0013: Desktop is driven over CDP and installed by git clone
 
-**Status:** accepted (2026-08); the ComfyUI-Manager install route was
-removed from the lanes in 2026-08 after it proved unable to install these
-packs.
+**Status:** accepted (2026-08). The ComfyUI-Manager install route was
+removed in two steps: non-`main` branches moved to git clone in 2026-08 after
+Manager proved unable to install these packs, and `main` -- which had kept
+the registry-tile clickthrough on the theory that it should test what a
+registry user gets -- followed in 2026-09. Testing Manager's registry is not
+testing the pack's install. `tests/test_no_manager_install.py` fails if any
+of it returns.
 
 ## Decision
 
