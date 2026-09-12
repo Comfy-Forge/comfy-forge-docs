@@ -16,11 +16,12 @@ the only copy of anything.
 Nothing spawns at ComfyUI startup. Browsing the node menu, loading
 workflows, even `/object_info` never *spawn* a worker -- proxies answer
 from the [metadata snapshot](live-dropdowns.md). They may *talk* to one,
-though: a proxy's `INPUT_TYPES` calls `_refresh_combo_options`, which
-sends `refresh_input_types` to this env's worker only if it is already
-alive **and** idle (`send_command_no_spawn`), and falls back to the cached
-options when the worker is busy, dead, or was never started. A worker
-comes into existence only once a node from its env actually **executes**.
+though: a proxy's `INPUT_TYPES` calls `_refresh_combo_options`, which asks
+this env's worker on its **side lane** (`send_side`) if it is alive, busy or
+not, and falls back to the cached options when the worker is dead, was
+never started, or has not yet imported the pack through a real call. A
+worker comes into existence only once a node from its env actually
+**executes**.
 
 The first call pays for: materializing the worker source into a temp dir
 ([ADR-0006](adr/0006-worker-crosses-the-boundary-as-source-text.md)),
@@ -52,13 +53,22 @@ as it unloads a host model
 said outside eviction no longer happens; that describes a design that was
 reversed before it shipped.
 
-- **One call at a time.** A worker serves a single in-flight call
-  ([ADR-0020](adr/0020-concurrency-and-env-granularity.md)). Eviction
-  commands are a partial exception: they are answered mid-call only while
-  the worker is blocked in `_call_parent` waiting on its own callback
-  (progress, VRAM budget). A worker in pure compute answers nothing, and a
-  parent thread trying to `send_command` to it gives up after
-  `_COMMAND_LOCK_TIMEOUT` (30 s) rather than block ComfyUI.
+- **One call at a time, on the main lane.** A worker serves a single
+  in-flight call ([ADR-0020](adr/0020-concurrency-and-env-granularity.md)).
+  Eviction commands are a partial exception: they are answered mid-call
+  only while the worker is blocked in `_call_parent` waiting on its own
+  callback (progress, VRAM budget). A worker in pure compute answers
+  nothing on that lane, and a parent thread trying to `send_command` to it
+  gives up after `_COMMAND_LOCK_TIMEOUT` (30 s) rather than block ComfyUI.
+- **Cheap questions have their own lane.** A second connection, read by a
+  daemon thread, serves `ping`, `refresh_input_types` and `fingerprint`
+  while the main thread is inside a node, in that node's GIL gaps. It
+  serves nothing else (a release mid-forward would drop pages a kernel is
+  reading), never imports a pack module, and never writes the main socket;
+  a side request that gets no reply within a second is abandoned and the
+  worker is left alone for five seconds. Liveness is still judged on the
+  main lane: a side pong from a worker wedged in a CUDA kernel proves
+  nothing.
 - **Health checks are idle-only.** A worker idle for more than 60 s gets a
   `ping` before its next call; a busy worker is never pestered.
 - **What accumulates inside** -- loaded models, the object cache, JIT state

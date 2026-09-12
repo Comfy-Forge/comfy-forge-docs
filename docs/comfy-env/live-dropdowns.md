@@ -35,15 +35,23 @@ The whole design is which worker it is willing to ask
 
 | # | Worker for this env | What happens |
 |---|---|---|
-| 1 | **alive and idle** | ask it. The pack's real `INPUT_TYPES()` runs and its combo options are spliced into the cached snapshot |
-| 2 | **alive but mid-call** | `send_command_no_spawn` returns `"busy"` after 0.25 s. Fall through |
+| 1 | **alive**, idle or mid-call | ask it on the side lane. The pack's real `INPUT_TYPES()` runs on a second thread in the worker and its combo options are spliced into the cached snapshot. Answered in the running node's GIL gaps: well under a millisecond while the node is in torch or a syscall, tens of milliseconds under CPU-bound Python |
+| 2 | **alive, but the pack module has not been imported by a real call yet**, or the side lane did not answer within a second (native code that never drops the GIL), or the reply timed out in the last five seconds | miss. Fall through. The side lane never imports a module; that is the main lane's first call |
 | 3 | **dead, or never started** | fall through |
 
 </div>
 
 Rungs 2 and 3 both mean *keep the cached options* — which is exactly what a
 node with no dynamic dropdown at all does. **The miss path is the old frozen
-behaviour, so the ladder can only ever add.**
+behaviour, so the ladder can only ever add.** Until 2026-09-12 a worker that
+was *busy* was also a miss, because the main lane has one reader and it was
+inside the node call; the side lane is what removed that rung.
+
+During an `/object_info` pass (upstream marks one with
+`folder_paths.cache_helper.active`) the host asks **once per environment**
+for every class it built a proxy for, and answers the rest of the pass from
+that reply. `node_info` calls `INPUT_TYPES` twice per node, so forty isolated
+nodes used to be forty round trips on the event loop.
 
 ### Why "spawn one" is not a rung
 
@@ -119,16 +127,16 @@ core omit the node **entirely**. A vanished node is strictly worse than a
 stale dropdown.
 
 So every failure on this path returns `None` and the proxy keeps its cached
-options: a dead socket, a busy worker, a pack whose `INPUT_TYPES` throws, a
-malformed reply. The worker logs the error on every failed call — once per
+options: a dead socket, a side reply that never came, a pack whose
+`INPUT_TYPES` throws, a malformed reply. The worker logs the error on every failed call — once per
 `/object_info` request — and the user sees a dropdown that has not moved.
 
 ## Limits — read this part
 
 - **Cold means frozen.** A dropdown only goes live once that pack's worker is
-  running, which in practice means after you have executed one of its nodes.
-  Open ComfyUI, add a file, refresh without running anything, and you see the
-  scan-time list.
+  running *and* has imported the pack through a real call, which in practice
+  means after you have executed one of its nodes. Open ComfyUI, add a file,
+  refresh without running anything, and you see the scan-time list.
 - **The pack's own `IS_CHANGED` rides the same ladder.** A node that
   defines `IS_CHANGED` or `fingerprint_inputs` gets its real fingerprint
   from its worker on rung 1, and answers *changed* on rungs 2 and 3, so
@@ -146,6 +154,11 @@ malformed reply. The worker logs the error on every failed call — once per
   and any option list computed from something other than a file listing
   (installed backends, GPU capability probes, API queries). Those are live
   under rung 1 like anything else, and frozen under 2 and 3.
+- **The side lane runs your `INPUT_TYPES` while your node runs.** That is
+  what native ComfyUI does too (the server thread runs it for `/object_info`
+  while the executor thread runs your node), so a pack that survives natively
+  survives this. It does mean a CPU-heavy `INPUT_TYPES` steals cycles from
+  the running node for its own duration.
 - **No `remote` widget.** ComfyUI's frontend-fetched options widget would move
   the refresh onto the canvas repaint path, where comfy-env cannot control how
   often it fires, and its failure mode leaves the combo bound to a bare string

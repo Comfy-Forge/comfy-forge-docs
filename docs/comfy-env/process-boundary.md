@@ -65,7 +65,14 @@ Details for each follow on this page or where linked.
 12. **Health traffic** -- idle-only ping/pong (the pong reports un-acked
     keeper counts), plus a spawn-time canary echoing `torch_version` and the
     CUDA device UUID (mismatch demotes GPU zero-copy).
-13. **Crash evidence** -- exit code decoded to a signal name, the
+13. **The side lane** -- a second connection to the same listener, opened by
+    the worker after its ready frame and read by a daemon thread there, for
+    the three questions the host may ask mid-call: `ping`,
+    `refresh_input_types`, `fingerprint`. Own lock and monotonic ids on the
+    host (`send_side`), a reply cap of a second, a five-second back-off after
+    a timeout, and no path to a kill; a worker without one is answered
+    `"nolane"` and the caller uses the main lane as before.
+14. **Crash evidence** -- exit code decoded to a signal name, the
     faulthandler and worker-debug log files read back by the parent, and
     a startup reaper for what a dead parent left behind: stale sockets
     (macOS only -- the `unix://` filename carries the owning pid; Linux uses

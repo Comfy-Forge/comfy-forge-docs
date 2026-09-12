@@ -92,11 +92,22 @@ outside the inputs (a file that has since vanished) on a node whose inputs
 have not changed.
 
 Why this order and not a round trip at submit: at submit the worker may not
-exist (first prompt after launch), or may be busy with the previous prompt,
-and `validate_prompt` runs on the HTTP server's event loop, where a socket
-round trip with a timeout has exactly one honest failure mode, killing the
-worker. Running the body where the worker already is makes validation
-deterministic and costs nothing at submit.
+exist (first prompt after launch), or may not have imported the pack yet,
+and `validate_prompt` runs on the HTTP server's event loop. An answer that
+depends on whether a process happens to be warm is an answer that changes
+from one click to the next; running the body where the worker already is
+makes validation deterministic and costs nothing at submit. (The side lane
+that now answers dropdown and fingerprint questions mid-call does not change
+this: it removes the *busy* miss, not the *cold* one, and a validate has no
+safe miss answer.)
+
+What the user sees when the body rejects: the node fails with a plain
+`ValueError` worded exactly as upstream words a submit-time rejection,
+`Custom validation failed for node: <your message>`, and no worker
+traceback on the node (it stays on the exception's `__cause__` for
+debugging). The worker stamps the error frame `error_kind: "validation"` and
+the host's translation registry maps that to `ValueError`, so nothing named
+`comfy_env` reaches the frontend.
 
 ## `IS_CHANGED` runs in the worker, or answers "changed"
 
@@ -115,8 +126,8 @@ inputs in as `None`. The proxy walks the same ladder as
 | Rung | Worker for this env | Answer |
 |---|---|---|
 | 0 | any input or hidden value is not JSON data — a primitive, or a list or dict built only from primitives (a multiselect list and the `PROMPT` dict pass; a tensor does not) | *changed*, nothing is sent |
-| 1 | alive and idle, lock won within 0.25 s | the pack's own fingerprint, as a primitive |
-| 2 | alive but mid-call | *changed* |
+| 1 | alive, idle or mid-call, and the pack module imported by a real call | the pack's own fingerprint, as a primitive, answered on the side lane |
+| 2 | alive but the module not yet imported, or no side reply within a second | *changed* |
 | 3 | dead or never started | *changed* |
 
 "Changed" is `float("nan")`, which ComfyUI already treats as "always re-run";

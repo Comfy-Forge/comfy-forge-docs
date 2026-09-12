@@ -77,7 +77,7 @@ Two more limitations of comfy-env:
   is narrower than it used to be: a pack node's own `IS_CHANGED` or
   `fingerprint_inputs` IS forwarded to its worker (`_forward_fingerprint`),
   but only over a no-spawn ladder, asked of a worker that is already alive
-  and idle, with JSON-primitive inputs. Every miss on that ladder (no
+  (on its side lane, so busy is fine), with JSON-primitive inputs. Every miss on that ladder (no
   worker yet, worker busy, a non-primitive input) answers "changed", so the
   failure mode is a recompute, never a frozen cache, and there is no startup
   warning any more because there is nothing to warn about.
