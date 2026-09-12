@@ -18,7 +18,7 @@ Two files with sharply separated roles:
   `[node_packs]` (dependencies on other ComfyUI node packs) and `[types]`
   (declared wire types, [ADR-0015](0015-declared-wire-types.md)). Nothing
   else: the root file has a **closed role schema**
-  (`config/__init__.py:36`) -- any other section (legacy keys, typos,
+  (`config/__init__.py`) -- any other section (legacy keys, typos,
   env-file sections like `[env_vars]` or `[cuda]`) is rejected at parse
   time with an unsupported-section error naming what IS allowed. No
   backward compatibility for dead keys, by decision.

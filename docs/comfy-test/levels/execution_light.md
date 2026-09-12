@@ -50,7 +50,7 @@ That listening is conditional in a way worth knowing about. ComfyUI only sends
 `execution_start`, `execution_error` and `execution_success` when the prompt
 was submitted with a `client_id` -- all three are `broadcast=False`, and
 `PromptExecutor.add_message` gates on
-`client_id is not None or broadcast` (`execution.py:683`). A prompt queued
+`client_id is not None or broadcast` (`execution.py`). A prompt queued
 without one produces **no terminal event at all**, so a failing workflow and a
 passing one look identical on the wire.
 

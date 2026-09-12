@@ -45,7 +45,7 @@ it.** Own what you own, forward what you don't.
 
 | Key | Why the compiler owns it |
 |-----|--------------------------|
-| `workspace.platforms` | Host-derived: each machine generates its own manifest for its own platform (`toml_generator.py:437, 677`). An author pin would break every other platform's solve. |
+| `workspace.platforms` | Host-derived: each machine generates its own manifest for its own platform (`toml_generator.py`). An author pin would break every other platform's solve. |
 | `workspace.name`, `workspace.version` | Identity: always `comfy-env-<env_name>`, matching the env directory. |
 | `[environments]` | The per-env manifest is single-environment `default` with `no-default-feature = true` -- that shape *is* [ADR-0007](0007-machine-wide-workspace-with-per-env-manifests.md). |
 | `[feature.*]` | Same shape constraint (one `node` feature per manifest); pixi additionally reserves the feature name `default`. |
@@ -54,7 +54,7 @@ it.** Own what you own, forward what you don't.
 
 - `torch` / `torchvision` / `torchaudio` entries inside `[dependencies]`
   or `[pypi-dependencies]`: `_strip_torch_family`
-  (`toml_generator.py:218`) removes author pins and injects the host
+  (`toml_generator.py`) removes author pins and injects the host
   family pin -- parent and workers must share one torch ABI for tensor
   IPC ([ADR-0005](0005-tiered-tensor-serialization.md),
   [ADR-0007](0007-machine-wide-workspace-with-per-env-manifests.md)).
@@ -65,7 +65,7 @@ it.** Own what you own, forward what you don't.
 
 - `[activation]` / `[activation.env]`: author keys pass through; the
   compiler's own `KMP_DUPLICATE_LIB_OK = "TRUE"`
-  (`toml_generator.py:322`) wins only on direct collision. (Today the
+  (`toml_generator.py`) wins only on direct collision. (Today the
   hardcoded block clobbers author activation entirely.) This merge is
   also the prerequisite for retiring comfy-env's `[env_vars]` in favor of
   pixi-native `[activation.env]` -- a separate future decision.

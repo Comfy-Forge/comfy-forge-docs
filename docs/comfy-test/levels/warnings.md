@@ -43,7 +43,7 @@ Findings are grouped by check, each with its description:
   models/encoder.safetensors (412.3 MB)
 
 [warnings] abs-paths -- no hardcoded absolute paths
-  nodes/loader.py:88: /home/andrea/data/checkpoints
+  nodes/loader.py: /home/andrea/data/checkpoints
 
 Warnings check: 2 finding(s). None of these fail the build -- they need a
 human to judge.

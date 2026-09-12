@@ -105,7 +105,7 @@ the "tensor daemon" future-work item in ADR-0010.
 !!! info "Corroboration: pyisolate converged on the same design"
     *pyisolate -- Comfy-Org's own isolation library -- independently made
     the same choice: the child is spawned once at extension load
-    (`_internal/host.py:490`) and serves RPC on one long-lived connection
+    (`_internal/host.py`) and serves RPC on one long-lived connection
     until an explicit `stop()`; there is no spawn-per-call mode. Earlier
     pyisolate iterations used impermanent workers; the shipped design
     converged on persistence. Notably, neither project had ever benchmarked

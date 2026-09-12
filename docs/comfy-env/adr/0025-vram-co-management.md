@@ -19,7 +19,7 @@ line overstated what the code does. The repairs are recorded in
     parent's delta was **0 MB**.
 
     ComfyUI evicts only when `memory_required - get_free_memory(device)`
-    is positive (`model_management.py:883,889`). With that free value
+    is positive (`model_management.py`). With that free value
     stuck near full-card, the difference was negative and
     `free_memory()` **evicted nothing** in response to a worker's
     request. The worker, reading the same blind number, then *over*-loaded.

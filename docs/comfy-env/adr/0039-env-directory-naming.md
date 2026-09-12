@@ -56,7 +56,7 @@ never ran on any machine**. Fixed at the call site
 
 **It can collide.** `ComfyUI-Foo-Bar` with a root config and `ComfyUI-Foo`
 with a config in `bar/` both derive `foo-bar`. Inside one install that is a
-hard error (`install/workspace.py:226`). Across two installs sharing the
+hard error (`install/workspace.py`). Across two installs sharing the
 machine-wide root it is silent thrash: each re-derives, the identity seal
 mismatches, both rebuild, forever.
 

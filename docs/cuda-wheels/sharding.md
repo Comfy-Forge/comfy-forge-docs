@@ -107,7 +107,7 @@ a link step that **cannot succeed**:
 
 The shard's real deliverable is the compiler cache, so the failure is tolerated.
 Tolerating it must not tolerate a *real* compile failure, so the exit is gated
-on three conditions (`action.yml:719-766`):
+on three conditions (`action.yml`):
 
 | condition | failure it catches |
 |---|---|
@@ -229,7 +229,7 @@ every shard. The target's existence depends on the **shard contents**. At
 Hopper files. At 23 they diverged and generate failed:
 
 ```
-CMake Error at CMakeLists.txt:291 (target_link_libraries):
+CMake Error at CMakeLists.txt (target_link_libraries):
   Error evaluating generator expression: $<TARGET_OBJECTS:natten_hopper>
   Objects of target "natten_hopper" referenced but no such target exists.
 ```

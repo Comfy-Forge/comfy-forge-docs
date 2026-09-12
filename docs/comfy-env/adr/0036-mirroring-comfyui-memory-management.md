@@ -43,12 +43,12 @@ the manager can ask:
 |---|---|---|
 | How big is it? | `model_size()` | full weight bytes |
 | How much is on the GPU *now*? | `loaded_size()` | 0 … `model_size()` — **not** a boolean |
-| How much is not? | `model_offloaded_memory()` (`:773`) | `model_size() - loaded_size()` |
+| How much is not? | `model_offloaded_memory()` | `model_size() - loaded_size()` |
 | Where does it live / go? | `load_device`, `offload_device` | offload target is normally CPU RAM |
-| Is it in use this moment? | `currently_used` | set `True` on load, cleared for every eviction candidate (`:876`) |
+| Is it in use this moment? | `currently_used` | set `True` on load, cleared for every eviction candidate |
 
 Not stored, but read off a model during eviction: **`sys.getrefcount(model)`**
-— a plain builtin evaluated at `:875` while building the candidate list, used
+— a plain builtin evaluated at while building the candidate list, used
 as the second sort key (§1.5). Fewer live references sorts earlier, i.e. a
 model nothing else is holding is evicted sooner. Note this counts references
 to the *patcher*, so for an object type that is only ever held by the ledger
@@ -73,11 +73,11 @@ in memory forever**, because the list alone would be enough to keep it alive.
 So the ledger holds weak ones:
 
 ```python
-self._model = weakref.ref(model)      # :751 — the ModelPatcher
+self._model = weakref.ref(model)      # the ModelPatcher
 ...
 @property
 def model(self):
-    return self._model()              # :762-764 — deref; None once collected
+    return self._model()      # deref; None once collected
 ```
 
 The ledger is therefore an *observer*, not an owner. What actually keeps a
@@ -88,12 +88,12 @@ listed.
 **Finalizers do the cleanup.** `weakref.finalize(obj, fn)` registers `fn` to
 run at the moment `obj` is freed. There are two:
 
-- `weakref.finalize(model, self._switch_parent)` (`:754`) — if a patcher dies
+- `weakref.finalize(model, self._switch_parent)` — if a patcher dies
   but has a parent, the entry re-points at the parent rather than going dead.
-- `weakref.finalize(real_model, cleanup_models)` (`:796`) — when the actual
+- `weakref.finalize(real_model, cleanup_models)` — when the actual
   `nn.Module` is freed, the ledger prunes itself.
 
-**`is_dead()` detects the leak case** (`:827-828`):
+**`is_dead()` detects the leak case**:
 
 ```python
 return self.real_model() is not None and self.model is None
@@ -103,7 +103,7 @@ The inner model is still alive but its patcher was collected — meaning
 something outside ComfyUI is holding weights it can no longer manage.
 `cleanup_models_gc()` scans for this, forces a `gc.collect()` and a cache
 flush, and logs *"WARNING, memory leak with model …"* if the entry survives.
-Dead entries are also excluded from eviction candidates (`:874`).
+Dead entries are also excluded from eviction candidates.
 
 **What this entails.** Three consequences that shape everything downstream:
 
@@ -112,10 +112,10 @@ Dead entries are also excluded from eviction candidates (`:874`).
    model runs `cleanup_models` synchronously, which mutates the very list
    being iterated.
 2. **Two dead entries compare equal.** `__eq__` is
-   `self.model is other.model` (`:820-821`) — identity on the *patcher*, and
+   `self.model is other.model` — identity on the *patcher*, and
    both sides deref. Once collected, both are `None`, and `None is None` is
    `True`. Any code using `in` or `not in` against a list of `LoadedModel`s —
-   `keep_loaded` at `:874`, for instance — will match a collected entry
+   `keep_loaded` at, for instance — will match a collected entry
    against an unrelated one.
 3. **Anything standing in for a model must be weakref-able**, which rules out
    `__slots__`-free tricks and objects that override `__eq__` carelessly.
@@ -132,7 +132,7 @@ class VRAMState(Enum):
     SHARED = 5      # no dedicated VRAM (unified memory)
 ```
 
-Selected at import (`:558-579`) from `--lowvram` / `--novram` / `--highvram`
+Selected at import from `--lowvram` / `--novram` / `--highvram`
 / `--gpu-only` / `--cpu`, defaulting to `NORMAL_VRAM`. The state matters
 mainly at load time: `NO_VRAM` forces the smallest possible resident
 fraction, `HIGH_VRAM` skips offloading, and `LOW_VRAM`/`NORMAL_VRAM` both go
@@ -140,10 +140,10 @@ through the streaming calculation in §1.6.
 
 ## 1.3 Measuring free memory — where the OS distinction lives
 
-`get_free_memory(dev, torch_free_too=False)` (`:1739`) is the single input to
+`get_free_memory(dev, torch_free_too=False)` is the single input to
 every decision below.
 
-**CPU or MPS** (`:1744-1746`):
+**CPU or MPS**:
 
 ```python
 mem_free_total = psutil.virtual_memory().available
@@ -151,7 +151,7 @@ mem_free_total = psutil.virtual_memory().available
 
 System-wide, honest, shared between processes.
 
-**CUDA** (`:1774-1778`):
+**CUDA**:
 
 ```python
 mem_free_cuda, _  = torch.cuda.mem_get_info(dev)
@@ -209,31 +209,31 @@ if WINDOWS:
         EXTRA_RESERVED_VRAM += 100 * 1024 * 1024
 ```
 
-`:847-851`. Overridable with `--reserve-vram`. It treats the problem with a
+. Overridable with `--reserve-vram`. It treats the problem with a
 constant rather than a measurement.
 
 ## 1.4 Reserves
 
 ```python
 def minimum_inference_memory():
-    return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()   # :860-861
+    return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 ```
 
 0.8 GB of working room plus the reserve above. On a 16 GB Windows card that
 is 0.8 + 0.7 = **1.5 GB** held back from weights for activations and
 workspaces.
 
-`MIN_WEIGHT_MEMORY_RATIO` is `0.4`, but **`0.0` on NVIDIA** (`:454-456`),
+`MIN_WEIGHT_MEMORY_RATIO` is `0.4`, but **`0.0` on NVIDIA**,
 which removes the "keep at least 40% of weights resident" floor from §1.6.
 
 ## 1.5 Eviction
 
 ```python
 def free_memory(memory_required, device, keep_loaded=[],
-                for_dynamic=False, pins_required=0, ram_required=0):   # :863
+                for_dynamic=False, pins_required=0, ram_required=0):
 ```
 
-**Build the candidate list** (`:871-877`) — everything on this device not in
+**Build the candidate list** — everything on this device not in
 `keep_loaded` and not `is_dead()`, clearing `currently_used` as a side
 effect. Sort key:
 
@@ -244,11 +244,11 @@ effect. Sort key:
 Ascending, so **the most already-offloaded model is evicted first**, being
 cheapest to finish evicting.
 
-**Walk it** (`:879-894`):
+**Walk it**:
 
 ```python
 for x in can_unload_sorted:
-    memory_to_free = memory_required - get_free_memory(device)   # :883
+    memory_to_free = memory_required - get_free_memory(device)
     if memory_to_free > 0 and current_loaded_models[i].model_unload(memory_to_free):
         unloaded_model.append(i)
 ```
@@ -258,7 +258,7 @@ it is positive. That re-measurement is the whole design: each eviction raises
 free memory, shrinking the shortfall, until the guard stops the walk. It
 evicts the minimum rather than everything.
 
-`model_unload` (`:806-815`) escalates:
+`model_unload` escalates:
 
 ```python
 if memory_to_free < self.model.loaded_size():
@@ -273,17 +273,17 @@ Note the guard: when `memory_to_free >= loaded_size()` the partial path is
 skipped entirely. A model with `loaded_size() == 0` therefore always takes
 the detach path and is **popped while freeing nothing**.
 
-Returning True removes the entry from `current_loaded_models` (`:893-894`),
+Returning True removes the entry from `current_loaded_models`,
 and **nothing re-adds it** — re-registration happens only through
 `load_models_gpu`.
 
-`unload_all_models()` is `free_memory(1e30, device)` (`:2054-2056`), reached
-from OOM recovery (`execution.py:645`), from `--disable-smart-memory` after
-every prompt (`execution.py:837`), and from the "free memory" button.
+`unload_all_models()` is `free_memory(1e30, device)`, reached
+from OOM recovery (`execution.py`), from `--disable-smart-memory` after
+every prompt (`execution.py`), and from the "free memory" button.
 
 ## 1.6 Loading
 
-`load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False)` (`:934`).
+`load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False)`.
 
 **Budget:**
 
@@ -296,11 +296,11 @@ extra_mem = max(inference_memory, memory_required + extra_reserved_memory())
 
 **Re-register already-loaded models.** For each model being loaded, every
 entry whose patcher `is_clone` of it is popped, `detach(unpatch_all=False)`'d,
-and re-inserted (`:951-959`). This is bookkeeping, not an unload:
+and re-inserted. This is bookkeeping, not an unload:
 `ModelPatcher.detach(unpatch_all=False)` skips `unpatch_model` entirely
-(`model_patcher.py:1295-1299`), so **weights stay on the GPU**.
+(`model_patcher.py`), so **weights stay on the GPU**.
 
-**Free room** (`:969-974`):
+**Free room**:
 
 ```python
 free_memory(total_memory_required[device] * 1.1 + extra_mem, device,
@@ -308,11 +308,11 @@ free_memory(total_memory_required[device] * 1.1 + extra_mem, device,
             pins_required=total_pins_required.get(device, 0))
 ```
 
-`model_memory_required(device)` (`:776-780`) asks only for the *offloaded*
+`model_memory_required(device)` asks only for the *offloaded*
 portion when the model is already on the target device — a partially resident
 model does not re-request its whole size.
 
-**Decide the resident fraction** (`:988-1002`):
+**Decide the resident fraction**:
 
 ```python
 lowvram_model_memory = max(0,
@@ -329,7 +329,7 @@ if vram_set_state == VRAMState.NO_VRAM:
 **`0.1` is a sentinel meaning "load essentially nothing"** — set when the
 computed budget is zero, and unconditionally under `NO_VRAM`.
 
-**Load** (`:782-790`):
+**Load**:
 
 ```python
 use_more_vram = lowvram_model_memory
@@ -351,7 +351,7 @@ VRAM pressure becomes RAM pressure, and there is a second budget for it;
 **Pinned memory** is page-locked host memory the OS may not swap, required
 for DMA transfers that skip a bounce buffer and can overlap with compute.
 On by default for NVIDIA and AMD, applied with `cudaHostRegister` to tensors
-that already exist (`:1626`, `pinned_memory.py:61,106`) — so
+that already exist (, `pinned_memory.py`) — so
 `MAX_PINNED_MEMORY` is a **ceiling with a running total**, not an up-front
 reservation.
 
@@ -364,9 +364,9 @@ else:
                                 ram + get_disk_swap_total() - 16GB))
 ```
 
-`:1575-1578`. The Linux branch folds swap into the budget;
+. The Linux branch folds swap into the budget;
 `get_disk_swap_total()` reads `/proc/swaps` and returns 0 anywhere else.
-Release policy is the mirror image (`:701-711`): non-Windows frees pins on
+Release policy is the mirror image: non-Windows frees pins on
 *any* pressure, Windows only below 512 MB available or at ≥5% swap usage.
 Disable with `--disable-pinned-memory`.
 
@@ -375,7 +375,7 @@ Disable with `--disable-pinned-memory`.
 Models answering `is_dynamic() → True` use a separate just-in-time loader:
 weights fault in on use rather than loading up front, backed by uncommitted
 file-backed mappings the OS can reclaim. `is_dynamic()` gates it throughout —
-`:650`, `:884-888`, `:934`, `:966`, `:1006`, `:1430` — including a branch
+ — including a branch
 inside the eviction loop that declines to unload dynamic models on behalf of
 other dynamic models.
 
@@ -396,7 +396,7 @@ def soft_empty_cache(force=False):
 ```
 
 **The `force` argument is ignored on the CUDA branch** — there is no cheap
-mode. `free_memory` calls it once *after* its loop (`:900-906`), never
+mode. `free_memory` calls it once *after* its loop, never
 before.
 
 Measured: `empty_cache()` does return memory to the driver under
@@ -411,7 +411,7 @@ Flushing does **not** change `get_free_memory` — it moves bytes from
 |---|---|
 | `--lowvram` / `--novram` / `--highvram` / `--gpu-only` / `--cpu` | pick `VRAMState`; mutually exclusive |
 | `--reserve-vram GB` | overrides `EXTRA_RESERVED_VRAM` |
-| `--disable-smart-memory` | skips the eviction-target recompute (`:882`) and unloads everything after each prompt |
+| `--disable-smart-memory` | skips the eviction-target recompute and unloads everything after each prompt |
 | `--disable-pinned-memory` | sets `MAX_PINNED_MEMORY = -1` |
 | `--cache-ram` | RAM-pressure cache thresholds |
 | `--fast-disk` | prefer disk-backed offload over unpinned RAM |
@@ -458,7 +458,7 @@ Four things break, independently of each other:
    precisely when the card is full.
 4. **Registration is one-shot.** Upstream pops an entry whenever
    `model_unload` returns True and never re-adds it (§1.5). comfy-env skipped
-   ids already known (`pool.py:575`) and the worker deduped on `id(module)`
+   ids already known (`pool.py`) and the worker deduped on `id(module)`
    for the process lifetime, so a popped proxy could never come back — the
    VRAM stayed resident, invisible, and unevictable. §1.5's sort order makes
    this fire early and often, because a zero-resident proxy sorts *first* and
@@ -509,7 +509,7 @@ refcount and size — and refcount is a constant for a proxy object.
 
 *Phase two* — the residual goes to `mm.free_memory(..., keep_loaded=<worker
 LoadedModels>)`. `keep_loaded` is applied before the candidate list is built
-(`:874`), so every remaining victim is parent-local, every eviction moves the
+, so every remaining victim is parent-local, every eviction moves the
 parent's own numbers, and the feedback loop works again.
 
 `keep_loaded` is therefore **load-bearing on Windows and policy-only on

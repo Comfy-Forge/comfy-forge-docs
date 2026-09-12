@@ -5,11 +5,11 @@ existing packs migrate to pinned entries)
 
 !!! danger "Still unenforced, and the gap is wider than it reads"
     Verified 2026-09-07 against comfy-env `1cd4839`: `install_node_packs`
-    (`packages/node_packs.py:149`) contains no pin check, no host-clean
+    (`packages/node_packs.py`) contains no pin check, no host-clean
     `requirements.txt` check, and no registry refusal. An unpinned
     `owner/repo` installs from HEAD, and a `registry = "..."` entry installs
     from `api.comfy.org` and runs its `install.py`
-    (`packages/node_packs.py:172`). Every "mandatory" and "mechanically
+    (`packages/node_packs.py`). Every "mandatory" and "mechanically
     checked" below describes the decision, not the code. Nothing fails a
     build when a pack violates it, and no test asserts any of it, so the
     migration this status line waits on has no tripwire to end it.

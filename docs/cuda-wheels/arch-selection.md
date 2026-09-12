@@ -41,7 +41,7 @@ of GPUs that exist. Narrow the ask and the gate goes quiet.
 | `arch_exceptions` | `cuda/torch-minor` | narrow, hand-maintained additions |
 | `arch_policy_aarch64` | CUDA version | Linux aarch64 |
 
-`policy_arch_list()` (`scripts/generate_matrix.py:93`) picks one:
+`policy_arch_list()` (`scripts/generate_matrix.py`) picks one:
 
 - If the platform is `linux_aarch64`, it reads `arch_policy_aarch64[cuda]` and
   **returns immediately**. It never looks at `arch_exceptions`.
@@ -86,7 +86,7 @@ arch list is its **own** policy. Two reasons:
 
 ### x86 / Windows priority
 
-`resolve_arch_list()` (`generate_matrix.py:207`), highest wins:
+`resolve_arch_list()` (`generate_matrix.py`), highest wins:
 
 1. a per-combo `arch_list` inside the package's own `build_matrix.combinations`
 2. `arch_list_by_cuda[cuda]`
@@ -97,7 +97,7 @@ Nothing resolved → `KeyError`, not a default.
 
 ### ARM priority — and the trap
 
-`resolve_aarch64_arch_list()` (`generate_matrix.py:157`) is a **separate
+`resolve_aarch64_arch_list()` (`generate_matrix.py`) is a **separate
 function**:
 
 1. `arch_list_by_cuda_aarch64[cuda]`
@@ -183,7 +183,7 @@ is *correct* and the wheel is still wrong.
 up to the package.
 
 !!! danger "flash_attn: a hardcoded if-ladder"
-    Upstream `setup.py:179-191` gates every gencode on an exact token test:
+    Upstream `setup.py` gates every gencode on an exact token test:
 
     ```python
     if "80"  in cuda_archs(): ... arch=compute_80,code=sm_80

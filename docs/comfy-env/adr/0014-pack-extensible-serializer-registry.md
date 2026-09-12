@@ -10,7 +10,7 @@ this ADR is still for.
     serializers in `<pack>/serialization.py`
     ([ADR-0015](0015-declared-wire-types.md)). A `[serializers]` table in a
     `comfy-env.toml` raises a named `ValueError` at load
-    (`config/__init__.py:76`) telling you exactly that; it is not ignored
+    (`config/__init__.py`) telling you exactly that; it is not ignored
     and there is no shim. The declaration block further down describes the
     superseded form and is kept only so a reader of an old pack can
     recognise what they are looking at.

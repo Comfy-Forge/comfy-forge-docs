@@ -31,7 +31,7 @@ ADR-0025 assumed free VRAM was observable. It is not, across processes,
 on the majority platform.
 
 `get_free_memory` derives its device term from `torch.cuda.mem_get_info`
-(`model_management.py:1776`). On Windows/WDDM that call reports the
+(`model_management.py`). On Windows/WDDM that call reports the
 *calling process's* budget. Measured on RTX 4060 Ti 16 GB, driver
 581.57, torch 2.10+cu128: a sibling process allocated 13.0 GiB;
 `nvidia-smi` free fell 13,443 MB while the parent's `mem_get_info` free
@@ -39,7 +39,7 @@ fell **75 MB**. At 4 GiB the parent's delta was exactly **0 MB**.
 
 ComfyUI's eviction loop computes
 `memory_to_free = memory_required - get_free_memory(device)` and acts
-only `if memory_to_free > 0` (`model_management.py:883,889`). With the
+only `if memory_to_free > 0` (`model_management.py`). With the
 free term stuck near full-card, the difference is negative for any
 realistic request: **`free_memory()` evicted nothing** when a worker
 asked for room. Meanwhile the worker sized `lowvram_model_memory` from

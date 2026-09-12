@@ -109,7 +109,7 @@ stay listed (struck) so the list doubles as a change record.
      not read -- expose NODE_CLASS_MAPPINGS or use register_nodes") instead
      of returning 0 nodes.
    - *Soon (~20 lines):* full scan support -- mirror ComfyUI's loader
-     (`nodes.py:2297-2327`): call `comfy_entrypoint()`, `await
+     (`nodes.py`): call `comfy_entrypoint()`, `await
      get_node_list()`, `GET_SCHEMA()` per class. The proxy half already
      exists (`_build_v3_proxy_class`, proven by GeometryPack's v3 classes),
      so only the scan's entry-door invocation is missing.
@@ -311,8 +311,8 @@ they mean a pack cannot declare a boundary even if it wants one.
 
 **1. Every `.js` under a pack's web directory is imported into the page.**
 A pack sets `WEB_DIRECTORY` and that directory is recorded
-(`nodes.py:2286`) and mounted as static at `/extensions/<pack>`
-(`server.py:1244`). `GET /extensions` then globs it recursively and returns a
+(`nodes.py`) and mounted as static at `/extensions/<pack>`
+(`server.py`). `GET /extensions` then globs it recursively and returns a
 flat list of every file:
 
 ```python
@@ -341,7 +341,7 @@ imported as though they were. In ComfyUI-KJNodes, four files register nothing
 at all (`utility.js`, `fix_node.js`, `editors/editor_base.js`,
 `editors/interpolation.js`); they exist to be imported by siblings. The glob
 imports each one anyway. Their siblings show what that costs:
-`editors/point_editor_canvas.js:5` calls `createEditorStylesheet(...)` at
+`editors/point_editor_canvas.js` calls `createEditorStylesheet(...)` at
 module scope, so a `<style>` element is appended to `document.head` on every
 page load whether or not a spline editor is ever opened.
 
@@ -350,7 +350,7 @@ one with a public workaround. ComfyUI-KJNodes vendors `marked.min.js` and
 `purify.min.js` for a help popup most users never open. Rather than let the
 glob import both into the realm at startup, it registers a **second static
 route on ComfyUI's own aiohttp app**, pointing outside `WEB_DIRECTORY`
-(`__init__.py:411`), with the reason stated in the source:
+(`__init__.py`), with the reason stated in the source:
 
 ```python
 # NOTE: we add an extra static path to avoid comfy mechanism that loads every script in web.
@@ -368,7 +368,7 @@ had to reach into the server's routing table to avoid the frontend's loader.
 **4. There is no capability query, so packs read core's source.** With one
 shared realm and no version negotiation, a pack that needs to know whether the
 frontend already supports something has no API to ask. KJNodes stringifies a
-core method and greps it (`web/js/setgetnodes.js:1584`):
+core method and greps it (`web/js/setgetnodes.js`):
 
 ```js
 const nativeSource = proto.resolveOutput.toString();

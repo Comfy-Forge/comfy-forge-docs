@@ -13,7 +13,7 @@
 
 - The worker lives in a real module, `workers/_persistent_worker.py`
   (~1850 lines), but is **never imported by the parent**. The parent reads it
-  as text at import time (`subprocess.py:106-109`) and materializes it into a
+  as text at import time (`subprocess.py`) and materializes it into a
   temp directory, where the isolated interpreter executes it as a script.
 - The small stdlib-only helper layer, `workers/_ipc_shared.py`, is **copied**
   into the same temp directory so the worker can `import _ipc_shared`

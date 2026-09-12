@@ -35,8 +35,8 @@ Installing a comfy-env pack currently means trusting:
    `install_node_packs` accepts a bare `owner/repo` (tracking HEAD) and
    dispatches `registry = "..."` straight to `install_from_registry`,
    which downloads whatever `api.comfy.org` currently serves for that
-   name and runs its install script (`packages/node_packs.py:172`,
-   `:69`). Blast radius is the same as item 1, at a source the pack
+   name and runs its install script (`packages/node_packs.py`,
+ ). Blast radius is the same as item 1, at a source the pack
    author did not pin and the user never named.
 4. **The pinned pixi binary** -- the one link done right: version
    pinned, sha256-verified against the release's own sums, refused on

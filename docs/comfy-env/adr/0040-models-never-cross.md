@@ -42,8 +42,8 @@ consequences are all silent:
 | two kwargs aliasing one object arrive as two objects | `_from_shm` has no memo. Identity-keyed upstream logic stops matching |
 
 And where it does *not* succeed, it fails with the wrong message. `VAE.__init__`
-assigns four instance-level lambdas unconditionally (`comfy/sd.py:497-506`);
-`ControlBase.__init__` assigns one (`comfy/controlnet.py:100`). Both are
+assigns four instance-level lambdas unconditionally (`comfy/sd.py`);
+`ControlBase.__init__` assigns one (`comfy/controlnet.py`). Both are
 unpicklable, so a `VAE` or `CONTROL_NET` input dies every time — with a
 comfy-env `TypeError` advising the author to register a serializer in *their
 pack's* `serialization.py`, for a core type they do not own and cannot change.

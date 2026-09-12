@@ -47,15 +47,15 @@ A clean import is not a registration, and this is the level that says so.
 
 ComfyUI's own loader will not tell you. `load_custom_node` takes the V1 branch
 on any `NODE_CLASS_MAPPINGS` that is not `None` -- **an empty dict included** --
-iterates nothing, and returns `True` (`nodes.py:2292-2301`). No warning is
+iterates nothing, and returns `True` (`nodes.py`). No warning is
 logged, because from core's point of view nothing went wrong. (The
 `Skip <pack> module ... lack of NODE_CLASS_MAPPINGS or comfy_entrypoint`
 message covers a different case: neither symbol present at all.)
 
 So the level counts the nodes that are **yours**, using upstream's own
 attribution: every `/object_info` entry carries `python_module`
-(`server.py:765`), set from `RELATIVE_PYTHON_MODULE` as `custom_nodes.<dir>`
-(`nodes.py:2296`), where `<dir>` is your pack's directory under
+(`server.py`), set from `RELATIVE_PYTHON_MODULE` as `custom_nodes.<dir>`
+(`nodes.py`), where `<dir>` is your pack's directory under
 `custom_nodes/`. Zero entries attributed to your pack **fails the level**.
 
 The usual causes: `__init__.py` does not export `NODE_CLASS_MAPPINGS`, exports
