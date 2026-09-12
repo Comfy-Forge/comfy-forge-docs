@@ -83,7 +83,13 @@ raises, and the string is the node's error message. Anything else — an
 The one visible difference from native: the rejection lands on the node at
 execution rather than at submit, so nodes ahead of it in the graph run
 first. Everything the author's body sees is what it would have seen
-natively; a linked input is `None` in both places.
+natively; a linked input is `None` in both places. A second, narrower
+difference follows from the first: native ComfyUI validates a node even
+when the executor will then serve it from cache, whereas here the body
+runs only when the function does, so a cache-hit node's validate does not
+run. It matters only for a validate whose verdict depends on something
+outside the inputs (a file that has since vanished) on a node whose inputs
+have not changed.
 
 Why this order and not a round trip at submit: at submit the worker may not
 exist (first prompt after launch), or may be busy with the previous prompt,
