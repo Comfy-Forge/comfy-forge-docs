@@ -3,7 +3,7 @@
 [comfy-test](https://github.com/PozzettiAndrea/comfy-test) is **installation
 and execution testing infrastructure for ComfyUI custom nodepacks**.
 
-It does three things, the way a real user would:
+Through the "comfy-test run" command, it does three things, the way a real user would:
 
 1. **Installs the nodepack.**
 

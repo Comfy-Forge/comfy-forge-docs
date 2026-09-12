@@ -77,10 +77,11 @@ snapshot before any pack code was imported, and nothing copies the worker's
 registry back. So the new category, or the new directory on an existing one,
 exists in the worker and nowhere else.
 
-comfy-env does not intercept the call. `isolation/metadata.py` declares a
-`_PACK_FOLDER_REGISTRY` and a `_LIVE_CACHE` for exactly this purpose, but
-nothing reads or writes either of them. The host dict is left untouched by
-the process boundary, not by a decision.
+comfy-env does not intercept the call, and it does not copy the worker's
+registry back. The second half is the decision: the host's registry is
+snapshot-pushed into every worker, so one pack's registration copied back
+would appear in every other pack's process
+([deliberately unsupported](deliberately-unsupported.md), row 3).
 
 The consequence is split:
 
@@ -92,8 +93,8 @@ The consequence is split:
 | The asset seeder | no |
 
 This is the one place where "a pack does not need to know it is isolated"
-stops being true. It has no ADR; the two unused module globals are the only
-trace of an intended design.
+stops being true. It has no ADR; the reason lives on the
+deliberately-unsupported page.
 
 ## See also
 
