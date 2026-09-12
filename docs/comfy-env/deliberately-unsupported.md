@@ -13,7 +13,7 @@ a bug: the naive fix exists, is small, and would make things worse.
 
 | # | We do not | Because | Recorded | Would change if |
 |---|---|---|---|---|
-| 1 | Run a pack's `IS_CHANGED` / `VALIDATE_INPUTS` **body** | Both fire at validation time, once per node, **before anything executes** — for every node in the prompt, including ones that will be cache-skipped. Forwarding either cold-spawns every isolated environment on submit. And at validation upstream stubs every linked input to `None`, so a forwarded body would only ever see literal widget values anyway. The **signature** is reproduced, because that is what carries the exemptions | [caching and validation](caching-and-validation.md) | Upstream offered a way to validate without instantiating, or an isolated pack shipped a validate that genuinely cannot be expressed as an input |
+| 1 | Run a pack's `VALIDATE_INPUTS` **body** | It fires at validation time, once per node, **before anything executes**, for every node in the prompt, including ones that will be cache-skipped. Forwarding it by spawning would cold-start every isolated environment on submit, and unlike `IS_CHANGED` there is no safe answer for a cold worker: "valid" lets a bad value through and "invalid" rejects a workflow that submits fine natively. At validation upstream also stubs every linked input to `None`, so a forwarded body would only ever see literal widget values anyway. The **signature** is reproduced, because that is what carries the exemptions | [caching and validation](caching-and-validation.md) | Upstream offered a way to validate without instantiating, or an isolated pack shipped a validate that genuinely cannot be expressed as an input |
 | 2 | Forward `DYNPROMPT` | A live `DynamicPrompt` rather than data. It cannot mutate during a call, so a snapshot *would* be exact — but nothing ComfyUI ships consumes it, and forwarding means transcribing upstream's class into comfy-env's worker source, which drifts silently. Cost of not doing it: a node declaring it sees the same absent kwarg it always did | [saved-image metadata](png-metadata.md) | A real pack reads `DYNPROMPT` inside a worker. The work is understood and ~15 lines |
 | 3 | Write a pack's `add_model_folder_path` into ComfyUI's global registry | The global feeds `/models`, the asset seeder, upload routing — and is snapshot-pushed wholesale into **every** worker. One pack's registration would appear in every other pack's process. Kept in a per-pack private registry instead; host-defined categories win | `metadata.py`, comment on `_PACK_FOLDER_REGISTRY` | A per-worker view of the registry, so a registration could be scoped |
 | 4 | Cancel a node that is not reporting progress | The only worker→parent traffic during a call is the progress callback, so that is the only place the interrupt flag can be checked. A node that never reports is uncancellable until the timeout. Cooperative by progress, decided | [ADR-0018](adr/0018-worker-call-timeout.md) | The heartbeat frame ADR-0018 already names ships — a protocol change, not a patch |
@@ -48,9 +48,10 @@ first request with no clue why.
 
 The two most common questions, because they look like decisions and are not:
 
-- **`IS_CHANGED` being absent** is a consequence of row 1, and it is now
-  warned about at startup — but the *caching-forever* result is a gap, not a
-  choice. The ladder that would soften it is in [Gaps](gaps.md).
+- **`IS_CHANGED`** is forwarded, over the same ladder as
+  [live dropdowns](live-dropdowns.md): the pack's fingerprint runs in its
+  worker when that worker is alive and idle, and every other case answers
+  *changed*. It used to be dropped with a startup warning; that is gone.
 - **`check_lazy_status`** is forwarded when the author defined one. Unlike
   row 1, it fires for a node ComfyUI has already picked to execute, whose
   worker is spawning anyway, so the cold-spawn objection never applied. What

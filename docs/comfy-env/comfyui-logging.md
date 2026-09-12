@@ -13,15 +13,32 @@ actually do, what `sys.stdout` is as distinct from file descriptor 1, and what
 
 ## Where does ComfyUI log to?
 
-A single `print()` in the ComfyUI process can end up in four places. Only the
-first is unconditional.
+A single `print()` in the ComfyUI process can end up in three places, and a
+`logging` call in a fourth that raw writes never reach. Only the first is
+unconditional.
 
 | # | Destination | What it is | On by default |
 |---|---|---|---|
 | 1 | **The real terminal** | the original `sys.stdout` / `sys.stderr`, written last by `super().write(data)` (`app/logger.py:70`) | yes |
 | 2 | **A 300-entry ring** | `deque(maxlen=capacity)`, `capacity=300` (`app/logger.py:97,103`), in memory, module-global | yes |
 | 3 | **The browser terminal panel** | pushed over the websocket by `TerminalService`, which registers `on_flush(self.send_messages)` (`api_server/services/terminal_service.py:12`) | only while a client is subscribed |
-| 4 | **A log file** | a `logging.FileHandler` added by `setup_logger` (`app/logger.py:140`) | **on Desktop yes, running `main.py` yourself no** |
+| 4 | **A log file** | a `logging.FileHandler` added by `setup_logger` (`app/logger.py:140`); fed by `logging` records only, never by `print()` or by a traceback written to `sys.stderr` | **on Desktop yes, running `main.py` yourself no** |
+
+Which of those a line reaches depends on how it was produced, not on which
+stream it names. Both streams are wrapped, each by its own `LogInterceptor`,
+and each writes through to the stream it wrapped, so a stdout write still
+ends on fd 1 and a stderr write on fd 2:
+
+| Produced by | Terminal | Ring | Browser panel | Log file |
+|---|---|---|---|---|
+| `print()`, or any write to `sys.stdout` | yes, fd 1 | yes | yes | **no** |
+| any write to `sys.stderr` (an uncaught traceback, the `warnings` module, a pack writing to stderr) | yes, fd 2 | yes | yes | **no** |
+| a `logging` record (ComfyUI's own `[INFO]` and `[WARNING]` lines, `logging.exception`) | yes, on **stderr** by default; with `--log-stdout`, below ERROR to stdout and ERROR and above to stderr | yes | yes | **yes**, at the file's own level |
+
+The ring and the panel therefore see both streams merged in write order. The
+file is fed only by the `logging` handler: a `print()` never lands there, and
+neither does a traceback Python writes to `sys.stderr` on its own; only
+`logging.exception` does.
 
 Destination 4 is the one that depends on how you launched ComfyUI.
 

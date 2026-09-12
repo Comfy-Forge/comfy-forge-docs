@@ -7,13 +7,21 @@ channel to get there at all, and what still falls on the floor.*
 ## ComfyUI background
 
 ComfyUI replaces `sys.stdout` and `sys.stderr` with a wrapper that fans each
-write out to four places:
+write, from either stream, out to three places, and the `logging` module adds
+a fourth that raw writes never reach:
 
-1. **The terminal**: the original stream, written last and visible in the Terminal/Shell ComfyUI is being launched from.
-2. **An in-memory ring**: the last 300 *write calls*, always stored so if you close the browser and reconnect they can be replayed in the browser's terminal panel.
-3. **The browser's terminal panel**: over the websocket while a
+1. **The terminal**: the original stream, written last. A stdout write still
+   goes to fd 1 and a stderr write to fd 2, so `2>` and `2>&1` keep meaning
+   what they always did. ComfyUI's own log lines are stderr unless
+   `--log-stdout`.
+2. **An in-memory ring**: the last 300 *write calls* from both streams
+   together, always stored so if you close the browser and reconnect they can
+   be replayed in the browser's terminal panel.
+3. **The browser's terminal panel**: both streams, over the websocket while a
    client is subscribed.
-4. **A file**: always on for Desktop, off by default for manual installations
+4. **A file**: `logging` records only, through a `FileHandler`. A `print()`
+   or a traceback written straight to `sys.stderr` never lands there. Always
+   on for Desktop, off by default for manual installations.
 
 The rest of this page assumes you know how ComfyUI's logging works, in detail.
 

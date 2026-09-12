@@ -1,11 +1,15 @@
-# comfy-env's memory management
+# The issue
 
 ComfyUI manages RAM and VRAM to optimize for speed and stability on all kinds
-of hardware. Every bit of that strategy assumes everything runs in one
-process. comfy-env's isolated nodepacks run in separate ones, on the same
+of hardware.
+
+Every bit of that strategy assumes everything runs in one
+process.
+
+comfy-env's isolated nodepacks run in separate ones, on the same
 card, and neither side can see the other's allocations directly.
 
-## ComfyUI background
+## The solution
 
 The (currently unattainable) aim of comfy-env is to let the already optimized and tested ComfyUI memory code manage RAM and VRAM in custom nodepacks subprocesses as it already does for its own host process.
 
@@ -13,14 +17,16 @@ The rest of this page assumes that the user is already familiar with native Comf
 
 **[If you're not, please read this page first](comfyui-memory.md)**.
 
-ComfyUI's memory management can be summarised as a module-level
-list of loaded models and cached results on RAM and VRAM, plus arithmetic about what gets thrown out of it when we run out of RAM/VRAM.
+ComfyUI's memory management can be summarised as:
+
+- A module-level list of loaded models and cached results on RAM and VRAM
+- Some arithmetic and logic about what gets pushed out of it when we run out of RAM/VRAM.
 
 ```python
 current_loaded_models = []   # comfy/model_management.py
 ```
 
-Everything else hangs off that one fact:
+Expanding a little bit on that statement:
 
 - ComfyUI streams weights per layer when a
 model does not fit
@@ -31,55 +37,53 @@ advance
 - It caches what every node produced so a re-run skips the work.
 - ....
 
-It is truly good code, well tested and runs on all operating systems on hardware ranging from a shitty laptop to an H100 server.
+It is truly good code, well tested and runs on all operating systems on hardware ranging from a 2011 laptop to an H100 server.
 Within its category, ComfyUI's memory management is SOTA.
 
 Unfortunately for us, it also assumes that there is ever only exactly one process.
 
-**Two processes do not share an address space by default.** Sharing bytes is
-possible in principle and comfy-env does it for CPU tensors with
-`share_memory_()`. For GPU tensors it mostly cannot: ComfyUI turns on
-PyTorch's async CUDA allocator by default and a worker inherits that, and
-handles from that allocator will not export, so a GPU tensor crossing the
-boundary is copied.
+**Two processes do not share an address space by default.**, but sharing bytes between processes is
+theoretically possible.
 
-What does not survive the boundary is bookkeeping.
+For CPU tensors comfy-env already does it with `share_memory_()`.
+
+For GPU tensors it mostly cannot: ComfyUI turns on PyTorch's async CUDA allocator (*cudaMallocAsync*) by default and a worker inherits that.
+Handles from the *cudaMallocAsync* backend will not export, so a GPU tensor crossing the boundary is always copied.
+
+Copying GPU tensors across processes using a RAM buffer isn't the main issue with memory management though:
+the hardest part to carry across the boundary is bookkeeping.
 
 One thing dominates everything else:
 
-- **Making room means walking `current_loaded_models` and asking each entry
-  to unload.** That is the main job memory management has. A pack's models
-  live in another process, so unless something of theirs is in that list,
-  the host can decline to take memory it does not have, which is useful, but
-  it cannot take memory back, which is the half that matters when the card
-  is already full.
+- **When we want to load a model and our memory is already full, making room means walking `current_loaded_models`
+  and asking each entry to unload.**. Unfortunately an isolated nodepack's models
+  live in another process, so unless we somehow add them to the host list,
+  the host will not be able to evict them/make space on an already full card.
 
-  So comfy-env puts something in the list: one stand-in per worker model,
-  which forwards the unload over IPC and the worker performs it. That is why
-  the Free button works, why the out-of-memory handler reaches packs, and
+  To get around this, comfy-env puts something in the list: one stand-in per worker model,
+  which forwards the unload call over IPC to the worker to actually free the memory.
+  That is why the Free button works, why the out-of-memory handler reaches packs, and
   why a host load can evict a pack's model instead of failing. It is also
-  the only part of comfy-env that upstream can break by changing something
-  unrelated.
+  one of the most fragile and dubious parts of comfy-env.
 
-Two more need machinery that does not exist, which is a different claim from
-impossible:
+Two more limitations of comfy-env:
 
-- **The node output cache can only cache what it can reach.** There is one
-  cache and it lives in the host; workers do not run the execution engine at
-  all. A pack's results therefore have to be copied across the boundary to be
-  cached, so the bytes exist twice. And the eviction trigger reads
-  machine-wide free RAM (`psutil.virtual_memory().available`), so memory a worker holds might make the host evict its own
-  cached results, while the host can evict nothing the worker holds. The
-  signal is global and the lever is local.
+- **The node output cache works for isolated nodes, with one blind spot.**
+  There is one cache and it lives in the host. A proxied node's outputs
+  cross the boundary once, are stored by the host like any node's, and a
+  re-run with the same inputs is served from the host without calling the
+  worker; the worker drops its copy as soon as the host acknowledges the
+  transfer, so nothing is held twice. The blind spot is `IS_CHANGED`: it is
+  not forwarded across isolation, so a pack node whose result depends on
+  anything not in its inputs (a file, a clock, an API) is cached as never
+  changing until restart. comfy-env warns at startup for every such node.
+  And the eviction trigger reads machine-wide free RAM, so memory a worker
+  holds can make the host drop its own cached results while the host can
+  free nothing the worker holds. The signal is global and the lever is
+  local.
 
-- **Clone weight sharing needs plumbing nobody has written.** Two nodes using
-  one checkpoint pay once in-process because clones point at the same tensors
-  and are tracked by a shared id. Across processes the mapping is mechanically
-  available, but ComfyUI's loaders read checkpoints from disk into
-  process-local tensors and nothing tells a worker the host already has those
-  weights mapped. The harder half is not the mapping: clones exist so each can
-  be patched differently, and a shared mapping makes one clone's patch visible
-  to the other unless something coordinates it.
+- **Clone weight sharing needs plumbing nobody has written.** two nodepacks loading the same checkpoint on disk
+  will end up booking the same amount of space for the same bytes twice in memory.
 
 The rest merely go wrong, which is a different and far more tractable
 problem: two processes each keeping their own reserve, each ranking evictions

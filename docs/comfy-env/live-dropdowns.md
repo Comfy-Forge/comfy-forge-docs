@@ -124,13 +124,13 @@ that has not moved.
   running, which in practice means after you have executed one of its nodes.
   Open ComfyUI, add a file, refresh without running anything, and you see the
   scan-time list.
-- **No staleness fingerprint.** The previous design attached an mtime-based
-  `IS_CHANGED` so that overwriting a mesh in place re-executed instead of
-  serving the cached result. It needed a per-input directory spec to resolve
-  the value to a path, and nothing holds one any more — which inputs are file
-  listings is now the worker's answer at refresh time, not a fact the parent
-  knows when it builds the class. Recorded here as a real loss rather than
-  quietly dropped.
+- **The pack's own `IS_CHANGED` rides the same ladder.** A node that
+  defines `IS_CHANGED` or `fingerprint_inputs` gets its real fingerprint
+  from its worker on rung 1, and answers *changed* on rungs 2 and 3, so
+  overwriting a mesh in place re-executes as long as the pack's fingerprint
+  says so. The miss answer is inverted on purpose: a stale dropdown is
+  cosmetic, a stale cached result is wrong. See
+  [caching and validation](caching-and-validation.md).
 - **Everything else in the payload stays frozen** — `RETURN_TYPES`, tooltips,
   and any option list computed from something other than a file listing
   (installed backends, GPU capability probes, API queries). Those are live

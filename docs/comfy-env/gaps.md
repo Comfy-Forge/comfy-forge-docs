@@ -112,7 +112,7 @@ stated condition under which it would be revisited. They live on their own
 page so the reasoning is not buried in a list of things that are simply
 missing: **[Deliberately unsupported](deliberately-unsupported.md)**.
 
-In short: `IS_CHANGED` / `VALIDATE_INPUTS` bodies, `DYNPROMPT`,
+In short: `VALIDATE_INPUTS` bodies, `DYNPROMPT`,
 `add_model_folder_path` into the global registry, cancel without progress,
 the 600 s silence timeout, frontend isolation, `async def` nodes, and the
 host's own server surface (`routes`, `prompt_queue`, prompt handlers).
