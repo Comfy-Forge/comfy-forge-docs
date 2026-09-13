@@ -1,32 +1,31 @@
 # The stand-in model
 
 *One fake model for every model a worker holds, placed in ComfyUI's own
-list so its eviction can reach another process. Why it exists, what it must answer,
-how it is checked, and what it costs.*
+list so its eviction can reach another process.
 {: .subtitle }
-
-This page assumes [what survives isolation](memory-approach.md), which
-assumes [ComfyUI's memory management](comfyui-memory.md).
 
 ## Why a fake model at all
 
 When ComfyUI wants to load a model and the card is full, making room means
-walking `current_loaded_models` and asking each entry to unload. An isolated
-pack's models live in another process, so unless something represents them
+walking `current_loaded_models` and asking each entry to unload.
+
+An isolated pack's models live in another process, so unless something represents them
 in that list the host cannot evict them, cannot make space on a full card,
 and a pack's memory cannot be reclaimed at all.
 
 So comfy-env puts something in the list: one stand-in for every model a
-worker holds (a worker with a UNet and a VAE gets two), each forwarding its
+worker holds (a worker that has loaded a UNet and a VAE gets two), each forwarding its
 own unload over IPC to the worker that holds the weights.
-That is why the Free button works on a pack's model, why the out of memory
-handler reaches packs, and why a host load can evict a pack's model instead
-of failing. It is also the single most fragile thing comfy-env does, because
-ComfyUI reads whatever it likes off anything in that list.
 
-`load_models_gpu` and `free_memory` call out to exactly three things:
-entries in that list, the pinned memory helpers, and `logging`. There is no
-callback, no event and no registry on either path. The operating system
+This is done to let two very important functions in ComfyUI operate properly:
+`load_models_gpu` (decides whether we have space to load a new model to VRAM) and `free_memory` (decides what to evict from VRAM if we don't have enough space).
+
+They call out to exactly three things:
+- entries in that list
+- the pinned memory helpers
+- `logging`
+
+There is no callback, no event and no registry on either path. The operating system
 cannot substitute: there is no push notification for device memory anywhere,
 NVML's event API has no memory bit, CUDA has no callback, and VRAM is charged
 to no cgroup. Host side precursors are too late; on ComfyUI's real loading
