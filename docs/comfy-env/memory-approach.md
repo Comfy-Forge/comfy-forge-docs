@@ -13,6 +13,14 @@ card, and neither side can see the other's allocations directly.
 
 The (currently unattainable) aim of comfy-env is to let the already optimized and tested ComfyUI memory code manage RAM and VRAM in custom nodepacks subprocesses as it already does for its own host process.
 
+This is unattainable as of 2026-09-13 not only because ComfyUI's memory
+manager has no interface for memory held by another process (the "Upstream"
+column of the table below says what would have to be merged), but also
+because each subprocess worker
+[keeps some RAM for its interpreter and torch, and some VRAM for its CUDA context](process-footprint.md),
+a fixed cost per process that no memory manager can see as a model or
+evict.
+
 The rest of this page assumes that the user is already familiar with native ComfyUI memory management.
 
 **[If you're not, please read this page first](comfyui-memory.md)**.

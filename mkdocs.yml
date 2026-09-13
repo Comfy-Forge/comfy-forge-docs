@@ -91,6 +91,7 @@ nav:
           - comfy-env's memory management: comfy-env/memory-approach.md
           - Where the stand-in is inaccurate: comfy-env/model-stand-in-inaccuracies.md
           - Why Windows needs its own branch: comfy-env/windows-blind-spot.md
+          - What occupies RAM and VRAM in a process: comfy-env/process-footprint.md
           - Memory management context:
               - Overview: comfy-env/memory-context.md
               - ComfyUI memory management background: comfy-env/comfyui-memory.md
