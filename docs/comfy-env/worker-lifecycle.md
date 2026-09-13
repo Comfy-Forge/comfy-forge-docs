@@ -90,6 +90,42 @@ this page kills it.
 | 4 | **ComfyUI killed hard, worker mid-computation** | The worker is not reading the socket, so it does not notice. It **finishes the running call for nobody** -- holding its RAM and VRAM the whole time -- and only exits when it tries to *send* its reply: `transport.send` raises on the dead socket, the error handler tries to send an error frame, that raises again unhandled, and the process dies. A worker deep in a 30-minute bake outlives its parent by up to 30 minutes. |
 | 5 | **The sweep at next startup** | The backstop for anything left behind: the next `register_nodes()` runs `_cleanup_stale_workers`, which kills `persistent_worker.py` processes whose parent pid no longer exists, unlinks dead-owner socket files (macOS only -- the `unix://` filename embeds the owning pid; Linux uses the abstract namespace and leaves no file), and removes `comfyui_pvenv_*` temp dirs no live process has in its cwd or command line. Orphans are recognised by the **host pid baked into the worker's temp-dir name** (`comfyui_pvenv_<hostpid>_…`), not by the immediate parent: under `pixi run` a worker whose wrapper died has parent pid 1 and one whose host died has a live wrapper, so a parent test caught neither. A worker whose host is gone is killed as a group. Workers from an older comfy-env, with no host pid in the name, fall back to the parent test. |
 
+## One row per process: the worker record
+
+Since 2026-09-13 the pool holds a `WorkerRecord` per env, not a bare
+`(worker, generation)` tuple. The row carries everything the parent knows
+about one worker *process*: the `SubprocessWorker`, its generation, the
+reserve high-water it has been charged (`held`), when it last did anything
+(`last_activity`, what the idle sweep reads), the last prompt it ran, and
+whether its memory manager has been reported. It still unpacks as
+`worker, gen = entry`, so nothing that read the tuple had to change.
+
+Two rules make the row safe without a lock of its own. It is **born in one
+place**, after the transport canary passes, and **replaced, never mutated
+in place**, when the process is replaced: a reader that took a snapshot of
+the pool keeps a consistent pair, and a late write into a retired row is
+lost, which is right for `held` (the process is gone) and harmless for
+`last_activity`. `_POOL_LOCK` guards membership of the pool only; the
+fields are read lock-free by the reserve arithmetic and the budget
+callback, which run on other workers' call threads and must never wait
+behind a spawn.
+
+The row also gives replacement a single exit. Three paths swap a process
+out (the crash removal, the dead-worker branch on the next call, and the
+socket-unhealthy restart that keeps the `SubprocessWorker` object), and
+before the record each cleared a different subset of the per-process
+state. The dead branch left the old process's reserve charge on the new
+one; the restart path left the last VRAM report on the worker object; the
+last prompt and the pin-regression flag were never cleared, so a
+replacement under the same key inherited a stale figure and skipped its
+first regression line. All three now go through `_retire_worker_state`,
+which forgets everything per-process: the reserve high-water (the one
+place a shrink is allowed), the pin and overhead reports (the key must be
+absent from the allocator's input, not kept at zero), the activity clock,
+the manager flag, and the harvest fields on the worker object. Patchers
+are the caller's business, because the paths differ on whether they must
+stay alive (next section).
+
 ## The subtlest rule: what replacement must preserve
 
 When a worker is replaced (case 1), its

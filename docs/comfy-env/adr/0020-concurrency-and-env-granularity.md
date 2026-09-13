@@ -14,8 +14,9 @@ accepted but unimplemented.
 
 ### Concurrency: one worker + one lock per env
 
-`_WORKER_POOL` is keyed by env dir; each entry is one `SubprocessWorker`
-guarded by one reentrant lock. Every path into a worker -- the
+`_WORKER_POOL` is keyed by env dir; each entry is one `WorkerRecord`
+(one `SubprocessWorker`, its generation and its per-process ledgers)
+and the worker is guarded by one reentrant lock. Every path into a worker -- the
 executor's node call, an aiohttp proxy route, a VRAM-eviction
 `send_command` re-entering mid-call (the reason the lock is an RLock),
 the metadata scan -- serializes on it. Stated plainly, the consequences

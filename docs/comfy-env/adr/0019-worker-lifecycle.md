@@ -33,9 +33,13 @@ The state machine, as shipped:
    is not to be reintroduced).
 3. **Dead** (crash, timeout kill per ADR-0018, or EOF): the
    `SubprocessWorker` object is permanently retired. The pool
-   (`_WORKER_POOL`, keyed by env dir) swaps in a fresh worker with a
-   **bumped generation** on the next call; stale generations are never
-   resurrected.
+   (`_WORKER_POOL`, keyed by env dir, one `WorkerRecord` per entry since
+   2026-09-13) swaps in a fresh record with a **bumped generation** on
+   the next call; stale generations are never resurrected. Every path
+   that replaces a process (crash removal, the dead branch on the next
+   call, the socket-unhealthy restart) retires the old process's
+   per-process state through `_retire_worker_state` before the new
+   record is used; the record is replaced, never mutated in place.
 4. **Replacement bookkeeping -- the `_STALE_PATCHERS` invariant** (the
    subtlest rule in the codebase, promoted here out of a comment in
    `wrap.py:_cleanup_stale_patchers`): when a worker is replaced, its
