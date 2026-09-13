@@ -1,10 +1,23 @@
-# ComfyUI memory API inventory
+# ComfyUI's memory API
 
-*Every part of ComfyUI's memory surface, and comfy-env's relationship to each
-one. The companion to [ComfyUI's memory management API](comfyui-memory-api.md), which explains
-the shape; this page is the list.*
+*What ComfyUI offers a caller, what it demands of a model in return, and
+comfy-env's relationship to every symbol on that surface.*
 
 *Last verified against ComfyUI `bab6ee5f` (2026-08-24) and comfy-env `f1f8260` (2026-09-04). Every upstream symbol below was re-checked against the tree and all 81 resolve. The comfy-env column was spot-corrected where [ADR-0038](adr/0038-the-memory-floor.md) changed the relationship; rows marked `inherits` were not individually re-verified.*
+
+## There are two contracts, and they point in opposite directions
+
+Almost every discussion of this conflates them, and they fail differently.
+
+**You call ComfyUI.** A node asks where a tensor should live, or asks for a model
+to be made resident. This is an ordinary module API and it either works or raises.
+
+**ComfyUI calls you.** Once a model is in the ledger, the memory manager reads
+members off it during eviction, without asking permission. This is an implicit
+interface with no declaration anywhere, and it fails by `AttributeError` in the
+middle of someone else's loop.
+
+comfy-env has to satisfy both, and the second is the hard one: it is the whole subject of [the stand-in](stand-in.md).
 
 ## How to read the comfy-env column
 
@@ -38,7 +51,14 @@ and patches three.
     It is the input to every decision in the system, it counts allocator cache
     that may not be returnable, and in a worker process on Windows it reports
     that process's own budget rather than the device. Correcting it is most of
-    what comfy-env does. See [comfy-env's memory management](memory-approach.md).
+    what comfy-env does: [admission and the reserve](admission.md).
+
+!!! danger "There are two functions called `get_free_memory`"
+    The module one, above, and `ModelPatcher.get_free_memory`, which adds what
+    the dynamic manager could reclaim on demand. They return different numbers
+    for the same device, and upstream uses both in the same batching decision.
+    Which one you want depends on whether you are asking "what is free" or
+    "what could I get".
 
 ## Loading and eviction
 
@@ -108,11 +128,13 @@ couplings, so these are tracked rather than incidental.
 | `text_encoder_device()` / `text_encoder_offload_device()` / `text_encoder_initial_device()` | the same for text encoders | inherits |
 | `vae_device()` / `vae_offload_device()` | the same for VAEs | inherits |
 
+`intermediate_device()` is the one worth knowing, and comfy-env inherits it without correction. It decides whether [**Results**](comfyui-memory.md#4-results) live in host memory or VRAM, and
+under `--gpu-only` a cached node output holds VRAM that nothing can evict.
+
 !!! warning "`intermediate_device` decides whether Results are RAM or VRAM"
     Under `--gpu-only` it returns the GPU, so every cached node output holds
     VRAM, and the cache that bounds it counts a CUDA tensor as
-    [0.05 bytes](comfyui-memory.md#4-results). comfy-env inherits this and does
-    not correct for it.
+    [0.05 bytes](comfyui-memory.md#4-results).
 
 ## Cast buffers, streams and the node boundary
 
@@ -155,41 +177,14 @@ couplings, so these are tracked rather than incidental.
 
 ## Module state comfy-env writes to
 
-Seven assignments. Six are inside the worker, on the worker's own copy; the
-`EXTRA_RESERVED_VRAM` write is the only one that happens in the host process,
-and it is a value written into a knob `--reserve-vram` already writes.
-
-| Name | Why |
-|---|---|
-| `EXTRA_RESERVED_VRAM` | the host adds what workers hold, so its own loader backs off; the worker receives the same value so its view stops being a lie. The one value comfy-env writes in the host process |
-| `vram_state` | forced to match the parent's mode |
-| `load_models_gpu` | wrapped, so a worker load can negotiate a budget with the parent before it happens |
-| `aimdo_enabled` | set when the worker brings the pager up, so upstream's own aimdo branches take the right path |
-| `free_model_pins` | wrapped for per victim eviction counting; the wrapper calls the original and changes no decision |
-| `comfy.model_patcher.CoreModelPatcher` | set to `ModelPatcherDynamic` when the worker brings the pager up (`memory_manager.py`), which is the same assignment `main.py` makes in the host, so a worker model gets the paged patcher |
-| `comfy.cli_args.args.<flag>` | every mirrored host flag is `setattr` onto the worker's args object (`mirrored_args.apply_host_args`), since a worker parses an empty argv and would otherwise resolve every dtype and memory flag to its default |
-
-!!! note "Nothing is patched in the parent"
-    comfy-env adds an entry to `current_loaded_models` and otherwise leaves the
-    host process alone. Every correction happens either in the worker or in the
-    arguments comfy-env passes.
+Seven assignments, six of them inside the worker; the table is on
+[inside a worker](worker-memory.md#what-comfy-env-writes-in-a-worker).
 
 ## What the proxy must implement
 
-Upstream reads these off a ledger entry during eviction, with no declaration
-anywhere that it will. All eighteen are in `COMFY_SURFACE`.
-
-| Group | Members |
-|---|---|
-| Identity and placement | `load_device`, `offload_device`, `parent`, `model`, `clone_base_uuid`, `is_clone` |
-| Accounting | `model_size`, `loaded_size`, `current_loaded_device`, `model_dtype`, `lowvram_patch_counter` |
-| Action | `partially_load`, `partially_unload`, `detach`, `model_patches_to`, `model_patches_models` |
-| Mode | `is_dynamic`, `get_nested_additional_models` |
-
-`is_dynamic` is the highest leverage member on the list. Returning `False`
-excludes the proxy from every pin path, from the cast buffer reset, and from the
-dynamic model bypass in the eviction loop. That last exclusion is what makes the
-proxy evictable at all.
+Eighteen members upstream reads off a ledger entry during eviction, with no
+declaration anywhere that it will. They are listed and explained on
+[the stand-in](stand-in.md#what-it-must-answer).
 
 ## The HTTP surface
 

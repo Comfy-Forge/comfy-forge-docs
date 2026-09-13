@@ -7,7 +7,7 @@ what it costs.
 
 These are not bugs waiting for a fix. They are what standing in for an object
 in another process costs, against an interface nobody wrote down. They go away
-when [the upstream hook](memory-approach.md#the-ask-if-you-are-reading-this-from-upstream)
+when [the upstream hook](upstream-ask.md#the-ask-if-you-are-reading-this-from-upstream)
 exists, and not before.
 
 ## 1. It says a paged model is not paged
@@ -123,4 +123,4 @@ They are removed by ComfyUI gaining a way for an outside process to say how
 much it needs kept free and to be asked to give memory back: two methods and a
 registry, no object pretending to be a model, nothing in core that knows what
 a subprocess is. That is written out at the end of
-[comfy-env's memory management](memory-approach.md#the-ask-if-you-are-reading-this-from-upstream).
+[what only upstream can fix](upstream-ask.md#the-ask-if-you-are-reading-this-from-upstream).

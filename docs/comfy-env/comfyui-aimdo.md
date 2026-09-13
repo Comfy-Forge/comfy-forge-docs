@@ -281,60 +281,11 @@ accounting reports success, because torch never feels pressure.
 
 ## What this changes for comfy-env
 
-The topology used to be **asymmetric**: workers never execute `main.py`, so a
-worker's `control.lib` stayed `None` and its models used the legacy
-`ModelPatcher` while the parent paged. comfy-env closes that at worker start:
-`maybe_enable_aimdo` initialises aimdo when the parent told it to
-(`COMFY_ENV_WORKER_AIMDO`, exported as `1` exactly when the host's own
-`aimdo_enabled` is True, and read before anything else), the wheel imports
-and a CUDA device is visible, mirroring the parent's headroom. Nothing
-refuses on a version or protocol difference: a version mismatch against the
-host is logged and paging proceeds; `control.init` is tried with the host's
-headroom and pressure policy and falls down a `TypeError` ladder to older
-call shapes, logging which policy was dropped; and on a wheel whose
-`init_devices` takes bare ints, `aimdo_device_args` drops the per device
-headroom and says so. Both sides normally page. The asymmetry that remains is
-deliberate and narrow: a host that is itself on the ledger puts every worker
-on the ledger; CPU workers, failed init, and an explicit
-`COMFY_ENV_WORKER_AIMDO=0` stay on the ledger; and comfy-env reports
-whichever way each worker resolved. There is no level ladder any more: the
-old `COMFY_ENV_MEMORY_MANAGEMENT` variable was deleted because it gated
-nothing, and the one switch left is the enable flag plus follow-the-host. See
-[comfy-env's memory management](memory-approach.md).
-
-Three consequences, measured against comfy-env `bda45b7` and re-checked at `f1f8260`:
-
-- **The eviction bridge is the stand-in, and it is on.** comfy-env's stand-in
-  answers `is_dynamic()` with `False` deliberately, so upstream's
-  dynamic-model bypass does not skip it, and the worker's model stays an entry
-  upstream can actually evict. This is the only path by which upstream's own
-  code takes VRAM from another process, and comfy-env registers one for every
-  worker model unconditionally.
-- **Evicting a host model here is expensive.** comfy-env's request takes
-  `for_dynamic=False`, which hard-unloads aimdo models rather than letting them
-  shed pages. An eviction sets that VBAR's watermark, so the host model can stay
-  in partial-offload until its next `prioritize()`.
-- **Memory pinned in the parent is memory aimdo cannot reclaim.** comfy-env's
-  IPC retention caches hold caching-allocator tensors in the aimdo process, so
-  all pressure lands on host weights instead, visible as a slow model rather
-  than an error.
-
-!!! note "comfy-env initialises aimdo, matches protocols, and reports per worker"
-    comfy-env initialises aimdo in each worker, injects the wheel at the
-    host's pin, and reports which manager every worker resolved to. It also
-    moves aimdo's headroom at runtime: `set_simple_vram_headroom` is live at
-    the next page fault, measured, and comfy-env forwards its published
-    reserve into it whenever the published value changes (`_publish_reserve`
-    writes `EXTRA_RESERVED_VRAM` and calls the forward only on a change, so
-    a republish of the same number touches nothing). An earlier draft of this
-    page said the headroom was fixed once devices initialise; that was wrong,
-    and the experiment behind it used plain `nn.Linear` modules which never
-    page. What is fixed once devices initialise is `init_devices` itself: a
-    second call returns `False`. A second `control.init` is harmless at
-    0.5.2: it short-circuits when `lib` is already loaded, re-applies the
-    headroom and NVML flag it was given, and returns `True`. The one catch is
-    that `nvml_pressure` defaults to `False`, so a bare second `init()` turns
-    NVML pressure off for the process.
+A worker never runs `main.py`, so left alone it would fall back to the
+legacy patcher while the host paged. comfy-env brings the pager up in every
+worker to follow the host, mirrors its headroom, and forwards its published
+reserve into `set_simple_vram_headroom` at runtime; the details are
+[inside a worker](worker-memory.md) and [admission and the reserve](admission.md).
 
 ## Things worth knowing before you debug
 

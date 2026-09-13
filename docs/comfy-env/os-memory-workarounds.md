@@ -14,25 +14,9 @@ each one. Every row below is something the code branches on.
 
 ## The eleven differences
 
-<div class="num-col" markdown>
-
-| # | Difference | Linux | Windows | macOS | Why you care |
-|---|---|---|---|---|---|
-| 1 | Page size | 4 KiB | 4 KiB | **16 KiB** on Apple Silicon | The unit memory is handed out in. Bigger pages mean fewer faults and more waste per page. |
-| 2 | Asking for more than exists | Says yes, then the OOM killer picks a victim later | Says **no** immediately and the allocation fails | Says yes, then pressures applications to free | Linux writes cheques it may not honour. Windows refuses at the counter. |
-| 3 | Whether swap exists | Often not, especially on servers | Effectively always, there is a pagefile | Always, created on demand | Without swap, running short kills a process instead of slowing everything down. |
-| 4 | Compressed memory | Off unless zram or zswap is configured | On by default | On by default, before it will swap | Two of the three squash pages before writing them out. Linux only if you asked. |
-| 5 | Pinned memory ceiling | May count swap toward the budget, up to about 90% of RAM | Capped near 40%, because the OS limits locked pages | No pinning path at all | Roughly 2.3 times more pinnable memory on Linux than Windows, same hardware. |
-| 6 | Who owns GPU memory | The driver reports it and nobody moves it | The display driver arbitrates it and can page another process out | Unified with system RAM | On Windows your GPU memory can be taken while you are using it. |
-| 7 | Per process GPU memory | Visible through NVML | **Not visible** under WDDM | Not applicable | On Windows you cannot ask which process is holding the card's memory. |
-| 8 | Evicting GPU memory to RAM | Frees VRAM | Frees VRAM | **Frees nothing** | On Apple Silicon both halves of the ledger are the same bytes. |
-| 9 | Container limits | cgroups enforce them and most tools ignore them | A different model | Not applicable | Inside a container every "available memory" reading describes the host. |
-| 10 | Sharing memory between processes | `memfd`, anonymous and cleaned up on crash | named segments that leak on crash | named segments | Linux can hand over a nameless block of memory across a socket. |
-| 11 | Zero copy GPU handoff | CUDA IPC works | Unproven on consumer cards | Not applicable | Everywhere except Linux, a tensor crossing a process boundary is copied through host memory. |
-
-</div>
-
-Rows 6 and 7 cause the most confusion in practice, because both fail silently.
+The table is on [Kernel and driver differences](kernel-differences.md).
+Rows 6 and 7 (who owns GPU memory, and whether per process GPU memory is
+visible) cause the most confusion in practice, because both fail silently.
 Nothing raises an error. The machine simply gets slow.
 
 ## What ComfyUI does about them
@@ -118,43 +102,11 @@ so there is no staging copy to avoid and no reason to pin.
 
 ## What comfy-env does about them
 
-### Zero copy is Linux only
-
-CUDA IPC is gated on `sys.platform == "linux"` on both sides of the boundary, and
-even on Linux it must pass a live test first, because the two ends often run
-different allocators. Everywhere else a GPU tensor crossing the process boundary
-is copied device to host, into shared memory, then back again.
-
-### Shared memory works differently
-
-On Linux comfy-env creates an anonymous `memfd`, passes the file descriptor over
-the socket, and reads it back through `/proc`. There is no filesystem object, no
-name to collide, and nothing to clean up after a crash. On Windows and macOS it
-falls back to named segments, which leak if the process dies.
-
-The transport differs too. Linux binds an abstract namespace socket with no
-filesystem entry. macOS uses a filesystem socket carrying the pid, so a startup
-reaper can tell a live instance from one a crash left behind. Windows has no unix
-sockets and uses TCP on loopback, which also means the peer credential check
-Linux performs is unavailable there.
-
-### It corrects for row 7 by hand
-
-This is the largest piece of platform specific work in the project. Because
-`mem_get_info` reports the calling process's budget rather than the device total
-on Windows, comfy-env measures true device free through NVML, falls back to
-`nvidia-smi`, and finally to its own ledger. It then adds the difference to every
-eviction request, because otherwise ComfyUI computes a negative shortfall and
-frees nothing.
-
-The measurement in its source is worth quoting, since it is the clearest
-statement of row 7 anywhere: a sibling process allocated 13.0 GiB, `nvidia-smi`
-free fell by 13,443 MB, and the parent's own `mem_get_info` fell by **75 MB**.
-
-The worker performs the mirror image correction on itself, and the comment there
-names the symptom: without it the worker would size itself against a card it
-believes is empty and overload into driver managed system memory, which is *"the
-unexplained 10x slowdowns"*.
+Zero copy GPU transfer is Linux only and shared memory differs per platform;
+both are on [the process boundary](process-boundary.md). The correction for
+row 7, measuring true device free through NVML and adding the difference to
+every eviction request, is on [admission and the reserve](admission.md), and
+the measurement behind it is [why Windows needs its own branch](windows-blind-spot.md).
 
 ## What neither of them does
 
@@ -167,10 +119,8 @@ Everything downstream now honours it: the pin ceiling, the pin budget floor,
 the Windows swap gate, CPU free memory, and both cache eviction targets.
 
 comfy-env's own memory readings still come from `psutil`, which reports the
-host. So inside a container the two sides now disagree: ComfyUI sizes its pin
-budget and cache headroom against the cgroup, comfy-env sizes its against the
-machine. That is a smaller problem than the one this section described, and a
-different one.
+host, so inside a container the two sides disagree; that is
+[row 8](upstream-ask.md#row-8) of the memory table.
 
 **WSL is treated as Linux.** There is a helper that detects it, and nothing calls
 it. So WSL takes the Linux branch of every decision on this page, including the

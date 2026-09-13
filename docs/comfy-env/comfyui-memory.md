@@ -550,8 +550,7 @@ real byte budget, which is more than **State** and **Everything else** get.
       `comfy/system_memory.py` reads `memory.max` and
       `memory.limit_in_bytes` and clamps to the container's budget, so under
       `docker --memory` the eviction threshold is the container's, not the
-      machine's. comfy-env's own readings still come from `psutil` and see the
-      machine, so the two sides disagree inside a container.
+      machine's.
 
 ---
 
@@ -630,122 +629,12 @@ same file, in the same batching decision.
 ## Why comfy-env has to care
 
 comfy-env runs node code in separate processes, so a worker's models are
-**Model weights** memory that ComfyUI's ledger cannot see. It registers a stand
-in so upstream can evict a worker's model the way it evicts its own. The
-mechanism is in [ADR-0036](adr/0036-mirroring-comfyui-memory-management.md), and
-the arithmetic around it is [comfy-env's memory management](memory-approach.md).
-
-### Isolation is what costs you aimdo
-
-A worker never runs `main.py`, and inside ComfyUI `aimdo_enabled` is set in
-exactly one place: `main.py`, defaulting to `False` at
-`memory_management.py`. Left alone, every isolated worker would therefore
-resolve to the ledger. comfy-env closes that gap: `maybe_enable_aimdo`
-initialises aimdo at worker start (`memory_manager.maybe_enable_aimdo`), and
-the first thing it reads is `COMFY_ENV_WORKER_AIMDO`. The worker follows the
-host: the parent exports `1` only when its own `aimdo_enabled` is True and
-`0` otherwise, and an unset variable (no parent signal) means the ledger. So
-a host that is itself on the ledger, for any of the four reasons above, puts
-every one of its workers on the ledger too, before the wheel or the device is
-looked at. **A worker falls back to the ledger when the host is on the
-ledger, on CPU, on a failed init, or when `COMFY_ENV_WORKER_AIMDO=0` is set
-(a pack's `[env_vars]` or the operator's shell can set it either way, and
-that outranks the host-derived value).** A comfy-aimdo version difference
-against the host is reported and
-proceeds; it is not a fallback trigger. See
-[comfy-env's memory management](memory-approach.md).
-
-The wheel is there because comfy-env puts it there. It no longer waits for a
-pack to declare `comfy-aimdo`: the host's ComfyUI imports `comfy_aimdo`
-unguarded, so a worker without it cannot import `comfy.model_management` at
-all, and the same is true of `comfy-kitchen`, which upstream imports unguarded
-from four modules on the `comfy.model_patcher` chain. Both are injected into
-every worker manifest at the host's own pin, whether or not the pack asked.
-comfy-aimdo is skipped on CPU stacks, where it has no path; comfy-kitchen is
-not, because `comfy/ldm/modules/attention.py` imports it on any stack.
-
-Compatibility is judged on the PROTOCOL LEVEL the installed wheel supports,
-read from `control.init`'s signature and `init_devices`' source, never on the
-version string. comfy-aimdo ships about three releases a month while its
-protocol moved twice in twelve, so exact-version equality dropped a worker to
-the ledger on every host patch bump. Four of nineteen environments on the
-development machine were in that state.
-
-!!! warning "This is decided per pack, not per install"
-    `wrap.py` falls back to plain in process import in five separate cases: no
-    ComfyUI base found, no `comfy-env.toml`, an env stamp refusal, an
-    unmaterialised env, and main process directories with no config. In that
-    mode there is no worker at all, the node runs in the host process, and it
-    gets whatever the host has.
-
-    So one ComfyUI run can execute pack A under the ledger and pack B under
-    aimdo, on the same device, because A's environment was built and B's was
-    not. Nobody configures this. It follows from install state, and it can
-    change between runs when someone materialises an env.
-
-    comfy-env reports this once per environment (`_report_memory_manager`,
-    keyed on the env directory, re-armed if that worker dies and is
-    replaced). The routine "memory manager=... host=..." line is only printed
-    under `COMFY_ENV_DEBUG_WORKER`; what is always printed is the WARNING when
-    a worker resolved differently from the host, carrying the worker's own
-    reason. There is no HTTP endpoint: registering one from
-    `register_nodes` collides on the second pack, because ComfyUI flushes a
-    single shared route table.
-
-### What a worker releases, and when
-
-Inside ComfyUI, `reset_cast_buffers` has one caller, `execution.py`, and a
-worker does not run ComfyUI's executor. comfy-env therefore mirrors the release
-at its own node boundary: `release_node_boundary` runs in a `finally` around
-every worker call, and fires whenever aimdo is live in that worker, which is the
-default. A worker that fell back to the ledger gets a coarser version of the
-same thing: `cast_epoch_boundary` (`memory_manager.py`) runs at the START of
-every worker request and calls `reset_cast_buffers` whenever the prompt epoch
-has changed, so the buffers ratchet to `NUM_STREAMS` (2 on NVIDIA and AMD)
-times the largest weight cast so far within one prompt, and are released
-before the next prompt's first node rather than held for the worker's life.
-It was written for exactly the non-aimdo worker, after measuring 2 x 512 MiB
-held through unloads and four small-model nodes. A missing epoch token
-degrades to a reset per call.
-
-One thing makes the worker's cast path unlike the host's. In the host,
-`cuda_malloc.py` sets `args.cuda_malloc` True by default and `ops.py` skips
-the torch cast buffer entirely under that flag. A worker parses an empty argv
-and never imports `cuda_malloc.py`, and the flag is not mirrored, so
-`args.cuda_malloc` is False there even though the worker inherited the
-host's `cudaMallocAsync` allocator through the environment. The worker
-therefore takes the cast buffer path a default host never does, which is why
-the ratchet above is a worker problem in the first place.
-
-### Every process budgets pinned memory independently
-
-`MAX_PINNED_MEMORY` is computed at import from total system RAM: 40% on Windows,
-up to 90% elsewhere. Every process that imports `comfy.model_management`
-computes its own and none of them knows about the others, so N workers plus the
-host promise N plus one times that fraction of one machine's RAM. This is
-unrelated to aimdo and it is true today.
-
-### A CPU worker on the ledger is correct
-
-aimdo has no CPU path. `ModelPatcherDynamic._vbar_get` returns `None` for a CPU
-load device (`model_patcher.py`) and `partially_unload` asserts a non CPU
-device. So a worker started under `--cpu` resolves to the ledger because there
-is nothing else it could resolve to.
-
-That is the one difference between host and worker that is a fact rather than an
-accident, and it is the reason comfy-env cannot simply follow ComfyUI in
-treating aimdo as the only path.
-
-!!! note "The bridge works, and the ground has shifted under it"
-    The stand in reports itself as non dynamic on purpose, so the bypass above
-    does not skip it. But on a default install every host model *is* dynamic and
-    therefore protected by that same branch, which leaves the worker's model as
-    the only entry upstream can actually evict.
-
-    Flipping it would be worse, not better: a dynamic proxy gains that same
-    protection, and `free_memory` then frees nothing at all. Over eviction is
-    slow and visible. No eviction is an out of memory error with no cause in the
-    log.
+**Model weights** memory that ComfyUI's ledger cannot see. What it does
+about that is the subject of [what survives isolation](memory-approach.md):
+[the stand-in](stand-in.md) it registers so upstream can evict a worker's
+model, [the admission arithmetic](admission.md) it corrects, and
+[what it runs inside a worker](worker-memory.md), including how a worker
+gets the pager at all.
 
 ## How this page goes stale
 
@@ -760,9 +649,3 @@ treating aimdo as the only path.
   column depends on it.
 * **`current_loaded_models` stops being a list.** Everything comfy-env does
   registers into it.
-* **The worker aimdo default changes again.** Injection and worker side
-  initialisation both happen by default, and this section was rewritten
-  against that. The stale risk now runs the other way: a worker that falls
-  back to the ledger, deliberately or because its ComfyUI is too old, behaves
-  as the pre 2026-09 text described. That mode is documented in
-  [comfy-env's memory management](memory-approach.md) rather than here.
