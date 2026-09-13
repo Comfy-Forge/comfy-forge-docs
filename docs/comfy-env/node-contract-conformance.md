@@ -49,24 +49,26 @@ listed here so the symptom is still findable from this page.
 
 ## The pattern behind the tables
 
-`check_lazy_status`, `IS_CHANGED` and `VALIDATE_INPUTS` are the same shape:
-a mechanism ComfyUI invokes **before** the node executes. Forwarding those to
-a worker by spawning it would cold-start every isolated environment in the
-prompt before a single node ran. `IS_CHANGED` escapes that by asking only a
-worker that already exists (row 13); `VALIDATE_INPUTS` escapes it the other
-way round — the host keeps the signature and records what it was handed, and
-the body runs in the worker right before the function (row 14, and
+`IS_CHANGED` and `VALIDATE_INPUTS` are the same shape: ComfyUI asks them
+before anything executes, for every node in the prompt, so spawning a
+worker to answer would cold-start every isolated environment the prompt
+touches before a single node ran. Both therefore ask only a worker that
+already exists, and differ in what they do otherwise. A fingerprint has a
+safe miss answer, "changed", so a cold worker means a recompute (row 13).
+A validate has none, so a cold worker means the body runs in the worker
+right before the function instead, with the same values (row 14, and
 [caching and validation](caching-and-validation.md)).
 
-`check_lazy_status` is *not* in that category, which is why it *is*
-forwarded: it fires for a node ComfyUI has already picked to execute, whose
-worker is spawning anyway.
+`check_lazy_status` looks similar but is not: it fires for a node ComfyUI
+has already picked to execute, whose worker is about to be started anyway,
+so it is simply forwarded (row 1).
 
 `send_sync`, previews, progress v2 and cancel share a different shape: a
-worker can be *called*, but it cannot **originate** traffic to the browser
-on its own. Inbound got an answer ([`ROUTES`](register-nodes.md)); previews
-and `send_sync` now cross on the same callback channel; progress v2 stays
-behind async (D3) and cancel stays cooperative-by-progress (D2).
+worker can be called, but it cannot originate traffic to the browser on
+its own. Inbound got an answer ([`ROUTES`](register-nodes.md)); previews
+and `send_sync` cross on the callback channel during a call; progress v2
+is `async` and so sits behind D1 (D3); cancel stays cooperative through
+progress, as natively (D2).
 
 ## See also
 
