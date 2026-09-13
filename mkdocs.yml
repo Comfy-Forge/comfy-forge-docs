@@ -87,6 +87,8 @@ nav:
           - What survives isolation: comfy-env/node-contract-conformance.md
           - The two classmethods: comfy-env/comfyui-caching-validation.md
           - How comfy-env handles it: comfy-env/caching-and-validation.md
+      - Worker management:
+          - Worker lifecycle: comfy-env/worker-lifecycle.md
       - Memory management:
           - comfy-env's memory management: comfy-env/memory-approach.md
           - Where the stand-in is inaccurate: comfy-env/model-stand-in-inaccuracies.md
@@ -142,7 +144,6 @@ nav:
           - Drives and volumes: comfy-env/drives-and-volumes.md
       - Internals:
           - Why not just conda?: comfy-env/why-not-conda.md
-          - Worker lifecycle: comfy-env/worker-lifecycle.md
           - Import layering: comfy-env/import-layering.md
           - Module inventory: comfy-env/modules.md
           - Code breakdown: comfy-env/code-breakdown.md
