@@ -30,7 +30,7 @@ imports `comfy_aimdo` unguarded, so a worker without it cannot import
 Both are injected into every worker manifest at the host's own pin, whether
 or not the pack asked; comfy-aimdo is skipped on CPU stacks.
 
-Three consequences. The eviction bridge is [the stand-in](stand-in.md),
+Three consequences. The eviction bridge is [the stand-in model](stand-in-model.md),
 answering `is_dynamic()` False so upstream's dynamic bypass does not skip it.
 Evicting a host model from a worker's ask is expensive: the request takes
 `for_dynamic=False`, which hard unloads paged host models, and an eviction

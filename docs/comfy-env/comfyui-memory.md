@@ -631,7 +631,7 @@ same file, in the same batching decision.
 comfy-env runs node code in separate processes, so a worker's models are
 **Model weights** memory that ComfyUI's ledger cannot see. What it does
 about that is the subject of [what survives isolation](memory-approach.md):
-[the stand-in](stand-in.md) it registers so upstream can evict a worker's
+[the stand-in model](stand-in-model.md) it registers so upstream can evict a worker's
 model, [the admission arithmetic](admission.md) it corrects, and
 [what it runs inside a worker](worker-memory.md), including how a worker
 gets the pager at all.

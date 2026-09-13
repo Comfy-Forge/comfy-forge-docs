@@ -17,7 +17,7 @@ members off it during eviction, without asking permission. This is an implicit
 interface with no declaration anywhere, and it fails by `AttributeError` in the
 middle of someone else's loop.
 
-comfy-env has to satisfy both, and the second is the hard one: it is the whole subject of [the stand-in](stand-in.md).
+comfy-env has to satisfy both, and the second is the hard one: it is the whole subject of [the stand-in model](stand-in-model.md).
 
 ## How to read the comfy-env column
 
@@ -184,7 +184,7 @@ Seven assignments, six of them inside the worker; the table is on
 
 Eighteen members upstream reads off a ledger entry during eviction, with no
 declaration anywhere that it will. They are listed and explained on
-[the stand-in](stand-in.md#what-it-must-answer).
+[the stand-in](stand-in-model.md#what-it-must-answer).
 
 ## The HTTP surface
 

@@ -91,8 +91,8 @@ nav:
           - How comfy-env handles it: comfy-env/caching-and-validation.md
       - Memory management:
           - What survives isolation: comfy-env/memory-approach.md
-          - The stand-in:
-              - Overview: comfy-env/stand-in.md
+          - The stand-in model:
+              - Overview: comfy-env/stand-in-model.md
               - Where it is inaccurate: comfy-env/model-stand-in-inaccuracies.md
           - Admission and the reserve:
               - Overview: comfy-env/admission.md

@@ -20,7 +20,7 @@ class MemoryHolder:
 gives up, where it already asks the pinned memory helpers. It may return 0.
 It may answer from cached state and do the real work afterwards. Nothing
 changes when nobody registers, core learns nothing about subprocesses, and
-comfy-env deletes [the stand-in](stand-in.md) and its eighteen attributes.
+comfy-env deletes [the stand-in model](stand-in-model.md) and its eighteen attributes.
 Upstream has accepted this shape before, for the results cache and for
 external pinned memory pressure.
 

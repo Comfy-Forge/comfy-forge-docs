@@ -1,4 +1,4 @@
-# The stand-in
+# The stand-in model
 
 *One fake model per worker model, placed in ComfyUI's own list so its
 eviction can reach another process. Why it exists, what it must answer,
