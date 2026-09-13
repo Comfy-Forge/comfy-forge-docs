@@ -1,4 +1,4 @@
-# The issue
+# The multiprocessing issue
 
 ComfyUI manages RAM and VRAM to optimize for speed and stability on all kinds
 of hardware.
@@ -8,8 +8,6 @@ process.
 
 comfy-env's isolated nodepacks run in separate ones, on the same
 card, and neither side can see the other's allocations directly.
-
-## The solution
 
 comfy-env aims to manage memory as well as native ComfyUI does, and to do it
 without placing fake "stand-in" models in ComfyUI's ledger. As of 2026-09-13
@@ -23,14 +21,17 @@ a fixed cost per process that no model ledger describes.
 The rest of this page assumes you know how native ComfyUI manages memory.
 **[If you don't, read this page first](comfyui-memory.md)**.
 
-ComfyUI's memory management can be summarised as:
+## A very broad overview of ComfyUI memory management
 
-- A module-level list of loaded models and cached results on RAM and VRAM
-- Some arithmetic and logic about what gets pushed out of it when we run out of RAM/VRAM.
+!!! abstract "ComfyUI's memory management, summarised"
 
-```python
-current_loaded_models = []   # comfy/model_management.py
-```
+    - A module-level list of loaded models and cached results on RAM and VRAM
+
+        ```python
+        current_loaded_models = []   # comfy/model_management.py
+        ```
+
+    - Some arithmetic and logic about what gets pushed out of it when we run out of RAM/VRAM.
 
 Expanding a little bit on that statement:
 
