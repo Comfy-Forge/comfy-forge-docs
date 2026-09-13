@@ -1,7 +1,7 @@
 # The stand-in model
 
-*One fake model per worker model, placed in ComfyUI's own list so its
-eviction can reach another process. Why it exists, what it must answer,
+*One fake model for every model a worker holds, placed in ComfyUI's own
+list so its eviction can reach another process. Why it exists, what it must answer,
 how it is checked, and what it costs.*
 {: .subtitle }
 
@@ -16,8 +16,9 @@ pack's models live in another process, so unless something represents them
 in that list the host cannot evict them, cannot make space on a full card,
 and a pack's memory cannot be reclaimed at all.
 
-So comfy-env puts something in the list: one stand-in per worker model,
-which forwards the unload over IPC to the worker that holds the weights.
+So comfy-env puts something in the list: one stand-in for every model a
+worker holds (a worker with a UNet and a VAE gets two), each forwarding its
+own unload over IPC to the worker that holds the weights.
 That is why the Free button works on a pack's model, why the out of memory
 handler reaches packs, and why a host load can evict a pack's model instead
 of failing. It is also the single most fragile thing comfy-env does, because
