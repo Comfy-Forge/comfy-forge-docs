@@ -11,14 +11,17 @@ card, and neither side can see the other's allocations directly.
 
 ## The solution
 
-The aim of comfy-env is to also manage memory optimally, ideally without ducktyping/placing fake "stand-in" models in ComfyUI's memory ledger.
-Unfortunately as of 2026-09-13 we are using some ducktyping tricks because upstream ComfyUI exposes no interface to register memory held by another process.
-Even if such an upstream change were made, we probably would need some additional memory management for subprocesses, because each worker [keeps some RAM for its interpreter and torch, and some VRAM for its CUDA context](process-footprint.md),
-a fixed cost per process that would need its own logic.
+comfy-env aims to manage memory as well as native ComfyUI does, and to do it
+without placing fake "stand-in" models in ComfyUI's ledger. As of 2026-09-13
+it cannot: upstream exposes no interface for registering memory held by
+another process, so the stand-in is how the host reaches a worker's models
+at all. An upstream interface would remove that trick but not the need for
+worker-specific logic, because each worker
+[keeps some RAM for its interpreter and torch, and some VRAM for its CUDA context](process-footprint.md),
+a fixed cost per process that no model ledger describes.
 
-The rest of this page assumes that the user is already familiar with native ComfyUI memory management.
-
-**[If you're not, please read this page first](comfyui-memory.md)**.
+The rest of this page assumes you know how native ComfyUI manages memory.
+**[If you don't, read this page first](comfyui-memory.md)**.
 
 ComfyUI's memory management can be summarised as:
 
