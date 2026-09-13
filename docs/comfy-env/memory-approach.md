@@ -4,7 +4,7 @@
 {: .subtitle }
 
 ComfyUI manages RAM and VRAM to optimize for speed and stability on all kinds
-of hardware.
+of hardware, also making use of [comfy-aimdo](comfyui-aimdo.md) for paging.
 
 - streams weights per layer when a
 model does not fit
