@@ -62,6 +62,22 @@ they could not have been exempted this way anyway.
 
 ### Where the body runs
 
+Two places, and which one depends on whether the node's worker exists:
+
+**At submit, when the worker is warm.** The stand-in is `async def` when
+the author wrote a body (upstream awaits a coroutine validate and reads the
+same parameter names off it), and after recording what it was handed it
+asks the worker on the [side lane](worker-lifecycle.md) from an executor
+thread. The worker runs the author's real validate against that view and
+answers accepted, or the author's sentence, which is returned to upstream
+and shown in the submit dialog as a native `custom_validation_failed`. Once
+the worker for a node exists, a wrong widget value is rejected at the
+click, as natively. This path is reject-only: it never spawns, never
+blocks the event loop, and every miss (cold worker, pack not yet imported
+by a real call, lane busy or slow) is "not rejected here", not "accepted".
+
+**At execution, always, unless the submit path already answered.**
+
 Upstream calls the stand-in at submit, inside the same executing context
 (`CurrentNodeContext`, keyed by prompt id and node id) it will later wrap
 around the node's function. The stand-in records what it received under
@@ -96,10 +112,11 @@ exist (first prompt after launch), or may not have imported the pack yet,
 and `validate_prompt` runs on the HTTP server's event loop. An answer that
 depends on whether a process happens to be warm is an answer that changes
 from one click to the next; running the body where the worker already is
-makes validation deterministic and costs nothing at submit. (The side lane
-that now answers dropdown and fingerprint questions mid-call does not change
-this: it removes the *busy* miss, not the *cold* one, and a validate has no
-safe miss answer.)
+makes validation deterministic and costs nothing at submit. (The side lane does not change this: it lets a *warm* worker answer at
+submit, but a validate has no safe miss answer for a *cold* one, so the
+execute-time run stays the guarantee. The rule this gives the user: the
+first, cold run of a workflow may fail late on a bad value; a warm one
+rejects at the click.)
 
 What the user sees when the body rejects: the node fails with a plain
 `ValueError` worded exactly as upstream words a submit-time rejection,

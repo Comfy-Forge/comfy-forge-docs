@@ -50,7 +50,8 @@ The three most common questions, because they look like decisions and are not:
   isolated environment, or talking to one that happens to be warm, on the
   HTTP loop — and the answer was to run it in the other order: the host's
   stand-in keeps the signature and records what it was handed, and the
-  body runs in the worker right before the function. See
+  body runs in the worker right before the function; and, since the side
+  lane exists, at submit too whenever the worker is already warm. See
   [caching and validation](caching-and-validation.md).
 - **`IS_CHANGED`** is forwarded, over the same ladder as
   [live dropdowns](live-dropdowns.md): the pack's fingerprint runs in its
