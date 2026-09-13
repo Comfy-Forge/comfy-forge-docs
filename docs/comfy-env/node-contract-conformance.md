@@ -1,34 +1,18 @@
 # What survives isolation
 
-*ComfyUI calls about eight things on a node class during a run. This is which
-of them still work once the node lives in another process — ordered by the
-symptom you would actually see, not by mechanism.*
+*ComfyUI calls about eight things on a node class during a run.
+Some of them still work once the node lives in another process, and some of them do not.*
 {: .subtitle }
-
-Every failure below is **silent, cosmetic, or misattributed**. None of them
-announce themselves as an isolation problem, which is why this table is
-ordered by symptom: an author's entry point is never "`VALIDATE_INPUTS` is
-not forwarded", it is *"why did my node accept that value"*.
-
-One of them announces itself. comfy-env prints a named line at startup for
-every node whose `INPUT_TYPES` raised during the scan. A scan payload that
-carries such a node is never written to the cache, so there is no cached
-path for this line: it comes from a fresh scan every time, and the next
-start retries the scan:
-
-`[comfy-env] WARNING: <pack>: node '<name>' INPUT_TYPES() raised during the scan; ComfyUI will show it as a missing node and report the cause when a workflow uses it (scan is retried on the next start): <error>`
-
-`check_lazy_status` no longer needs a warning: when you define one it is
-forwarded (row 1).
 
 *Audited against ComfyUI `15b212cc` (2026-09-07). Each row was traced on both
 sides of the boundary.*
 
+## Working
 <div class="verdict-table wide-table num-col" markdown>
 
 | # | Mechanism | ELI5 |
 |---|---|---|
-| 1 | `check_lazy_status` — **when you define one** | A node can mark inputs as *lazy*: ComfyUI skips computing them up front and asks the node which ones it actually needs, then runs only those. Under isolation the question goes to the worker and the node's own answer comes back, so the unused branch stays uncomputed, same as native. |
+| 1 | `check_lazy_status`| A node can mark inputs as *lazy*: ComfyUI skips computing them up front and asks the node which ones it actually needs, then runs only those. Under isolation the question goes to the worker, which is started if needed since the node is about to run anyway, and the node's own answer comes back, so the unused branch stays uncomputed, same as native. |
 | 2 | `__init__` and `self.x` (V1) | **V1 nodes only** (a V3 node has no `self`). The host carries `self` between calls and the worker uses it, so attributes survive with their types, including in-place edits like `self.cache[k] = v`. If the worker crashes or restarts, the node reinitializes: `__init__` runs again in the new process, the same as ComfyUI itself restarting. |
 | 3 | `PromptServer.instance`: `send_sync`, `send_progress_text`, `client_id` | ComfyUI keeps a websocket open to the browser and `send_sync(event, data)` is how Python pushes a message down it. Packs use it to talk to their own JavaScript. Comfy-env workers forward the message to the host onto the real socket, so `from server import PromptServer` works and so does the call. Anything else on the server raises an error saying so (D4). |
 | 4 | `ProgressBar` **preview** argument | Preview frames from an isolated sampler show up in the browser. One frame bigger than 1 MiB is skipped (the progress bar still ticks) because ComfyUI sends every frame that has a preview without throttling. |
