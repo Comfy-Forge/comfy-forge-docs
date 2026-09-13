@@ -130,10 +130,8 @@ the host's translation registry maps that to `ValueError`, so nothing named
 
 When a pack node defines `IS_CHANGED` (V1) or `fingerprint_inputs` (V3), the
 proxy carries a fingerprint under the name its own shape needs:
-`fingerprint_inputs` on a V3 proxy, `IS_CHANGED` on a V1 proxy. A V3 node
-that falls back to the V1 proxy therefore carries `IS_CHANGED`, but the
-worker is still asked for `fingerprint_inputs`, because that is what the real
-class defines. It is a plain `(cls, **kwargs)`
+`fingerprint_inputs` on a V3 proxy, `IS_CHANGED` on a V1 proxy, and the
+worker is asked for the same name. It is a plain `(cls, **kwargs)`
 classmethod, because ComfyUI never inspects a fingerprint's signature; it
 calls it with every declared input as keyword arguments and hands linked
 inputs in as `None`. The proxy walks the same ladder as
