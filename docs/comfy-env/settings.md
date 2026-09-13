@@ -32,6 +32,7 @@ settings file could not.
 |---|---|---|
 | `COMFY_ENV_SCAN_TIMEOUT` | 300 | Seconds one pack's metadata scan (its import plus every node's `INPUT_TYPES`) may take before the whole scan process tree is killed and the startup log names the node it was on. Generous because a first import of a torch-heavy pack on a cold disk is legitimately slow; lower it while hunting a hang. |
 | `COMFY_ENV_AFFINITY_PIN` | auto (WSL only) | Whether a worker pins itself to one CPU core for the duration of `import torch`. Needed on WSL2, whose per-core clocks are not synchronised (pytorch#129992); pure cost elsewhere, and until 2026-09-13 it was applied on every Linux to core 0, so parallel spawns queued their imports on one core. `1` forces the pin, `0` forbids it. |
+| `COMFY_ENV_IDLE_REAP_SECONDS` | 1800 | How long a worker may sit idle, holding no VRAM and serving no model stand-in, before its process is exited; the next call starts it again as a first use. `0` keeps workers for the life of ComfyUI. A worker that has a model registered is never reaped, whatever the window (see [Worker lifecycle](worker-lifecycle.md)). |
 | `COMFY_ENV_POOL_IPC` | **off** | **Experimental, Linux-only, known-unsound** pool-based zero-copy GPU transfer. Enabling it prints a loud warning; do not use outside experiments -- see [ADR-0030](adr/0030-gpu-platform-floors.md) / [ADR-0005](adr/0005-tiered-tensor-serialization.md). |
 
 ## Memory management

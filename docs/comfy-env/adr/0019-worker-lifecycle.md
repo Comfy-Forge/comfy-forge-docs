@@ -1,7 +1,7 @@
 # ADR-0019: Worker lifecycle
 
 **Status:** accepted (2026-08-13) -- records behavior that shipped
-undocumented; the idle reaper is decided here as direction, not yet
+undocumented; the idle reaper is decided here as direction (built 2026-09-13, see below), originally not yet
 implemented. Companion: [ADR-0018](0018-worker-call-timeout.md)
 (timeout policy), [ADR-0020](0020-concurrency-and-env-granularity.md)
 (what a worker *is*).
@@ -67,8 +67,12 @@ nobody ever decided it. Decision: comfy-env **will** reap workers after
 a configurable idle window (models evicted through the normal patcher
 machinery first, so nothing is lost that ComfyUI didn't already
 consider evictable), with re-spawn on next use indistinguishable from
-first use. Unscheduled; recorded so the next person touching the pool
-builds toward it rather than away from it.
+first use. **Built 2026-09-13**: `COMFY_ENV_IDLE_REAP_SECONDS` (default
+1800, `0` disables), planned by the pure `plan_idle_reap` after each
+release sweep, executed through the crash path. One refinement to the
+direction as decided: a worker with a model stand-in registered is never
+reaped, because the loader's cached output is served only by that
+process, and that output is not something ComfyUI considers evictable.
 
 ## Context
 

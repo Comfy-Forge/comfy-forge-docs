@@ -75,12 +75,27 @@ reversed before it shipped.
   -- is all rebuildable. That invariant is what makes every death below
   survivable.
 
-An **idle reaper** (kill workers untouched for a configurable window,
-respawn indistinguishable from first use) is decided as direction in
-ADR-0019 but not yet built: today a warm worker lives until something on
-this page kills it.
+- **Warm is not forever.** After the release sweep, the same timer reaps:
+  a worker that is alive, not mid-call, holding nothing, idle past
+  `COMFY_ENV_IDLE_REAP_SECONDS` (30 minutes by default, `0` disables) and
+  not the running prompt's worker has its process exited, and its next
+  call is a cold start. One class of worker is never reaped: one with a
+  model stand-in registered in `current_loaded_models`. The loader node's
+  cached output is that stand-in, and only that process can serve it;
+  killing it would turn the next cache-hit prompt into "please reload the
+  model node", which ComfyUI never considered an evictable outcome. Decided
+  as direction in ADR-0019, built 2026-09-13.
 
-## Death, all five ways
+Two cold envs referenced by one prompt start **in parallel**. The pool
+lock guards membership of the pool only; the spawn itself (process start,
+ready frame, transport canary) runs with it released, and a second caller
+for the same env waits on the first's future rather than starting a twin.
+Until 2026-09-13 the lock was held across the whole spawn, so envs
+started one after the other and a call to a warm env could not even look
+its worker up while another env was starting (six envs: 6.3 s serial,
+2.9 s parallel).
+
+## Death, all six ways
 
 | # | Trigger | What happens |
 |---|---|---|
@@ -89,6 +104,7 @@ this page kills it.
 | 3 | **ComfyUI killed hard, worker idle** (SIGKILL, crash, OOM -- atexit never runs) | The idle worker is blocked reading its socket; the parent's death closes it, the read fails, and the worker's own loop exits promptly. No parent needed. |
 | 4 | **ComfyUI killed hard, worker mid-computation** | The worker is not reading the socket, so it does not notice. It **finishes the running call for nobody** -- holding its RAM and VRAM the whole time -- and only exits when it tries to *send* its reply: `transport.send` raises on the dead socket, the error handler tries to send an error frame, that raises again unhandled, and the process dies. A worker deep in a 30-minute bake outlives its parent by up to 30 minutes. |
 | 5 | **The sweep at next startup** | The backstop for anything left behind: the next `register_nodes()` runs `_cleanup_stale_workers`, which kills `persistent_worker.py` processes whose parent pid no longer exists, unlinks dead-owner socket files (macOS only -- the `unix://` filename embeds the owning pid; Linux uses the abstract namespace and leaves no file), and removes `comfyui_pvenv_*` temp dirs no live process has in its cwd or command line. Orphans are recognised by the **host pid baked into the worker's temp-dir name** (`comfyui_pvenv_<hostpid>_…`), not by the immediate parent: under `pixi run` a worker whose wrapper died has parent pid 1 and one whose host died has a live wrapper, so a parent test caught neither. A worker whose host is gone is killed as a group. Workers from an older comfy-env, with no host pid in the name, fall back to the parent test. |
+| 6 | **The idle reaper** | A deliberate death through the crash path (case 1): the record is retired, the process killed as a group, stand-ins answer eviction as already offloaded. Only a worker holding nothing and serving no stand-in qualifies, so nothing is lost that the next call cannot rebuild. |
 
 ## One row per process: the worker record
 
