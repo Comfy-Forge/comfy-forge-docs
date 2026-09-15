@@ -276,46 +276,29 @@ Two helpers hang off that tee:
   the `tee.file` attribute. This is how `install.log` ends up more verbose than
   the console without making the console unreadable.
 
-### The progress bar
+### What `pixi install` says, and does not
 
 `pixi install` produces almost nothing on a pipe. Its `--no-progress` is
 force-enabled whenever stderr is not a terminal, and comfy-env pipes stderr so
-it can tee to `install.log`, so what arrives is a few warnings and the single
-line `The default environment has been installed.` Raising verbosity does not
-help: `-v` adds phase timings and `-vv` adds internal DEBUG, neither naming a
-package, and there is no `--json`.
+it can tee to `install.log`, so what arrives is any warnings and the single
+line `The default environment has been installed.` There is no progress bar
+at any verbosity through a pipe; pixi self-suppresses it, and there is no
+`--json`.
 
-Giving pixi a pty would restore its native bar, but only on Unix — Windows
-needs ConPTY, which means a C dependency in the *host* env, and the host-env
-principle forbids that. It would also fill `install.log` with ANSI redraw
-noise.
+comfy-env runs it with `-v`, which adds pixi's phase lines: which packages
+it is about to fetch from remote and which are cached, `Prepared 8 packages
+in 163ms`, `Installed 48 packages in 180ms`, `Installed environment in
+1.18s`. About nine lines per install, and exactly what a post-mortem of a
+slow or failed install wants. It still names no package as it completes.
 
-So `install/progress.py` counts the result instead of parsing the narration.
-`pixi.lock` declares what the env will contain and the env fills in as it
-installs: one `conda-meta/<pkg>.json` per conda package. A background thread
-polls that directory and repaints:
+Errors and the exit code come through the pipe intact. The `isatty()` check
+governs decoration only; everything that is information rather than
+animation is written regardless.
 
-```
-  [3/26] geometrypack-nodes  ████████░░░░░░░░░░░░░░░░ 141/226  38.4s
-```
-
-Two details in there are load bearing and both are commented at the top of the
-module. The lock regex requires leading whitespace, because `pixi.lock` lists
-every package twice — once in the top-level `packages:` catalogue at indent 0
-and once indented under `environments`; measured on a real lock, 329 indented
-entries against 658 total, so dropping the indent requirement silently doubles
-the denominator and the bar reports half progress forever without ever erroring.
-And it counts conda packages only: pairing pypi entries with
-`site-packages/*.dist-info` double counts.
-
-The bar repaints on a clock rather than on a change — a stalled install still
-shows a moving elapsed time, which is the difference between "slow" and "hung".
-When stdout is not a terminal the carriage-return redraw is useless, so it
-falls back to discrete lines instead:
-
-```
-  [3/26] geometrypack-nodes: 141/226 package(s), 38.4s elapsed
-```
+comfy-env draws no progress of its own during the pixi phase. Giving pixi a
+pty would restore its native bar on Unix; Windows needs ConPTY, a C
+dependency in the host env, which the host-env principle forbids. That
+trade is open.
 
 ## Debug categories
 

@@ -56,7 +56,6 @@ fe9ff74 (2026-09-12): 46 files, 19,264 lines. Layering, low to high:
 | `install/__init__.py` | 73 | `install()` entrypoint; infers the caller's directory via `inspect.stack()`; runs the `[node_packs]` step, then `install_workspace`. No pip step. Importing it also sets `PYTHONUNBUFFERED=1` and switches `sys.stdout` / `sys.stderr` to line buffering for the whole process. |
 | `install/plugin.py` | 26 | Plugin half: one function, `_install_node_packs`, which lists what it would clone under `--dry-run` and otherwise calls `install_node_packs`. Nothing re-runs the plugin's `requirements.txt`. |
 | `install/workspace.py` | 1,053 | Workspace half: discover configs, resolve bootstrap torch pin (CPU-only without GPU), pick wheel combo, hash configs for change detection, write per-env `pixi.toml`, run `pixi install` per env, stamp. |
-| `install/progress.py` | 244 | Live `pixi install` progress from the filesystem: counts `conda-meta/*.json` and `site-packages/*.dist-info` against what `pixi.lock` declares, because pixi suppresses its own bar when stderr is piped. |
 | `install/helpers.py` | 126 | Cross-platform utilities: `_rmtree` via robocopy-mirror-from-empty-dir (defeats Windows long-path/read-only deletes), uv discovery and platform patch, tee logging, streaming subprocess runner. |
 
 ## `isolation/` -- runtime

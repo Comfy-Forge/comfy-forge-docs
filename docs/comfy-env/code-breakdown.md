@@ -140,7 +140,6 @@ hang. Merge them carelessly and a segfault reports as a ten-minute stall.
 | `packages/node_packs.py` | 159 | `[node_packs]` peer-pack install ([ADR-0016](adr/0016-node-pack-dependencies.md)). |
 | `install/helpers.py` | 126 | Install-time helpers. |
 | `environment/libomp.py` | 151 | macOS libomp dedupe, and a result record so a pass that fixed nothing says so. |
-| `install/progress.py` | 244 | Live `pixi install` progress derived from the filesystem (`conda-meta/*.json` and `*.dist-info` counted against `pixi.lock`), because pixi self-suppresses its bar when stderr is a pipe. |
 | `install/plugin.py` | 26 | The `[node_packs]` peer-pack step: one function that calls `install_node_packs`. |
 | `pixi.py` | 111 | Pinned, sha256-verified pixi-binary provisioning. |
 | `install/__init__.py` | 73 | `install()` entry. |

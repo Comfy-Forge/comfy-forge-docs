@@ -42,7 +42,7 @@ facade, and the transport leaf `_ipc_shared.py` imports nothing from
 flowchart TD
     cli["cli.py<br/>comfy-env CLI + debug TUI"]
     facade["__init__.py<br/>public facade: install / setup_env / register_nodes"]
-    install["install/<br/>build-time orchestration<br/>(plugin.py, workspace.py, helpers.py, progress.py)"]
+    install["install/<br/>build-time orchestration<br/>(plugin.py, workspace.py, helpers.py)"]
     isolation["isolation/<br/>runtime: wrap.py (register_nodes), metadata.py,<br/>pool.py, subenv.py, model_patcher.py, procgroup.py, workers/"]
     floor["memory-floor modules (top-level leaves)<br/>memory_manager.py, state_sync.py, reserve.py,<br/>contract.py, mirrored_args.py"]
     environment["environment/<br/>workspace layout (cache.py),<br/>prestartup (setup.py), libomp.py, runtime.py"]
