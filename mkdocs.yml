@@ -104,6 +104,7 @@ nav:
               - ComfyUI memory management background: comfy-env/comfyui-memory.md
               - How aimdo manages weights: comfy-env/comfyui-aimdo.md
               - ComfyUI's memory API: comfy-env/comfyui-memory-api-inventory.md
+              - ComfyUI's memory API, function reference: comfy-env/comfyui-memory-api-reference.md
               - How operating systems manage memory:
                   - Overview: comfy-env/os-memory.md
                   - Kernel and driver differences: comfy-env/kernel-differences.md

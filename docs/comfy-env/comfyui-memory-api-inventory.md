@@ -1,7 +1,9 @@
 # ComfyUI's memory API
 
 *What ComfyUI offers a caller, what it demands of a model in return, and
-comfy-env's relationship to every symbol on that surface.*
+comfy-env's relationship to every symbol on that surface. The functions
+that matter most are written out in full on the
+[function reference](comfyui-memory-api-reference.md).*
 
 *Last verified against ComfyUI `bab6ee5f` (2026-08-24) and comfy-env `f1f8260` (2026-09-04). Every upstream symbol below was re-checked against the tree and all 81 resolve. The comfy-env column was spot-corrected where [ADR-0038](adr/0038-the-memory-floor.md) changed the relationship; rows marked `inherits` were not individually re-verified.*
 
@@ -37,11 +39,11 @@ and patches three.
 
 | Function | Returns | comfy-env |
 |---|---|---|
-| [`get_free_memory(device)`](#get_free_memory) | driver free plus torch's own cache | **calls**, eleven sites, and corrects the answer |
-| [`get_total_memory(device)`](#get_total_memory) | device total | **calls** |
+| [`get_free_memory(device)`](comfyui-memory-api-reference.md#get_free_memory) | driver free plus torch's own cache | **calls**, eleven sites, and corrects the answer |
+| [`get_total_memory(device)`](comfyui-memory-api-reference.md#get_total_memory) | device total | **calls** |
 | `module_size(module)` | bytes of a state dict, nothing else the module holds | inherits |
-| [`minimum_inference_memory()`](#reserve) | the floor that must stay free | **calls**, in the admission sum |
-| [`extra_reserved_memory()`](#reserve) | the reserve on top of that floor | **calls**, and comfy-env PUBLISHES into the global behind it so upstream's own arithmetic accounts for worker VRAM |
+| [`minimum_inference_memory()`](comfyui-memory-api-reference.md#reserve) | the floor that must stay free | **calls**, in the admission sum |
+| [`extra_reserved_memory()`](comfyui-memory-api-reference.md#reserve) | the reserve on top of that floor | **calls**, and comfy-env PUBLISHES into the global behind it so upstream's own arithmetic accounts for worker VRAM |
 | `maximum_vram_for_weights(device)` | what is left for weights after reserves | inherits |
 | `offloaded_memory(loaded_models, device)` | how much of the ledger is already off the card | inherits |
 | `get_disk_swap_total()` | swap size, used to raise the pin ceiling | inherits, Linux only by construction |
@@ -64,12 +66,12 @@ and patches three.
 
 | Function | Does | comfy-env |
 |---|---|---|
-| [`load_models_gpu(models, memory_required=, ...)`](#load_models_gpu) | budget, evict, load | **patches** in the worker; **calls** the real one after |
+| [`load_models_gpu(models, memory_required=, ...)`](comfyui-memory-api-reference.md#load_models_gpu) | budget, evict, load | **patches** in the worker; **calls** the real one after |
 | `load_model_gpu(model)` | one model, thin wrapper | inherits |
-| [`free_memory(required, device, keep_loaded=, for_dynamic=, pins_required=, ram_required=)`](#free_memory) | "get me this many free bytes" | **calls**, with upstream's own target expression (`reserve.ask_target`), exactly two positionals, never `for_dynamic` |
-| [`unload_all_models()`](#unload_all_models) | evict everything, everywhere | **reads**; comfy-env registers no wrap here. The stand-in is reached through it, because `unload_all_models` walks the list and `LoadedModel.model_unload` calls `detach` on every entry |
-| [`unload_model_and_clones(model, ...)`](#unload_model_and_clones) | drop one model and its clones for a clean reload | inherits |
-| [`loaded_models(only_currently_used=)`](#loaded_models) | the ledger contents | **watch**: it hands the proxy to arbitrary node code |
+| [`free_memory(required, device, keep_loaded=, for_dynamic=, pins_required=, ram_required=)`](comfyui-memory-api-reference.md#free_memory) | "get me this many free bytes" | **calls**, with upstream's own target expression (`reserve.ask_target`), exactly two positionals, never `for_dynamic` |
+| [`unload_all_models()`](comfyui-memory-api-reference.md#unload_all_models) | evict everything, everywhere | **reads**; comfy-env registers no wrap here. The stand-in is reached through it, because `unload_all_models` walks the list and `LoadedModel.model_unload` calls `detach` on every entry |
+| [`unload_model_and_clones(model, ...)`](comfyui-memory-api-reference.md#unload_model_and_clones) | drop one model and its clones for a clean reload | inherits |
+| [`loaded_models(only_currently_used=)`](comfyui-memory-api-reference.md#loaded_models) | the ledger contents | **watch**: it hands the proxy to arbitrary node code |
 | `cleanup_models()` | drop dead ledger entries | **calls** |
 | `cleanup_models_gc()` | the same, plus a collect when a leak is detected | inherits |
 | `use_more_memory(extra, loaded_models, device)` | grow a partially loaded model | inherits |
@@ -161,7 +163,7 @@ under `--gpu-only` a cached node output holds VRAM that nothing can evict.
 
 | Function | Does | comfy-env |
 |---|---|---|
-| [`soft_empty_cache(force=False)`](#soft_empty_cache) | return cached blocks to the driver. **`force` is ignored** | inherits; the worker calls `torch.cuda.empty_cache()` directly |
+| [`soft_empty_cache(force=False)`](comfyui-memory-api-reference.md#soft_empty_cache) | return cached blocks to the driver. **`force` is ignored** | inherits; the worker calls `torch.cuda.empty_cache()` directly |
 | `synchronize()` | wait for the device. **No MPS branch, silent no-op there** | inherits |
 
 ## Failure and interruption
@@ -186,144 +188,6 @@ Eighteen members upstream reads off a ledger entry during eviction, with no
 declaration anywhere that it will. They are listed and explained on
 [the stand-in](stand-in-model.md#what-it-must-answer).
 
-
-## Function reference
-
-The functions the rest of these pages keep naming, in full: signature,
-every parameter, what the body does in order, and who calls it. Read from
-`comfy/model_management.py` at the verification commit above.
-
-### `load_models_gpu` { #load_models_gpu }
-
-```python
-def load_models_gpu(models, memory_required=0, force_patch_weights=False,
-                    minimum_memory_required=None, force_full_load=False)
-```
-
-What every loader node and every sampler calls to make models resident.
-
-| Parameter | Meaning |
-|---|---|
-| `models` | the `ModelPatcher`s to load; each model's `model_patches_models()` (controlnets, hooks) is added, order preserved, duplicates dropped |
-| `memory_required` | bytes of working memory the caller expects to need on top of the weights, usually the model's own activation estimate |
-| `force_patch_weights` | apply LoRA patches to the weights in place rather than on the fly |
-| `minimum_memory_required` | a smaller floor to retry against if the full request cannot be met; defaults to the full request |
-| `force_full_load` | skip the partial load budget and load everything |
-
-In order:
-
-1. `cleanup_models_gc()`: drop ledger entries whose model died.
-2. `extra_mem = max(minimum_inference_memory(), memory_required + extra_reserved_memory())`: the working memory plus the reserve, floored at 0.8 GiB plus the reserve.
-3. For each model, look for it in `current_loaded_models` (by identity of the wrapped model). Found: mark it `currently_used` and reuse the entry. Not found: build a new `LoadedModel`. If any model is not paged (`is_dynamic()` False), the whole call is non dynamic: `free_for_dynamic = False`.
-4. Clone dedup: any listed entry that `is_clone` of an incoming model is popped and detached, so a model and its clone never occupy the card twice.
-5. Sum per device: `total_memory_required` is each entry's `model_memory_required(device)` (the whole model if it is elsewhere, only the offloaded remainder if it is already partly on this device); `total_pins_required` adds each non paged model's full size, the pinned host copy it will want.
-6. `free_memory(total * 1.1 + extra_mem, device, for_dynamic=free_for_dynamic, pins_required=...)` per device: the admission ask, 10 percent over the sum.
-7. If free memory is still below `minimum_memory_required`, one more `free_memory` for that floor.
-8. Per model, compute `lowvram_model_memory`, the partial load budget: on `NORMAL_VRAM` and `LOW_VRAM`, what is free after the floor, capped by a minimum weight ratio; `0` means load everything (rewritten to `1e32` downstream), `0.1` means load essentially nothing, and `NO_VRAM` forces `0.1`. Then `model_load(lowvram_model_memory)`, and the entry is inserted at index 0 of the ledger (newest first).
-
-Returns nothing. The paged path ignores the budget from step 8 and decides residency page by page at fault time.
-
-### `free_memory` { #free_memory }
-
-```python
-def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False,
-                pins_required=0, ram_required=0)
-```
-
-Make `memory_required` bytes of VRAM free on `device` by unloading listed models.
-
-| Parameter | Meaning |
-|---|---|
-| `memory_required` | bytes of VRAM that must be free when the call returns; the per victim shortfall is this minus `get_free_memory(device)` |
-| `device` | the card; only entries on it are candidates. `None` means every device (`unload_all_models`) |
-| `keep_loaded` | entries never to touch; only `unload_model_and_clones` passes one |
-| `for_dynamic` | the request is on behalf of paged models only. Paged victims are then skipped (their resident size is subtracted from the request as if already free) and the pin step is skipped; the pager reclaims their pages on demand |
-| `pins_required` | pinned host RAM the incoming load will want; when positive and not `for_dynamic`, other models' pinned copies are unpinned until it fits the budget |
-| `ram_required` | unused: appears in one debug line, no branch reads it, no caller passes it |
-
-In order:
-
-1. `cleanup_models_gc()`.
-2. Build the victim list from every entry on `device` that is not in `keep_loaded` and not dead, clearing each one's `currently_used`; sort by `(-model_offloaded_memory, sys.getrefcount(model), model_memory, index)`: most already off the card first, then fewest references, then smallest, then newest.
-3. For each victim, recompute `memory_to_free = memory_required - get_free_memory(device)`. Under `--disable-smart-memory` it is `1e32` instead. A paged victim on a `for_dynamic` call is skipped as above. If the shortfall is positive, `model_unload(memory_to_free)`: partial if the shortfall is smaller than the model's resident size, full otherwise; a paged model's partial unload is the pager unmapping that many bytes of pages. The loop visits every victim; once free memory covers the request the shortfall is no longer positive and nobody else is asked.
-4. Pop the unloaded entries from the ledger.
-5. If not `for_dynamic` and `pins_required > 0`: `ensure_pin_budget` and `ensure_pin_registerable`, host RAM only.
-6. `soft_empty_cache()` if anything was unloaded; otherwise only if torch's idle cache exceeds a quarter of what counts as free and `vram_state` is not `HIGH_VRAM`.
-
-Returns the list of unloaded `LoadedModel`s. It never frees anything but listed models and torch's own cache: cached node outputs holding VRAM, cast buffers, CUDA graph pools and allocations outside torch are untouched.
-
-Callers: `load_models_gpu` (steps 6 and 7 above), `unload_all_models` (`1e30`, every device), `unload_model_and_clones` (`1e30` with a `keep_loaded` list), and comfy-env's budget round trip on a worker's behalf, with two positionals and `for_dynamic` left `False`.
-
-### `get_free_memory` { #get_free_memory }
-
-```python
-def get_free_memory(dev=None, torch_free_too=False)
-```
-
-"How much room is left" on `dev` (the torch device by default). Returns bytes, or `(total, torch_cache)` when `torch_free_too` is set.
-
-On CUDA it is `torch.cuda.mem_get_info(dev)` free plus `reserved - active` from torch's allocator stats: the driver's free figure plus the blocks torch has freed but kept. The second term is counted as free and is not reliably returnable, since it may be fragmented. The driver's figure is device wide on Linux and the calling process's own budget on Windows WDDM ([why Windows needs its own branch](windows-blind-spot.md)).
-
-Other backends answer differently: CPU and MPS return machine available RAM; DirectML returns a constant 1 GiB (marked `TODO`); XPU computes `total - reserved` from torch's stats, process local by construction; NPU and MLU mirror the CUDA form.
-
-Called on every load (admission and every shortfall recomputation), by the samplers and the VAE to size batches, and by `/system_stats`. There is a second function of the same name, `ModelPatcher.get_free_memory`, which adds what the pager could reclaim on demand.
-
-### `get_total_memory` { #get_total_memory }
-
-```python
-def get_total_memory(dev=None, torch_total_too=False)
-```
-
-The card's total in bytes (`mem_get_info` total on CUDA, machine RAM on CPU and MPS). Note that `cuMemGetInfo`'s total is not the card: on a 3090 it reports 24,122 MiB where `nvidia-smi` reports 24,576, the driver's own reserve. Read by `maximum_vram_for_weights` for the dtype gates and by `/system_stats`.
-
-### `extra_reserved_memory` and `minimum_inference_memory` { #reserve }
-
-```python
-def extra_reserved_memory():     return EXTRA_RESERVED_VRAM
-def minimum_inference_memory():  return 0.8 GiB + extra_reserved_memory()
-```
-
-`EXTRA_RESERVED_VRAM` is 400 MiB, 600 MiB on Windows, 700 MiB on Windows with more than 15 GB of VRAM, or exactly what `--reserve-vram` says. It is a module global read live on every load, which is why comfy-env can publish into it. `minimum_inference_memory` is the floor that must stay free below any load: 0.8 GiB plus the reserve.
-
-### `soft_empty_cache` { #soft_empty_cache }
-
-```python
-def soft_empty_cache(force=False)
-```
-
-Hand torch's cached but unused blocks back to the driver: on CUDA `synchronize()`, `empty_cache()`, `ipc_collect()`; the matching call on MPS, XPU, NPU and MLU; nothing on CPU. `force` is accepted and ignored. Returns nothing. Per process: the host calling it releases nothing a worker's allocator holds. Cannot touch pager held weights, which were never in the caching allocator.
-
-### `unload_all_models` { #unload_all_models }
-
-```python
-def unload_all_models()
-```
-
-`free_memory(1e30, device)` for every device. What the Free button, the top level OOM branch and `--disable-smart-memory` at prompt end call. The `1e30` never reaches a listed model: `model_unload` compares it with `loaded_size()`, it loses, and the entry is fully detached.
-
-### `unload_model_and_clones` { #unload_model_and_clones }
-
-```python
-def unload_model_and_clones(model, unload_additional_models=True, all_devices=False)
-```
-
-Free everything except the given model, its clones (same `clone_base_uuid`) and, by default, its nested additional models, by calling `free_memory(1e30, device, keep_loaded=...)`. Written for multigpu cloning. The only caller that passes `keep_loaded`.
-
-### `loaded_models` { #loaded_models }
-
-```python
-def loaded_models(only_currently_used=False)
-```
-
-The wrapped models of every ledger entry, optionally only those `load_models_gpu` marked `currently_used` on its last pass. Node code outside the memory manager borrows this list and hands entries back to `load_models_gpu`; comfy-env's stand-in registers with `currently_used` False so six of the seven callers never see it.
-
-### `LoadedModel.model_unload` { #model_unload }
-
-```python
-def model_unload(self, memory_to_free=None, unpatch_weights=True)
-```
-
-The entry side of eviction, what `free_memory` calls per victim. If `memory_to_free` is smaller than `loaded_size()`, ask the model for `partially_unload(offload_device, memory_to_free)` and return `False` if it freed enough (a short answer escalates). Otherwise `detach(unpatch_weights)`, detach the finalizer, and return `True`. For a paged model `partially_unload` is the pager unmapping pages; for the stand-in model it is a forward to the worker.
 
 ## The HTTP surface
 
