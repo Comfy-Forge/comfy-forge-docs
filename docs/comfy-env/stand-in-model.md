@@ -142,7 +142,7 @@ broke: stable means nothing reads the stand-in on that path, fragile means
 the host reads internals off it that upstream has already changed once,
 broke means a read on that path has taken comfy-env down before.
 
-### 1. `free_memory` eviction ladder { #row-1 }
+### 2. `free_memory` eviction ladder { #row-2 }
 
 **What ComfyUI does.** `free_memory` eviction ladder: when the card is short, the host ranks its loaded models and asks them to leave until there is room. The rank is a four key sort (`mm.py`): most already offloaded first, then lowest `sys.getrefcount`, then smallest, and only as a final tiebreak the list index, which is newest first because `load_models_gpu` inserts at 0. A model it never listed is never asked.
 

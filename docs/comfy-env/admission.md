@@ -91,7 +91,7 @@ let comfy-env delete the publish, the forward and the ledger; the
 
 ## The rows
 
-### 2. `load_models_gpu` admission { #row-2 }
+### 1. `load_models_gpu` admission { #row-1 }
 
 **What ComfyUI does.** `load_models_gpu` admission: before loading a model, the host adds up model size plus 10 percent, plus the larger of 0.8 GiB and the incoming estimate, plus the reserve, and frees that much first.
 
