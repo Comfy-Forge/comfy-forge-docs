@@ -16,12 +16,9 @@ term this page borrows. Otherwise carry on.
 
 ComfyUI runs a workflow as a graph.
 
-Each node does its work, hands the result to the next one, and most of the time nothing about memory is worth thinking about.
+Each node does its work, hands the result to the next one, and this becomes worth thinking about when the graph is heavy.
 
-
-It becomes worth thinking about when the graph is heavy.
-
-A model checkpoint can be several gigabytes and a user's GPU/RAM might hold a fixed number of them: ask one workflow for a UNet, a VAE, a text encoder and two ControlNets and they might not all fit at once.
+A model checkpoint can be several GBs and a user's GPU/RAM might hold a fixed number of them: a UNet, a VAE, a text encoder and two ControlNets might not all fit on a GPU at once.
 
 ComfyUI does things about it:
 
@@ -35,20 +32,18 @@ These memory optimizations are crucial to the good functioning of ComfyUI, espec
 
 ## Where memory lives
 
-People say "RAM and VRAM" and that is close enough until you start moving
-things, at which point it matters that there are three places and then a fork.
+People say "RAM and VRAM" and that is close enough, but there are a few things to keep in mind
 
-### Two kinds of bytes, and it decides everything below RAM
+### Two kinds of bytes on RAM
+
+**File backed** bytes that came off a disk and have not been modified since (safetensors...).
+The OS has it easy: if it needs memory it can just delete them and the file still holds a perfect copy.
 
 **Anonymous** bytes exist only in RAM. A tensor you built, a buffer you
 allocated. Nothing on disk backs them, so if the OS wants that memory back it
 cannot simply discard them. It has to put them somewhere first.
 
-**File backed** bytes came off a disk and have not been modified since. Your
-safetensors. Here the OS has it easy: to reclaim the memory it deletes the pages
-and the file still holds a perfect copy.
-
-Same RAM, same speed, opposite fate under pressure.
+Same RAM, same speed, different fate under pressure.
 
 ### The places
 
@@ -60,7 +55,7 @@ Same RAM, same speed, opposite fate under pressure.
 | 2 | **Pinned RAM** | host RAM the OS has promised not to move | the RAM to VRAM transfer, and nothing else |
 | 3a | **Pageable RAM, anonymous** | ordinary host RAM, holding bytes that exist nowhere else | a copy into the GPU driver's own pinned buffer, then the transfer |
 | 3b | **Pageable RAM, file backed** | ordinary host RAM, holding a clean copy of bytes the disk also has | exactly the same as 3a |
-| 4a | **Compressed** | 3a, squashed rather than written out. Still RAM, unreadable until decompressed | decompressing, then everything 3a costs |
+| 4a | **Compressed** | 3a, squashed rather than written out. Still RAM, unreadable until decompressed | decompressing, then everything 3a/3b costs |
 | 4b | **Swap** | 3a, written out to a disk | reading it back off disk, then everything 3a costs |
 | 4c | **The file** | what is left after 3b is dropped. The safetensors, where they always were | reading it, through a small pinned window rather than into a full copy in RAM |
 
@@ -68,10 +63,10 @@ Same RAM, same speed, opposite fate under pressure.
 
 ### The fork
 
-VRAM, pinned RAM and pageable RAM are where something is **put**. Compressed,
-swap and the file are where it can **end up**.
+VRAM, pinned RAM and pageable RAM are where something is **put**.
+Compressed, swap and the file are where it can **end up**.
 
-!!! note "Compressed RAM is named once, in order to exclude it"
+!!! note "ComfyUI doesn't handle compressed RAM! It is named once, in order to exclude it"
     `get_disk_swap_total()` sums `/proc/swaps` to size the pinned memory budget
     and skips any device whose name begins with `zram`
     (`model_management.py`). Compressed RAM is not backing store, so
@@ -80,8 +75,9 @@ swap and the file are where it can **end up**.
     Linux only by construction rather than by an OS check.
 
 Pinned RAM is the one place in this table with a budget, because pages the
-kernel cannot move are pages the rest of the machine cannot have. Pageable RAM
-has no budget at all.
+kernel cannot move are pages the rest of the machine cannot have.
+
+ComfyUI lets the OS manage pageable RAM and instead only manages VRAM. That is a stated position, not an omission: asked about RAM overcommit in [Comfy-Org/ComfyUI#8298](https://github.com/Comfy-Org/ComfyUI/issues/8298), comfyanonymous answered *"The model_management code only deals with vram not ram."* The symptoms users report against it are [#3257](https://github.com/Comfy-Org/ComfyUI/issues/3257) (models stay in RAM after leaving VRAM, `/free` does not touch them), [#12332](https://github.com/Comfy-Org/ComfyUI/issues/12332) (RAM and swap filled until the process is killed) and [#2292](https://github.com/Comfy-Org/ComfyUI/issues/2292) (the OOM killer). What ComfyUI does budget on the RAM side is pinned pages and the results cache, below.
 
 ## The six kinds
 
