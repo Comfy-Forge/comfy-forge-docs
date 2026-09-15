@@ -43,14 +43,16 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False,
 ```
 
 What every loader node and every sampler calls to make models resident.
+Loaders call it with the weights only; the sampler calls it again with a
+real activation estimate before the first step.
 
 | Parameter | Meaning |
 |---|---|
 | `models` | the [`ModelPatcher`s](#modelpatcher) to make resident. Each one's `model_patches_models()`, the extra models its patches need alongside it (a controlnet, hook models), is added to the list; order is preserved and duplicates dropped |
-| `memory_required` | bytes of working memory the caller expects to need on top of the weights, usually the model's own activation estimate |
-| `force_patch_weights` | apply LoRA patches to the weights in place rather than on the fly |
-| `minimum_memory_required` | a smaller floor to retry against if the full request cannot be met; defaults to the full request |
-| `force_full_load` | skip the partial load budget and load everything |
+| `memory_required` | bytes of working memory the caller expects on top of the weights. Not in the file: the caller computes it from the input it is about to run, `area × dtype × memory_usage_factor`, with the factor a per architecture constant in ComfyUI's source. Loaders pass 0, which still reserves 0.8 GiB plus the reserve; the sampler passes its estimate for the full batch |
+| `force_patch_weights` | write the LoRA patches into the weight tensors, keeping a backup of the originals, instead of applying them per layer at cast time. Costs a second copy of every patched weight in RAM and breaks sharing between clones, so it is off unless the weights must actually hold the patched values |
+| `minimum_memory_required` | the estimate for the smallest run the caller will accept, from the sampler: batch of one, largest cond only, against the full request's batch of two with every cond. If room for the full request cannot be made, the load is retried and budgeted against this floor, and the sampler shrinks its batch at runtime. Defaults to the full request, so no distinction |
+| `force_full_load` | skip the partial load budget and put the whole model on the card, whatever `vram_state` says. Used by training and by callers that need every layer resident |
 
 In order:
 
