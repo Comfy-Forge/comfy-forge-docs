@@ -86,9 +86,26 @@ two halves; nothing else in either half can be an underscore.
   pack root. Anything outside `[a-z0-9-]` collapses to a single dash, because
   this half comes from a folder name on disk and pixi rejects the rest.
 * **`<abi-tag>`** is `py<version>-torch<major>.<minor>-<backend>`, where
-  backend is `cu128`, `rocm63`, `mps`, `cpu`, or `notorch`. **Version dots are
-  kept**, so torch 2.10 reads `torch2.10` and cannot be misread as torch 2
-  build 10.
+  backend is `cu128`, `rocm63`, `mps` or `cpu`. **Version dots are kept**,
+  so torch 2.10 reads `torch2.10` and cannot be misread as torch 2 build 10.
+
+!!! warning "Run `install.py` with the ComfyUI's python, or it refuses"
+    The tag describes the **interpreter that runs the install**, and that
+    interpreter is assumed to be the ComfyUI's. Every worker env gets the
+    host's torch whether or not the pack declares one, because the worker
+    has to `import comfy` to stand in for a node and `comfy` imports torch
+    on line one; and it must be the *same* torch, because tensors cross the
+    process boundary through torch's private sharing ABI and a mismatch
+    corrupts them rather than failing.
+
+    So a Python **without** torch is never a ComfyUI's -- ComfyUI imports
+    torch unconditionally, and a CPU-only ComfyUI still has a CPU torch.
+    Running `install.py` from one used to build an env keyed
+    `py3XX-notorch`, stamped for a host with no torch, which no real host is:
+    a gigabyte of the wrong torch that nothing could ever bind. `install()`
+    now refuses before touching disk and names the interpreter it was run
+    with. `comfy-env info` from such a python still reports the tag as
+    `notorch`, which is the diagnosis.
 
 The tag is what stops two ComfyUI installs on different stacks from sharing
 a directory and rebuilding over each other. It also means **the same pack
