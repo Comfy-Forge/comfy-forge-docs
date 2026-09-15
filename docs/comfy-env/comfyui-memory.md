@@ -89,21 +89,20 @@ This table is the index. You arrive knowing **what** the memory is, and what you
 want is the **What frees it** column, which names a mechanism from the table
 after this one.
 
-**Present when** answers a different question: does this row describe your
-install at all? Four flags and one hardware condition can delete a kind outright,
-so two of these six do not exist on some perfectly ordinary setups. A row that
-does not apply to you is worse than no row, because you will go looking for
-memory that was never there.
+**Exists on your install when** is there because two of the six kinds are
+absent on ordinary setups: Carry needs an offload stream, and Results and
+State are switched off by `--cache-none` (`--high-ram` silently switches
+them back on). Memory that was never there is not worth looking for.
 
 <div class="num-col" markdown>
 
-| # | Kind | What it is | Where it lives | What frees it | Present when |
+| # | Kind | What it is | Where it lives | What frees it | Exists on your install when |
 |---|---|---|---|---|---|
 | 1 | **Model weights** | the models themselves | VRAM, or anywhere in the places table above | **VRAM pressure** (M1) | always |
 | 2 | **Work** | activations, attention buffers, tiling accumulators | VRAM, and RAM when tiling | **Refcount** (M2) | always |
-| 3 | **Carry** | cast staging buffers, CUDA graph pools, the static tensors a sampler reuses between steps | VRAM | **Node end call** (M3) | the cast buffers need an offload stream, so NVIDIA or AMD, no `--disable-async-offload` and no `--cuda-malloc`. The 16 GiB reservation needs aimdo |
-| 4 | **Results** | what each node returned, kept in case you run again | RAM, and VRAM if a node returned a GPU tensor | **Host RAM pressure** (M4) | not `--cache-none`, unless `--high-ram` silently overrides it |
-| 5 | **State** | what a node kept on itself between runs | RAM | **Prompt start key sweep** (M5) | not `--cache-none`, unless `--high-ram` silently overrides it. Never for a V3 node |
+| 3 | **Carry** | cast staging buffers, CUDA graph pools, the static tensors a sampler reuses between steps | VRAM | **Node end call** (M3) | NVIDIA or AMD with async offload on; the 16 GiB reservation only under the pager |
+| 4 | **Results** | what each node returned, kept in case you run again | RAM, and VRAM if a node returned a GPU tensor | **Host RAM pressure** (M4) | not `--cache-none` |
+| 5 | **State** | what a node kept on itself between runs | RAM | **Prompt start key sweep** (M5) | not `--cache-none`; V1 nodes only |
 | 6 | **Everything else** | imports, native libraries, fragmentation | both | **Nothing** (M6) | always |
 
 </div>
