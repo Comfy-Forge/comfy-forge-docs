@@ -286,29 +286,44 @@ Two helpers hang off that log:
   the `file` property. This is how `install.log` ends up more verbose than
   the console without making the console unreadable.
 
-### What `pixi install` says, and does not
+### pixi's progress bar, and the log, at the same time
 
-`pixi install` produces almost nothing on a pipe. Its `--no-progress` is
-force-enabled whenever stderr is not a terminal, and comfy-env pipes stderr so
-it can tee to the env's `install.log`, so what arrives is any warnings and the single
-line `The default environment has been installed.` There is no progress bar
-at any verbosity through a pipe; pixi self-suppresses it, and there is no
-`--json`.
+`pixi install` draws its progress bar only when stderr is a terminal.
+Through a pipe it draws nothing at any verbosity -- not `-v`, not `-vv` --
+and there is no `--json`. Measured: the same install emits 331 bytes through
+a pipe and 20,958 bytes with 1,656 escape sequences on a pty.
 
-comfy-env runs it with `-v`, which adds pixi's phase lines: which packages
-it is about to fetch from remote and which are cached, `Prepared 8 packages
-in 163ms`, `Installed 48 packages in 180ms`, `Installed environment in
-1.18s`. About nine lines per install, and exactly what a post-mortem of a
-slow or failed install wants. It still names no package as it completes.
+`_run_pixi` (`install/helpers.py`) resolves that. When the process's real
+stderr is a terminal, pixi gets a **pty** for stderr, sized to the terminal,
+and a thread relays the master end two ways:
 
-Errors and the exit code come through the pipe intact. The `isatty()` check
-governs decoration only; everything that is information rather than
-animation is written regardless.
+- the raw bytes go to the real terminal (`sys.__stderr__`, bypassing any
+  stdout wrapper the host installed), so the bar renders exactly as pixi
+  drew it;
+- the same bytes go through `_FrameReducer`, which keeps only lines pixi
+  finished with `\n` and drops everything a CR, an erase or a vertical
+  cursor move would overwrite -- the frames -- and writes what survives to
+  the env's `install.log` only. The console already saw it.
 
-comfy-env draws no progress of its own during the pixi phase. Giving pixi a
-pty would restore its native bar on Unix; Windows needs ConPTY, a C
-dependency in the host env, which the host-env principle forbids. That
-trade is open.
+The reducer is built against pixi's real redraw grammar (`ESC[nA`, then
+per line `\r ESC[2K text ESC[1B`, never a newline). Two measured traps it
+handles: the pty's line discipline turns every `\n` into `\r\n`, so a CR
+directly before LF is a line ending and not an overwrite; and `os.read()`
+splits escape sequences (8 of 24 4 KB chunks in one capture), so an
+unfinished trailing ESC is carried into the next chunk. On a real 738 KB
+`-v` capture with 61,331 escapes it produces 13 lines: every `INFO`, the
+`WARN` block, the `✔`, and nothing else.
+
+Off a terminal -- a service, an IDE, captured output -- or on Windows, where
+a pty needs ConPTY and therefore a C dependency in the host env, it falls
+back to `_run_streaming` and pixi's pipe behaviour: warnings, the `-v`
+phase lines, the final line, nothing drawn.
+
+`-v` stays on either way. Its phase lines -- which packages are coming from
+remote, `Prepared 48 packages in 42.17s`, `Installed environment in
+54.36s` -- are what a post-mortem wants, and on the pty path they are the
+only thing that reaches the log. Errors and the exit code come through
+both paths intact; `isatty()` governs decoration only.
 
 ## Debug categories
 
