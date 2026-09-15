@@ -54,7 +54,7 @@ The install path does not print directly. It threads a
 `log: Callable[[str], None]` parameter, defaulting to `print`, through every
 function that has something to say — `toml_generator.py` alone takes it in
 nine signatures. That indirection is what lets `install()` swap in a tee that
-also writes `install.log`, without any function below it knowing.
+also writes each env's `install.log`, without any function below it knowing.
 
 This is deliberate rather than lazy. comfy-env runs inside the ComfyUI process
 for `setup_env()` and `register_nodes()`, so by the time any of it executes,
@@ -73,7 +73,7 @@ ordering and `--log-stdout` behaviour, not visibility.
 | # | Sink | Contents | When |
 |---|---|---|---|
 | 1 | **The ComfyUI console** (and therefore the web UI) | everything printed in the host process | always |
-| 2 | **`<workspace>/install.log`** | the full install narration, plus subprocess stdout/stderr at a verbosity the console never shows | during `install()`, which runs outside the host process and so never reaches sink 1 |
+| 2 | **`<env manifest dir>/install.log`**, one per env | that env's full install narration from the shared preamble down, plus subprocess stdout/stderr at a verbosity the console never shows | during `install()`, which runs outside the host process and so never reaches sink 1 |
 | 3 | **`$TMPDIR/comfy_worker_debug.log`** | worker-internal trace, 110 `wlog(` call sites at `fe9ff74` | **always**, unrotated |
 | 4 | **`$TMPDIR/comfy_worker_watchdog.log`** | every thread's stack, every 60 s | the watchdog thread starts when `COMFY_ENV_DEBUG_WATCHDOG` **or any of** `COMFY_ENV_DEBUG_SERIALIZE` / `IPC` / `WORKER` / `MODELS` (or the `COMFY_ENV_DEBUG` master) is on; it always writes the file, and only *prints* the dumps under `COMFY_ENV_DEBUG_WATCHDOG` |
 | 5 | **`$TMPDIR/comfy_worker_faulthandler.log`** | native traceback on SIGSEGV, SIGABRT and friends | always armed |
@@ -253,17 +253,27 @@ subprocess, which means it is on the far side of the very boundary this page is
 about: its output does not reach the web UI, and comfy-env cannot change that.
 What it can do is keep a complete record on disk.
 
-`_make_tee_log` (`install/helpers.py`) wraps the caller's log callback so
-every line goes to both the console and `<workspace>/install.log`, which opens
-with the interpreter and platform that produced it:
+`InstallLog` (`install/helpers.py`) wraps the caller's log callback so
+every line goes to the console, and lines emitted inside an env's section
+also go to **that env's** file, `<env manifest dir>/install.log` -- beside
+its `pixi.toml`, `env.stamp.json` and `install.hash`. Lines before any
+section opens (discovery, GPU, the wheel combo) are the shared preamble,
+replayed into each env's file when its section first opens, so every file
+is the complete story of one env from the top:
 
 ```
-# comfy-env install log - 2026-09-10T14:22:03.481922
-# Python: /home/u/ComfyUI/.venv/bin/python (3.12.7)
+# comfy-env install log for geometrypack-nodes - 2026-09-15T09:54:03.481922
+# Python: /home/u/ComfyUI/.venv/bin/python (3.13.12)
 # Platform: linux
 ```
 
-Two helpers hang off that tee:
+An env is written in four passes (manifest, `pixi install`, stamp,
+identity), so the section is opened with `begin()` and closed with `end()`
+around each; the first open truncates, the rest append. Workspace-level
+lines between sections -- the undeclared-envs notice -- reach the console
+only. There is no workspace-level log file any more.
+
+Two helpers hang off that log:
 
 - **`_run_streaming`** (`install/helpers.py`) runs a subprocess with both
   pipes drained live — stderr on a thread, stdout on the main loop — so pixi's
@@ -273,14 +283,14 @@ Two helpers hang off that tee:
   inside an install that looked hung.
 - **`_log_subprocess`** (`install/helpers.py`) writes a completed
   subprocess's full stdout and stderr to the log file *only*, reached through
-  the `tee.file` attribute. This is how `install.log` ends up more verbose than
+  the `file` property. This is how `install.log` ends up more verbose than
   the console without making the console unreadable.
 
 ### What `pixi install` says, and does not
 
 `pixi install` produces almost nothing on a pipe. Its `--no-progress` is
 force-enabled whenever stderr is not a terminal, and comfy-env pipes stderr so
-it can tee to `install.log`, so what arrives is any warnings and the single
+it can tee to the env's `install.log`, so what arrives is any warnings and the single
 line `The default environment has been installed.` There is no progress bar
 at any verbosity through a pipe; pixi self-suppresses it, and there is no
 `--json`.

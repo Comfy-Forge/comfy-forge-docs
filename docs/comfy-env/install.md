@@ -193,14 +193,17 @@ That ordering is deliberate and produces three behaviours worth knowing:
 
 ## When it fails
 
-**Start here:** a workspace install that does any work tees its full output to
-`<workspace>/install.log` (`workspace.py`) -- the discovery list, the
-resolved combo, and each `pixi install` invocation with its output.
+**Start here:** a workspace install that does any work tees its output to
+**one `install.log` per env**, beside that env's `pixi.toml`:
+`<workspace>/envs/<name>_<abi>/install.log`. Each holds the shared preamble
+(the discovery list, the resolved combo) followed by that env's own
+`pixi install` invocation with its output, stamp and identity.
 
 !!! warning "The log is from the last run that did work"
-    A run where every env is already current returns in `workspace.py`,
-    **before** the log is opened at. So after a clean run the file on
-    disk is an older transcript, and its timestamp is the only tell. To force
+    A run where every env is already current never opens any env's
+    section, so no file is touched. After a clean run each env's file on
+    disk is the transcript of the last install that rebuilt **that env**,
+    and its header timestamp is the tell. To force
     a fresh one, delete an env's `install.hash` -- which is what the skip
     message itself tells you to do.
 
