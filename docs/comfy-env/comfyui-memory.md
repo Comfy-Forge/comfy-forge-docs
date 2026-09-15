@@ -52,8 +52,8 @@ Same RAM, same speed, different fate under pressure.
 | # | Place | What it is | Getting a weight back from here costs |
 |---|---|---|---|
 | 1 | **VRAM** | GPU memory | nothing. It is already there |
-| 2 | **Pinned RAM** | host RAM the OS has promised not to move | the RAM to VRAM transfer, and nothing else |
-| 3a | **Pageable RAM, anonymous** | ordinary host RAM, holding bytes that exist nowhere else | a copy into the GPU driver's own pinned buffer, then the transfer |
+| 2 | **Pinned RAM** | host RAM the OS has promised not to move | the RAM to VRAM transfer, and nothing else: 25 GB/s on a PCIe 4.0 x16 RTX 3090, and the call returns before the copy finishes |
+| 3a | **Pageable RAM, anonymous** | ordinary host RAM, holding bytes that exist nowhere else | a copy into the GPU driver's own pinned buffer, then the transfer: 12 GB/s on the same card, a flat 2x at every size from 64 MiB to 4 GiB, and the call blocks for the whole copy (measured 2026-09-15, `research/memory-floor/pinned_vs_pageable.md` in comfy-env) |
 | 3b | **Pageable RAM, file backed** | ordinary host RAM, holding a clean copy of bytes the disk also has | exactly the same as 3a |
 | 4a | **Compressed** | 3a, squashed rather than written out. Still RAM, unreadable until decompressed | decompressing, then everything 3a/3b costs |
 | 4b | **Swap** | 3a, written out to a disk | reading it back off disk, then everything 3a costs |
@@ -77,7 +77,8 @@ Compressed, swap and the file are where it can **end up**.
 Pinned RAM is the one place in this table with a budget, because pages the
 kernel cannot move are pages the rest of the machine cannot have.
 
-ComfyUI lets the OS manage pageable RAM and instead only manages VRAM. That is a stated position, not an omission: asked about RAM overcommit in [Comfy-Org/ComfyUI#8298](https://github.com/Comfy-Org/ComfyUI/issues/8298), comfyanonymous answered *"The model_management code only deals with vram not ram."* The symptoms users report against it are [#3257](https://github.com/Comfy-Org/ComfyUI/issues/3257) (models stay in RAM after leaving VRAM, `/free` does not touch them), [#12332](https://github.com/Comfy-Org/ComfyUI/issues/12332) (RAM and swap filled until the process is killed) and [#2292](https://github.com/Comfy-Org/ComfyUI/issues/2292) (the OOM killer). What ComfyUI does budget on the RAM side is pinned pages and the results cache, below.
+ComfyUI lets the OS manage pageable RAM and instead only manages VRAM.
+That is a stated position, not an omission: [Comfy-Org/ComfyUI#8298](https://github.com/Comfy-Org/ComfyUI/issues/8298).
 
 ## The six kinds
 
