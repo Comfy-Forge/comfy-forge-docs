@@ -10,6 +10,31 @@ The shape of the surface and comfy-env's relationship to every symbol on it
 is [ComfyUI's memory API](comfyui-memory-api-inventory.md); this page is
 the detail for the handful of functions that carry the memory decisions.
 
+## Two words first: `ModelPatcher` and `LoadedModel` { #modelpatcher }
+
+A **`ModelPatcher`** (`comfy/model_patcher.py`) is ComfyUI's wrapper around
+a torch model. It holds the raw `nn.Module`, the device the model runs on
+(`load_device`) and the one it is parked on when evicted
+(`offload_device`), the list of weight patches to apply (LoRAs, applied to
+the weights on the fly or baked in), and the methods the memory manager
+calls: how big it is (`model_size`), how much of it is on the card
+(`loaded_size`), load some of it (`partially_load`), move some of it back
+(`partially_unload`), take it off the card (`detach`), make a second
+handle to the same weights (`clone`). Every model a node hands around, the
+`MODEL` output of a checkpoint loader, the model inside a `CLIP` or a
+`VAE`, a controlnet, is a `ModelPatcher`. Under the pager it is the
+subclass `ModelPatcherDynamic`, which answers `is_dynamic()` True and
+loads page by page.
+
+A **`LoadedModel`** (`comfy/model_management.py`) is the ledger entry:
+what `current_loaded_models` actually holds. It wraps one `ModelPatcher`
+through a weak reference, remembers which device it was loaded to, carries
+the `currently_used` flag, and turns the memory manager's questions into
+calls on the patcher (`model_memory`, `model_loaded_memory`,
+`model_offloaded_memory`, `model_load`, `model_unload`). comfy-env's
+stand-in model is a duck typed `ModelPatcher` wrapped in a real
+`LoadedModel`.
+
 ## `load_models_gpu` { #load_models_gpu }
 
 ```python
@@ -21,7 +46,7 @@ What every loader node and every sampler calls to make models resident.
 
 | Parameter | Meaning |
 |---|---|
-| `models` | the `ModelPatcher`s to load; each model's `model_patches_models()` (controlnets, hooks) is added, order preserved, duplicates dropped |
+| `models` | the [`ModelPatcher`s](#modelpatcher) to make resident. Each one's `model_patches_models()`, the extra models its patches need alongside it (a controlnet, hook models), is added to the list; order is preserved and duplicates dropped |
 | `memory_required` | bytes of working memory the caller expects to need on top of the weights, usually the model's own activation estimate |
 | `force_patch_weights` | apply LoRA patches to the weights in place rather than on the fly |
 | `minimum_memory_required` | a smaller floor to retry against if the full request cannot be met; defaults to the full request |
