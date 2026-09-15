@@ -67,6 +67,20 @@ In order:
 
 Returns nothing. The paged path ignores the budget from step 8 and decides residency page by page at fault time.
 
+## `get_free_memory` { #get_free_memory }
+
+```python
+def get_free_memory(dev=None, torch_free_too=False)
+```
+
+"How much room is left" on `dev` (the torch device by default). Returns bytes, or `(total, torch_cache)` when `torch_free_too` is set.
+
+On CUDA it is `torch.cuda.mem_get_info(dev)` free plus `reserved - active` from torch's allocator stats: the driver's free figure plus the blocks torch has freed but kept. The second term is counted as free and is not reliably returnable, since it may be fragmented. The driver's figure is device wide on Linux and the calling process's own budget on Windows WDDM ([why Windows needs its own branch](windows-blind-spot.md)).
+
+Other backends answer differently: CPU and MPS return machine available RAM; DirectML returns a constant 1 GiB (marked `TODO`); XPU computes `total - reserved` from torch's stats, process local by construction; NPU and MLU mirror the CUDA form.
+
+Called on every load (admission and every shortfall recomputation), by the samplers and the VAE to size batches, and by `/system_stats`. There is a second function of the same name, `ModelPatcher.get_free_memory`, which adds what the pager could reclaim on demand.
+
 ## `free_memory` { #free_memory }
 
 ```python
@@ -97,20 +111,6 @@ In order:
 Returns the list of unloaded `LoadedModel`s. It never frees anything but listed models and torch's own cache: cached node outputs holding VRAM, cast buffers, CUDA graph pools and allocations outside torch are untouched.
 
 Callers: `load_models_gpu` (steps 6 and 7 above), `unload_all_models` (`1e30`, every device), `unload_model_and_clones` (`1e30` with a `keep_loaded` list), and comfy-env's budget round trip on a worker's behalf, with two positionals and `for_dynamic` left `False`.
-
-## `get_free_memory` { #get_free_memory }
-
-```python
-def get_free_memory(dev=None, torch_free_too=False)
-```
-
-"How much room is left" on `dev` (the torch device by default). Returns bytes, or `(total, torch_cache)` when `torch_free_too` is set.
-
-On CUDA it is `torch.cuda.mem_get_info(dev)` free plus `reserved - active` from torch's allocator stats: the driver's free figure plus the blocks torch has freed but kept. The second term is counted as free and is not reliably returnable, since it may be fragmented. The driver's figure is device wide on Linux and the calling process's own budget on Windows WDDM ([why Windows needs its own branch](windows-blind-spot.md)).
-
-Other backends answer differently: CPU and MPS return machine available RAM; DirectML returns a constant 1 GiB (marked `TODO`); XPU computes `total - reserved` from torch's stats, process local by construction; NPU and MLU mirror the CUDA form.
-
-Called on every load (admission and every shortfall recomputation), by the samplers and the VAE to size batches, and by `/system_stats`. There is a second function of the same name, `ModelPatcher.get_free_memory`, which adds what the pager could reclaim on demand.
 
 ## `get_total_memory` { #get_total_memory }
 
